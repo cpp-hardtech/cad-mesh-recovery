@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ctest drivers for stl2step --mesh mode (U3a-2 fixtures lane).
+"""ctest drivers for cad_mesh_recovery --mesh mode (U3a-2 fixtures lane).
 
 Exercises mesh_step_smoke, mesh_edges_seam, and mesh_fail_closed via --test.
 """

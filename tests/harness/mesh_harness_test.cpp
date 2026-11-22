@@ -9,8 +9,8 @@
 #include <cstdlib>
 #include <string>
 
-using stl2step::harness::HarnessMesh;
-using stl2step::harness::loadMesh;
+using cad_mesh_recovery::harness::HarnessMesh;
+using cad_mesh_recovery::harness::loadMesh;
 
 static int gFails = 0;
 
@@ -21,7 +21,7 @@ static void check(bool cond, const char* msg) {
     }
 }
 
-static void checkLocalIds(const stl2step::harness::HarnessComponent& c,
+static void checkLocalIds(const cad_mesh_recovery::harness::HarnessComponent& c,
                           const char* label) {
     const int nVtx = (int)c.compVtx.size();
     const int nEdge = (int)c.compEdges.size();

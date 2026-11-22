@@ -2,7 +2,7 @@
 """fillet_exclusion_e0 — D3-9 excluded set E, test-side over regiondump JSON.
 
 E is not in product code. This gate evaluates the D3-9 predicate over
-`stl2step_regiondump` JSON (stderr `--diag` is the human summary; the JSON
+`cad_mesh_recovery_regiondump` JSON (stderr `--diag` is the human summary; the JSON
 is the datum). Exclusion is computed BEFORE any prismaticity condition.
 
 Hard-green on handle-lock: seed (torus/sphere fit + island seed) is empty,
@@ -16,7 +16,7 @@ measured 66; this tree ships whatever it measures.
 Usage:
   fillet_exclusion_e0.py --self-test
   fillet_exclusion_e0.py --synthetic-pass
-  fillet_exclusion_e0.py --binary ./build/stl2step --dump ./build/stl2step_regiondump
+  fillet_exclusion_e0.py --binary ./build/cad_mesh_recovery --dump ./build/cad_mesh_recovery_regiondump
 """
 
 from __future__ import annotations
@@ -122,7 +122,7 @@ def parse_result_line(stdout: str) -> Dict[str, Any]:
             return json.loads(line[len("RESULT ") :])
         if line.startswith("RESULT{"):
             return json.loads(line[len("RESULT") :])
-    raise GateError("no RESULT line in stl2step stdout")
+    raise GateError("no RESULT line in cad_mesh_recovery stdout")
 
 
 def parse_diag_kv(line: str) -> Optional[Tuple[str, Dict[str, str]]]:
@@ -787,7 +787,7 @@ def run_trueform_prism(binary: Path, stl: Path, step: Path) -> Tuple[Dict[str, A
         "0",
     ]
     environ = os.environ.copy()
-    environ["STL2STEP_PRISM_DIAG"] = "1"
+    environ["CAD_MESH_RECOVERY_PRISM_DIAG"] = "1"
     proc = subprocess.run(cmd, capture_output=True, text=True, env=environ)
     result = parse_result_line(proc.stdout)
     return result, proc.stderr
@@ -806,9 +806,9 @@ def run_live(
     strict: Optional[bool] = None,
 ) -> int:
     if not binary.is_file():
-        raise GateError(f"stl2step binary missing: {binary}")
+        raise GateError(f"cad_mesh_recovery binary missing: {binary}")
     if not dump.is_file():
-        raise GateError(f"stl2step_regiondump missing: {dump}")
+        raise GateError(f"cad_mesh_recovery_regiondump missing: {dump}")
     for p, name in ((pickup_stl, "handle-pickup"), (hl_stl, "handle-lock")):
         if not p.is_file():
             raise GateError(f"{name} STL missing: {p}")
@@ -1224,7 +1224,7 @@ def _self_test() -> int:
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--binary", type=Path)
-    p.add_argument("--dump", type=Path, help="stl2step_regiondump")
+    p.add_argument("--dump", type=Path, help="cad_mesh_recovery_regiondump")
     p.add_argument("--pickup-stl", type=Path, default=PICKUP_STL)
     p.add_argument("--handle-lock-stl", type=Path, default=HL_STL)
     p.add_argument("--s13-stl", type=Path, default=S13_STL)

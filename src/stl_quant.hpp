@@ -1,4 +1,4 @@
-// stl2step — the mesh file's own coordinate quantization (D-130-12).
+// cad_mesh_recovery — the mesh file's own coordinate quantization (D-130-12).
 //
 // The absorb's admission certificate may not be a part-scale budget and may not
 // be a statistic of some other population: it is the resolution of the number
@@ -12,12 +12,12 @@
 //
 // SPDX-License-Identifier: MIT
 
-#ifndef STL2STEP_STL_QUANT_HPP
-#define STL2STEP_STL_QUANT_HPP
+#ifndef CAD_MESH_RECOVERY_STL_QUANT_HPP
+#define CAD_MESH_RECOVERY_STL_QUANT_HPP
 
 #include <string>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 
 // The measurement, all of it, so a caller can print what it used.
 struct StlQuantFloor {
@@ -35,6 +35,6 @@ struct StlQuantFloor {
 // max(bandResid, 0) == bandResid, i.e. the band's own residual and nothing more.
 StlQuantFloor stlQuantFloor(const std::string& path);
 
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery
 
-#endif  // STL2STEP_STL_QUANT_HPP
+#endif  // CAD_MESH_RECOVERY_STL_QUANT_HPP

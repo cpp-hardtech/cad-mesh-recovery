@@ -1,15 +1,15 @@
 // Chord volume of a mesh band on a surface of revolution (D-fc-5.7 O-3).
 // SPDX-License-Identifier: MIT
 
-#ifndef STL2STEP_REFIT_BAND_VOLUME_HPP
-#define STL2STEP_REFIT_BAND_VOLUME_HPP
+#ifndef CAD_MESH_RECOVERY_REFIT_BAND_VOLUME_HPP
+#define CAD_MESH_RECOVERY_REFIT_BAND_VOLUME_HPP
 
 #include <gp_XYZ.hxx>
 
 #include <algorithm>
 #include <cmath>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 
 // The volume between a band of planar mesh triangles and the surface of
@@ -420,6 +420,6 @@ inline double torusRimTerm(const gp_XYZ& pi, const gp_XYZ& pj, const gp_XYZ& ori
 }
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery
 
-#endif  // STL2STEP_REFIT_BAND_VOLUME_HPP
+#endif  // CAD_MESH_RECOVERY_REFIT_BAND_VOLUME_HPP

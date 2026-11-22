@@ -18,19 +18,19 @@
 #include <gp_Pnt.hxx>
 #include <gp_XYZ.hxx>
 
-using stl2step::harness::HarnessMesh;
-using stl2step::harness::loadMesh;
-using stl2step::harness::toMeshView;
-using stl2step::refit::MeshView;
-using stl2step::refit::PrismLevels;
-using stl2step::refit::PrismTols;
-using stl2step::refit::Region;
-using stl2step::refit::RegionSet;
-using stl2step::refit::SegmentParams;
-using stl2step::refit::SurfType;
-using stl2step::refit::detectPrismatic;
+using cad_mesh_recovery::harness::HarnessMesh;
+using cad_mesh_recovery::harness::loadMesh;
+using cad_mesh_recovery::harness::toMeshView;
+using cad_mesh_recovery::refit::MeshView;
+using cad_mesh_recovery::refit::PrismLevels;
+using cad_mesh_recovery::refit::PrismTols;
+using cad_mesh_recovery::refit::Region;
+using cad_mesh_recovery::refit::RegionSet;
+using cad_mesh_recovery::refit::SegmentParams;
+using cad_mesh_recovery::refit::SurfType;
+using cad_mesh_recovery::refit::detectPrismatic;
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 void derivePrismTols(const MeshView& mv, const RegionSet& rs, PrismTols& t);
 }
@@ -88,7 +88,7 @@ static bool runSegment(const char* stl, HarnessMesh& mesh, MeshView& mv, RegionS
     rs = RegionSet{};
     rs.compRoot = 0;
     SegmentParams p;
-    const bool ok = stl2step::refit::segment(mv, p, rs, nullptr);
+    const bool ok = cad_mesh_recovery::refit::segment(mv, p, rs, nullptr);
     rs.compRoot = 0;
     return ok;
 }
@@ -100,7 +100,7 @@ static void testTolsSelfComputed() {
     RegionSet rs;
     rs.regions.push_back(mkCyl(0, gp_Dir(0, 1, 0), gp_Pnt(0, 0, 0), 0.0, 2.825, 1.0));
     PrismTols t;
-    stl2step::refit::derivePrismTols(mv, rs, t);
+    cad_mesh_recovery::refit::derivePrismTols(mv, rs, t);
     std::fprintf(stderr, "A10 tauSurf=%.6e tauAx=%.6e (diag=%.6f hMin=%.6f)\n",
                  t.tauSurf, t.tauAx, mv.diag, 2.825);
     check(near(t.tauSurf, 7.820e-5, 5e-8), "A10 tauSurf ~ 7.820e-5");
@@ -110,7 +110,7 @@ static void testTolsSelfComputed() {
     MeshView mv2 = mv;
     mv2.diag = mv.diag * 2.0;
     PrismTols t2;
-    stl2step::refit::derivePrismTols(mv2, rs, t2);
+    cad_mesh_recovery::refit::derivePrismTols(mv2, rs, t2);
     check(t2.tauSurf > t.tauSurf && t2.tauAx > t.tauAx, "A10 changing mv.diag changes tols");
 }
 
@@ -129,7 +129,7 @@ static void testSyntheticDeclines() {
     rs3.regions.push_back(mkPlane(3, gp_Dir(0, 0, 1), gp_Pnt(0, 0, 10)));
     rs3.regions.push_back(mkPlane(4, gp_Dir(0, 1, 1), gp_Pnt(0, 0, 8)));
     PrismTols t3;
-    stl2step::refit::derivePrismTols(mv, rs3, t3);
+    cad_mesh_recovery::refit::derivePrismTols(mv, rs3, t3);
     const PrismLevels lv3 = detectPrismatic(mv, rs3, t3);
     std::fprintf(stderr, "A9-oblique ok=%d failedCond=%d\n", lv3.ok ? 1 : 0, lv3.failedCond);
     check(!lv3.ok && lv3.failedCond == 3, "A9 synthetic oblique declines at cond 3");
@@ -142,7 +142,7 @@ static void testSyntheticDeclines() {
     rs5.regions.push_back(mkPlane(2, gp_Dir(0, 0, -1), gp_Pnt(0, 0, 0)));
     rs5.regions.push_back(mkPlane(3, gp_Dir(0, 0, 1), gp_Pnt(0, 0, 10)));
     PrismTols t5;
-    stl2step::refit::derivePrismTols(mv, rs5, t5);
+    cad_mesh_recovery::refit::derivePrismTols(mv, rs5, t5);
     const PrismLevels lv5 = detectPrismatic(mv, rs5, t5);
     std::fprintf(stderr, "A9-float ok=%d failedCond=%d\n", lv5.ok ? 1 : 0, lv5.failedCond);
     check(!lv5.ok && lv5.failedCond == 5, "A9 synthetic float declines at cond 5");
@@ -162,7 +162,7 @@ static void testHandleLock(const char* stl) {
                  mv.nTri, mv.diag, mv.weldTol, rs.regions.size());
 
     PrismTols t;
-    stl2step::refit::derivePrismTols(mv, rs, t);
+    cad_mesh_recovery::refit::derivePrismTols(mv, rs, t);
     std::fprintf(stderr, "A10-live tauSurf=%.6e tauAx=%.6e tauLvl=%.6e\n",
                  t.tauSurf, t.tauAx, t.tauLvl);
     check(near(t.tauSurf, 7.820e-5, 2e-7), "A10 live tauSurf from mesh diag");
@@ -327,7 +327,7 @@ static void testBody11(const char* stl) {
               mv.nTri > 10000,
           "A8 Body11 is the 15300-tri class");
     PrismTols t;
-    stl2step::refit::derivePrismTols(mv, rs, t);
+    cad_mesh_recovery::refit::derivePrismTols(mv, rs, t);
     const PrismLevels lv = detectPrismatic(mv, rs, t);
     std::fprintf(stderr, "A8 Body11 ok=%d failedCond=%d\n", lv.ok ? 1 : 0, lv.failedCond);
     check(!lv.ok && lv.failedCond >= 1 && lv.failedCond <= 6, "A8 Body11 declines with failedCond");
@@ -347,7 +347,7 @@ static void testNegStl(const char* stl) {
         }
     }
     PrismTols t;
-    stl2step::refit::derivePrismTols(mv, rs, t);
+    cad_mesh_recovery::refit::derivePrismTols(mv, rs, t);
     const PrismLevels lv = detectPrismatic(mv, rs, t);
     std::fprintf(stderr, "A9 fixture ok=%d failedCond=%d nTri=%zu nCyl_reg=%zu\n",
                  lv.ok ? 1 : 0, lv.failedCond, mv.nTri, rs.regions.size());

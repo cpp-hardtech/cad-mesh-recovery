@@ -3,8 +3,8 @@
 // OCCT's exact curve-on-surface maximum, the bound is the caller's mesh cap.
 // SPDX-License-Identifier: MIT
 
-#ifndef STL2STEP_REFIT_EDGE_BOUND_HPP
-#define STL2STEP_REFIT_EDGE_BOUND_HPP
+#ifndef CAD_MESH_RECOVERY_REFIT_EDGE_BOUND_HPP
+#define CAD_MESH_RECOVERY_REFIT_EDGE_BOUND_HPP
 
 #include <algorithm>
 #include <vector>
@@ -25,7 +25,7 @@
 #include <Precision.hxx>
 #include <Standard_Failure.hxx>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 
 // The exact maximum of |C(t) - S(pc(t))| over the edge's range on face f, plus
@@ -164,6 +164,6 @@ inline double exactEdgeDeviationOnFaces(const TopoDS_Edge& e, const TopTools_Lis
 }
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery
 
-#endif  // STL2STEP_REFIT_EDGE_BOUND_HPP
+#endif  // CAD_MESH_RECOVERY_REFIT_EDGE_BOUND_HPP

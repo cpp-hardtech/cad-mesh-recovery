@@ -30,7 +30,7 @@ Do not lower FLOOR_*.
 Usage:
   partial_recovery_gate.py --self-test
   partial_recovery_gate.py --synthetic-pass
-  partial_recovery_gate.py --binary ./build/stl2step [--jobs 4]
+  partial_recovery_gate.py --binary ./build/cad_mesh_recovery [--jobs 4]
 """
 
 from __future__ import annotations
@@ -63,7 +63,7 @@ TEAM_PICKUP_STL = REPO / "_team" / "inputs" / "Handle pickup.stl"
 TEAM_PICKUP_GT = REPO / "_team" / "inputs" / "ground-truth.json"
 
 ENV_STRICT = "PARTIAL_RECOVERY_STRICT"
-ENV_PRIVATE = "STL2STEP_PRIVATE_CORPUS"
+ENV_PRIVATE = "CAD_MESH_RECOVERY_PRIVATE_CORPUS"
 
 # D3F-4/5/6 — Handle-pickup floors. combined = 18+30; charter >=100 STRUCK.
 FLOOR_PLANES = 18
@@ -272,7 +272,7 @@ def parse_result_line(stdout: str) -> Dict[str, Any]:
             return json.loads(line[len("RESULT ") :])
         if line.startswith("RESULT{"):
             return json.loads(line[len("RESULT") :])
-    raise GateError("no RESULT line in stl2step stdout")
+    raise GateError("no RESULT line in cad_mesh_recovery stdout")
 
 
 def parse_j6_free_edges(
@@ -1277,7 +1277,7 @@ def run_live(
     ratchet_path: Optional[Path] = None,
 ) -> int:
     if not binary.is_file():
-        raise GateError(f"stl2step binary missing: {binary}")
+        raise GateError(f"cad_mesh_recovery binary missing: {binary}")
     pickup = resolve_pickup_stl(pickup_stl)
     gt_radii, gt_src = load_pickup_gt_radii(gt_path)
     gt_radii_all, gt_all_src = load_pickup_gt_radii_all(gt_path)
@@ -1999,7 +1999,7 @@ def _self_test() -> int:
 
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    p.add_argument("--binary", type=Path, help="stl2step CLI (required unless --self-test/--synthetic-pass)")
+    p.add_argument("--binary", type=Path, help="cad_mesh_recovery CLI (required unless --self-test/--synthetic-pass)")
     p.add_argument("--pickup-stl", type=Path, help="Override handle-pickup STL")
     p.add_argument("--handle-lock-stl", type=Path, default=HL_STL)
     p.add_argument("--body11-stl", type=Path, default=BODY11_STL)

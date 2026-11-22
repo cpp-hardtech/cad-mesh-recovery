@@ -1,10 +1,10 @@
-// stl2step_census — independent STEP reader / witness.
+// cad_mesh_recovery_census — independent STEP reader / witness.
 //
 // Prints one JSON object describing the B-Rep actually stored in a STEP file:
 // per-face surface types, per-cylinder radius/axis/U-span, edge curves and
 // pcurves, BRepCheck validity, closedness, volume, continuity, tolerances.
 //
-// This translation unit includes NO stl2step headers and calls no engine
+// This translation unit includes NO cad_mesh_recovery headers and calls no engine
 // function. It reads with STEPControl_Reader. A witness that shares the
 // defendant's code is worthless.
 //
@@ -569,10 +569,10 @@ std::string toJson(const Result& r) {
 
 }  // namespace step_census
 
-#ifndef STL2STEP_CENSUS_NO_MAIN
+#ifndef CAD_MESH_RECOVERY_CENSUS_NO_MAIN
 int main(int argc, char** argv) {
     if (argc != 2 || std::strcmp(argv[1], "-h") == 0 || std::strcmp(argv[1], "--help") == 0) {
-        std::fprintf(stderr, "usage: stl2step_census <file.step>\n");
+        std::fprintf(stderr, "usage: cad_mesh_recovery_census <file.step>\n");
         return argc == 2 ? 0 : 1;
     }
     const step_census::Result r = step_census::censusFile(argv[1]);

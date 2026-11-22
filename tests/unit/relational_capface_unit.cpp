@@ -21,7 +21,7 @@
 #include <gp_Ax2.hxx>
 #include <gp_Ax3.hxx>
 
-using namespace stl2step::refit;
+using namespace cad_mesh_recovery::refit;
 
 static int gFail = 0;
 

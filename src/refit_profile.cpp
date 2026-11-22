@@ -22,7 +22,7 @@
 #include <gp_Pnt.hxx>
 #include <gp_XYZ.hxx>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 namespace {
 
@@ -60,12 +60,12 @@ std::mutex& cacheMu() {
 }
 
 bool prismDiagOn() {
-    const char* e = std::getenv("STL2STEP_PRISM_DIAG");
+    const char* e = std::getenv("CAD_MESH_RECOVERY_PRISM_DIAG");
     return e && e[0] == '1' && e[1] == '\0';
 }
 
 bool assistOn() {
-    const char* e = std::getenv("STL2STEP_PRISM_ASSIST");
+    const char* e = std::getenv("CAD_MESH_RECOVERY_PRISM_ASSIST");
     return e && e[0] != '\0' && std::strcmp(e, "0") != 0;
 }
 
@@ -356,7 +356,7 @@ std::string chainSha(const std::vector<gp_Pnt2d>& pts, size_t i0, size_t i1) {
 }
 
 std::string advisoryDir() {
-    const char* e = std::getenv("STL2STEP_PRISM_ADVISORY_DIR");
+    const char* e = std::getenv("CAD_MESH_RECOVERY_PRISM_ADVISORY_DIR");
     if (e && e[0] != '\0') return std::string(e);
     return "tests/fixtures/prism-advisories";
 }
@@ -1283,4 +1283,4 @@ bool fitProfile(const MeshView& mv, const PrismTols& t, Profile& p, int& nDeclin
 }
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery

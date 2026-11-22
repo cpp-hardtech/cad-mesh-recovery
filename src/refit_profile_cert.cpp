@@ -10,7 +10,7 @@
 
 #include <gp.hxx>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 
 constexpr double kPi = 3.14159265358979323846264338327950288;
@@ -184,4 +184,4 @@ TorusCert certifyTorus(const std::vector<ProfPt>& P, double tau) {
     return c;
 }
 
-}}  // namespace stl2step::refit
+}}  // namespace cad_mesh_recovery::refit

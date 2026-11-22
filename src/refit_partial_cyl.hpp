@@ -3,13 +3,13 @@
 // apart. The shift that pulls the edge onto the chart is exact (one period).
 // SPDX-License-Identifier: MIT
 
-#ifndef STL2STEP_REFIT_PARTIAL_CYL_HPP
-#define STL2STEP_REFIT_PARTIAL_CYL_HPP
+#ifndef CAD_MESH_RECOVERY_REFIT_PARTIAL_CYL_HPP
+#define CAD_MESH_RECOVERY_REFIT_PARTIAL_CYL_HPP
 
 #include <algorithm>
 #include <cmath>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 
 // Whole-period shift (added to u) that pulls a pcurve midpoint onto the
@@ -56,6 +56,6 @@ inline double chartBranchShift(double uMid, double u0, double u1) {
 }
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery
 
 #endif

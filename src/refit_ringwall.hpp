@@ -4,8 +4,8 @@
 // No new threshold. tau is the caller's tauOf (2q). The corner count is
 // minStations(kParamsCircle), passed in. SPDX-License-Identifier: MIT
 
-#ifndef STL2STEP_REFIT_RINGWALL_HPP
-#define STL2STEP_REFIT_RINGWALL_HPP
+#ifndef CAD_MESH_RECOVERY_REFIT_RINGWALL_HPP
+#define CAD_MESH_RECOVERY_REFIT_RINGWALL_HPP
 
 #include <gp_Circ.hxx>
 #include <gp_XYZ.hxx>
@@ -14,7 +14,7 @@
 #include <cmath>
 #include <vector>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 
 // Perpendicular distance from P to the infinite line through A and B.
@@ -239,6 +239,6 @@ inline double profileLineDist(const ProfileLine& L, double rho, double z) {
 }
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery
 
 #endif

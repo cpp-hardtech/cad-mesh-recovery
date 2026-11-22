@@ -1,4 +1,4 @@
-// stl2step ELLIPSE BIND site — the certified `ellipse-on-plane` and
+// cad_mesh_recovery ELLIPSE BIND site — the certified `ellipse-on-plane` and
 // `ellipse-on-cylinder[-bound]` edge classes.  Lane `ellipse-bind`, D-140-9 §3,
 // SPEC-ellipse PART B.2.  The `refit_cone_bind.hpp` pattern, verbatim.
 //
@@ -23,8 +23,8 @@
 //
 // SPDX-License-Identifier: MIT
 
-#ifndef STL2STEP_REFIT_ELLIPSE_BIND_HPP
-#define STL2STEP_REFIT_ELLIPSE_BIND_HPP
+#ifndef CAD_MESH_RECOVERY_REFIT_ELLIPSE_BIND_HPP
+#define CAD_MESH_RECOVERY_REFIT_ELLIPSE_BIND_HPP
 
 #include <Geom2d_Curve.hxx>
 #include <Geom_Curve.hxx>
@@ -32,7 +32,7 @@
 #include <Standard_Handle.hxx>
 #include <TopLoc_Location.hxx>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 
 // ELLIPSE on a PLANE.  Certificate, all decidable from the curve, the pcurve and
@@ -80,6 +80,6 @@ double ellipseBindSupOnCyl(const Handle(Geom_Curve)& c3, double f, double l,
                            const TopLoc_Location& loc, const char** clsOut);
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery
 
-#endif  // STL2STEP_REFIT_ELLIPSE_BIND_HPP
+#endif  // CAD_MESH_RECOVERY_REFIT_ELLIPSE_BIND_HPP

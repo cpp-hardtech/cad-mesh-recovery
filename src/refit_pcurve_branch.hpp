@@ -14,8 +14,8 @@
 //
 // SPDX-License-Identifier: MIT
 
-#ifndef STL2STEP_REFIT_PCURVE_BRANCH_HPP
-#define STL2STEP_REFIT_PCURVE_BRANCH_HPP
+#ifndef CAD_MESH_RECOVERY_REFIT_PCURVE_BRANCH_HPP
+#define CAD_MESH_RECOVERY_REFIT_PCURVE_BRANCH_HPP
 
 #include <Geom2d_Curve.hxx>
 #include <GeomProjLib.hxx>
@@ -29,7 +29,7 @@
 
 #include "refit_partial_cyl.hpp"
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 
 // The region chart [uMin, uMax] (uMax < uMin means it wraps once) in the frame
@@ -108,6 +108,6 @@ inline Handle(Geom2d_Curve) projectOnChartBranch(const Handle(Geom_Curve)& c3, S
 }
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery
 
 #endif

@@ -39,7 +39,7 @@ int close(int);
 #define rr_close close
 #endif
 
-using namespace stl2step::refit;
+using namespace cad_mesh_recovery::refit;
 
 static int gFail = 0;
 
@@ -219,7 +219,7 @@ struct Grab {
     int saved = -1;
     bool on = false;
     Grab() {
-        ::setenv("STL2STEP_DIAG_REL", "1", 1);
+        ::setenv("CAD_MESH_RECOVERY_DIAG_REL", "1", 1);
         saved = rr_dup(rr_fileno(stderr));
         FILE* f = std::fopen("rel-revolve-diag.txt", "w");
         if (!f) return;

@@ -37,7 +37,7 @@
 #include <gp_XYZ.hxx>
 #include <Standard_Failure.hxx>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 namespace {
 
@@ -45,7 +45,7 @@ constexpr double kPi = 3.14159265358979323846264338327950288;
 constexpr double kTwoPi = 2.0 * kPi;
 
 bool diagOn() {
-    const char* e = std::getenv("STL2STEP_DIAG_REL");
+    const char* e = std::getenv("CAD_MESH_RECOVERY_DIAG_REL");
     return e && e[0] && e[0] != '0';
 }
 
@@ -4993,7 +4993,7 @@ bool dVolExactOfRegion(const MeshView& mv, const Region& r, double& out,
     // D-gid-7.15 (OPEN-2 of gy-dvolpred): dVolPredicted = sigma * |exact|. I9
     // (and the I-checker that enforces it) signs dVolPredicted by sigma; every
     // budget reads |dVolPredicted|, which is exact either way; the signed truth
-    // is printed as DIAG_DVOL_EXACT physical= (STL2STEP_DIAG_CLASSB=1).
+    // is printed as DIAG_DVOL_EXACT physical= (CAD_MESH_RECOVERY_DIAG_CLASSB=1).
     if (physicalOut) *physicalOut = sigma * vol;
     out = sigma * std::fabs(vol);
     if (!std::isfinite(out)) return false;
@@ -5001,4 +5001,4 @@ bool dVolExactOfRegion(const MeshView& mv, const Region& r, double& out,
 }
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery

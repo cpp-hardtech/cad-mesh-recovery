@@ -14,7 +14,7 @@
 #include <utility>
 #include <vector>
 
-using namespace stl2step::refit;
+using namespace cad_mesh_recovery::refit;
 
 static int gFail = 0;
 static constexpr double kPi = 3.14159265358979323846264338327950288;

@@ -1,4 +1,4 @@
-// stl2step P1 stage D — boundary chains, I8 split, loops, ids, stats.
+// cad_mesh_recovery P1 stage D — boundary chains, I8 split, loops, ids, stats.
 // Include allowlist: D5.3 (gp_ value types + listed std headers only).
 //
 // SPDX-License-Identifier: MIT
@@ -22,7 +22,7 @@
 #include <gp_Vec.hxx>
 #include <gp_XYZ.hxx>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 namespace {
 
@@ -51,7 +51,7 @@ inline bool partLess(Part a, Part b) {
 bool unionDiagOn() {
     static int cached = -1;
     if (cached < 0) {
-        const char* v = std::getenv("STL2STEP_LAWBAND_DIAG");
+        const char* v = std::getenv("CAD_MESH_RECOVERY_LAWBAND_DIAG");
         cached = (v && v[0] && v[0] != '0') ? 1 : 0;
     }
     return cached != 0;
@@ -524,7 +524,7 @@ static bool buildTopologyDDrop(const MeshView& mv, const SegmentParams& p, const
     {
         const double lateralSin = std::sin(tol.thetaSharp);
         const bool f1Diag = [] {
-            const char* v = std::getenv("STL2STEP_COLLAPSE_DIAG");
+            const char* v = std::getenv("CAD_MESH_RECOVERY_COLLAPSE_DIAG");
             return v && v[0] && v[0] != '0';
         }();
         const double tau = (mv.quantFloor > 0.0) ? 2.0 * mv.quantFloor : 0.0;
@@ -1149,7 +1149,7 @@ static bool buildTopologyDDrop(const MeshView& mv, const SegmentParams& p, const
     };
 
     auto diagTopoFail = [&](const Region& reg, const char* why) {
-        const char* d = std::getenv("STL2STEP_DIAG_130");
+        const char* d = std::getenv("CAD_MESH_RECOVERY_DIAG_130");
         if (!d || !d[0] || d[0] == '0') return;
         if (reg.type != SurfType::Torus || reg.origin != Origin::TorusBlend) return;
         std::fprintf(stderr,
@@ -1293,7 +1293,7 @@ static bool buildTopologyDDrop(const MeshView& mv, const SegmentParams& p, const
                 ++nCh;
                 if (out.chains[ci].closedLoop) ++nClosed;
             }
-            const char* d = std::getenv("STL2STEP_DIAG_130");
+            const char* d = std::getenv("CAD_MESH_RECOVERY_DIAG_130");
             if (d && d[0] && d[0] != '0' && reg.type == SurfType::Torus &&
                 reg.origin == Origin::TorusBlend)
                 std::fprintf(stderr,
@@ -1523,7 +1523,7 @@ static bool buildTopologyDDrop(const MeshView& mv, const SegmentParams& p, const
     // inside segment(); the committed region carries the exact chord volume over
     // its own triangles, which is what every budget after segment() reads.
     {
-        const char* dv = std::getenv("STL2STEP_DIAG_CLASSB");
+        const char* dv = std::getenv("CAD_MESH_RECOVERY_DIAG_CLASSB");
         const bool diagDv = dv && dv[0] && dv[0] != '0';
         for (Region& r : out.regions) {
             double exact = 0.0, physical = 0.0;
@@ -1660,7 +1660,7 @@ bool buildTopologyD(const MeshView& mv, const SegmentParams& p, const DerivedTol
     out = RegionSet{};
     out.compRoot = root;
 
-    const char* diag = std::getenv("STL2STEP_DIAG_130");
+    const char* diag = std::getenv("CAD_MESH_RECOVERY_DIAG_130");
     const bool topoDiag = diag && diag[0] && diag[0] != '0';
     const auto t0 = std::chrono::steady_clock::now();
 
@@ -1704,4 +1704,4 @@ bool buildTopologyD(const MeshView& mv, const SegmentParams& p, const DerivedTol
 }
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery

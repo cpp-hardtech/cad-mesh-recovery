@@ -1,6 +1,6 @@
 # build_fixtures — P2 adversary RegionSet fixtures
 
-Hand-authored `RegionSet` JSON + reference STL meshes + `*.expected.json` ground truth for the P2 `buildFaces` gate. **Data only** — no C++ target. `p2-harness` loads each `<name>/<name>.stl` via `stl2step::harness::loadMesh()` and pairs it with `<name>.regionset.json`. Every mesh is **one manifold component**; JSON local ids are comps[0] ids.
+Hand-authored `RegionSet` JSON + reference STL meshes + `*.expected.json` ground truth for the P2 `buildFaces` gate. **Data only** — no C++ target. `p2-harness` loads each `<name>/<name>.stl` via `cad_mesh_recovery::harness::loadMesh()` and pairs it with `<name>.regionset.json`. Every mesh is **one manifold component**; JSON local ids are comps[0] ids.
 
 Regenerate: `python3 generate_fixtures.py` (rewrites all eleven dirs). Validate: `python3 validate_regionset.py`, `python3 check_invariants.py` (opens every `*.expected.json`), `python3 negative_tests.py`.
 

@@ -1,11 +1,11 @@
-// stl2step internal surface-refit contract (P1 <-> P2).
+// cad_mesh_recovery internal surface-refit contract (P1 <-> P2).
 // Not part of the public API. Never installed, never included from
-// include/stl2step/stl2step.hpp.
+// include/cad_mesh_recovery/cad_mesh_recovery.hpp.
 //
 // SPDX-License-Identifier: MIT
 
-#ifndef STL2STEP_REFIT_HPP
-#define STL2STEP_REFIT_HPP
+#ifndef CAD_MESH_RECOVERY_REFIT_HPP
+#define CAD_MESH_RECOVERY_REFIT_HPP
 
 #include <algorithm>
 #include <array>
@@ -53,7 +53,7 @@
 //     the analytic surface bulges outward relative to the chords (bosses),
 //     negative for holes.
 
-namespace stl2step { namespace refit {
+namespace cad_mesh_recovery { namespace refit {
 
 // Progress/diagnostic sink. Binds to the engine's Conv::warn(const std::string&).
 // MAY BE NULL - always null-check. P1 calls this ONLY when segment() is about to
@@ -123,7 +123,7 @@ struct MeshView {
     // (radial half-ulp bound at the mesh's own largest |coordinate|, times the
     // unit scale). 0 when it could not be measured -- then it certifies nothing
     // and max(bandResid, quantFloor) is the band's own residual. Measured by
-    // stl2step::stlQuantFloor(); never derived from the bounding box.
+    // cad_mesh_recovery::stlQuantFloor(); never derived from the bounding box.
     double quantFloor = 0;
 };
 
@@ -401,13 +401,13 @@ bool buildFaces(const MeshView& mv, RegionSet& rs,
                 std::vector<TopoDS_Face>& out, WarnFn warn);
 
 // D-gid-8.2 (gz-capown): cap-ownership census of the shipped cylinders. DIAG
-// ONLY, default off: STL2STEP_DIAG_CAPOWN=1 (2 = also one line per triangle).
+// ONLY, default off: CAD_MESH_RECOVERY_DIAG_CAPOWN=1 (2 = also one line per triangle).
 // It reads the final state of a successful buildFaces and changes nothing;
 // the caller prints the lines of the build it ships. Never read from product.
 bool capOwnDiagEnabled();
 // Moves out the lines (tagged comp=<comp>) the most recent successful
 // buildFaces on this thread left (empty when none), and clears them.
 void capOwnTake(int comp, std::string& lines);
-}}  // namespace stl2step::refit
+}}  // namespace cad_mesh_recovery::refit
 
-#endif  // STL2STEP_REFIT_HPP
+#endif  // CAD_MESH_RECOVERY_REFIT_HPP

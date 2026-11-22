@@ -5,8 +5,8 @@
 // (read only).
 // SPDX-License-Identifier: MIT
 
-#ifndef STL2STEP_REFIT_COAX_CLOSED_HPP
-#define STL2STEP_REFIT_COAX_CLOSED_HPP
+#ifndef CAD_MESH_RECOVERY_REFIT_COAX_CLOSED_HPP
+#define CAD_MESH_RECOVERY_REFIT_COAX_CLOSED_HPP
 
 #include "refit_axis_seam.hpp"
 #include "refit_relational.hpp"
@@ -18,7 +18,7 @@
 
 #include <gp_XYZ.hxx>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 
 // |rho(p) - R| about the axis through o along the unit vector a.
@@ -315,6 +315,6 @@ inline AnchoredTangentFit anchoredTangentFit(const std::vector<gp_XYZ>& pts, con
 }
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery
 
-#endif  // STL2STEP_REFIT_COAX_CLOSED_HPP
+#endif  // CAD_MESH_RECOVERY_REFIT_COAX_CLOSED_HPP

@@ -1,52 +1,52 @@
 # tests/unit — law-band API tests (AC2-L1).
 cmake_minimum_required(VERSION 3.16)
 
-get_filename_component(_stl2step_root "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
-if(NOT DEFINED STL2STEP_OCCT_SKIP_EXIT_CODE)
+get_filename_component(_cad_mesh_recovery_root "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
+if(NOT DEFINED CAD_MESH_RECOVERY_OCCT_SKIP_EXIT_CODE)
     include("${CMAKE_CURRENT_SOURCE_DIR}/../support/occt_calibrated.cmake")
 endif()
 
-if(NOT TARGET stl2step::core)
-    project(stl2step_unit LANGUAGES CXX)
-    if(EXISTS "${_stl2step_root}/CMakeLists.txt")
-        set(STL2STEP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-        set(STL2STEP_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-        set(STL2STEP_INSTALL OFF CACHE BOOL "" FORCE)
-        add_subdirectory("${_stl2step_root}" "${CMAKE_CURRENT_BINARY_DIR}/_engine")
+if(NOT TARGET cad_mesh_recovery::core)
+    project(cad_mesh_recovery_unit LANGUAGES CXX)
+    if(EXISTS "${_cad_mesh_recovery_root}/CMakeLists.txt")
+        set(CAD_MESH_RECOVERY_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+        set(CAD_MESH_RECOVERY_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+        set(CAD_MESH_RECOVERY_INSTALL OFF CACHE BOOL "" FORCE)
+        add_subdirectory("${_cad_mesh_recovery_root}" "${CMAKE_CURRENT_BINARY_DIR}/_engine")
     else()
-        find_package(stl2step REQUIRED)
+        find_package(cad_mesh_recovery REQUIRED)
     endif()
 endif()
 
-if(NOT TARGET stl2step::harness)
-    add_subdirectory("${_stl2step_root}/tests/harness"
+if(NOT TARGET cad_mesh_recovery::harness)
+    add_subdirectory("${_cad_mesh_recovery_root}/tests/harness"
                      "${CMAKE_CURRENT_BINARY_DIR}/_harness")
 endif()
 
-add_executable(stl2step_lawband_test lawband_test.cpp)
-target_compile_features(stl2step_lawband_test PRIVATE cxx_std_17)
-set_target_properties(stl2step_lawband_test PROPERTIES
+add_executable(cad_mesh_recovery_lawband_test lawband_test.cpp)
+target_compile_features(cad_mesh_recovery_lawband_test PRIVATE cxx_std_17)
+set_target_properties(cad_mesh_recovery_lawband_test PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-target_link_libraries(stl2step_lawband_test PRIVATE stl2step::harness)
-target_include_directories(stl2step_lawband_test PRIVATE
-    "${_stl2step_root}/src"
-    "${_stl2step_root}/tests/harness")
+target_link_libraries(cad_mesh_recovery_lawband_test PRIVATE cad_mesh_recovery::harness)
+target_include_directories(cad_mesh_recovery_lawband_test PRIVATE
+    "${_cad_mesh_recovery_root}/src"
+    "${_cad_mesh_recovery_root}/tests/harness")
 if(MSVC)
-    target_compile_definitions(stl2step_lawband_test PRIVATE _USE_MATH_DEFINES NOMINMAX)
+    target_compile_definitions(cad_mesh_recovery_lawband_test PRIVATE _USE_MATH_DEFINES NOMINMAX)
 endif()
-if(COMMAND stl2step_adhoc_sign)
-    stl2step_adhoc_sign(stl2step_lawband_test)
+if(COMMAND cad_mesh_recovery_adhoc_sign)
+    cad_mesh_recovery_adhoc_sign(cad_mesh_recovery_lawband_test)
 endif()
 
-set(_anat "${_stl2step_root}/tests/gates/labels/handle-lock.band-anatomy.json")
-set(_stl "${_stl2step_root}/tests/corpus/handle-lock.stl")
-set(_mis "${_stl2step_root}/tests/gates/labels/handle-lock.misfit-map.json")
-set(_lab "${_stl2step_root}/tests/gates/labels/handle-lock.tri-labels.json")
+set(_anat "${_cad_mesh_recovery_root}/tests/gates/labels/handle-lock.band-anatomy.json")
+set(_stl "${_cad_mesh_recovery_root}/tests/corpus/handle-lock.stl")
+set(_mis "${_cad_mesh_recovery_root}/tests/gates/labels/handle-lock.misfit-map.json")
+set(_lab "${_cad_mesh_recovery_root}/tests/gates/labels/handle-lock.tri-labels.json")
 
 add_test(NAME lawband_unit
-    COMMAND stl2step_lawband_test
+    COMMAND cad_mesh_recovery_lawband_test
         "${_stl}" "${_anat}" "${_lab}" "${_mis}")
 set_tests_properties(lawband_unit PROPERTIES
     LABELS "unit;lawband"
@@ -60,27 +60,27 @@ set_tests_properties(lawband_rule42a_grep PROPERTIES
     LABELS "unit;lawband"
     TIMEOUT 30)
 
-add_executable(stl2step_prism_test prism_test.cpp)
-target_compile_features(stl2step_prism_test PRIVATE cxx_std_17)
-set_target_properties(stl2step_prism_test PROPERTIES
+add_executable(cad_mesh_recovery_prism_test prism_test.cpp)
+target_compile_features(cad_mesh_recovery_prism_test PRIVATE cxx_std_17)
+set_target_properties(cad_mesh_recovery_prism_test PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-target_link_libraries(stl2step_prism_test PRIVATE stl2step::harness)
-target_include_directories(stl2step_prism_test PRIVATE
-    "${_stl2step_root}/src"
-    "${_stl2step_root}/tests/harness")
+target_link_libraries(cad_mesh_recovery_prism_test PRIVATE cad_mesh_recovery::harness)
+target_include_directories(cad_mesh_recovery_prism_test PRIVATE
+    "${_cad_mesh_recovery_root}/src"
+    "${_cad_mesh_recovery_root}/tests/harness")
 if(MSVC)
-    target_compile_definitions(stl2step_prism_test PRIVATE _USE_MATH_DEFINES NOMINMAX)
+    target_compile_definitions(cad_mesh_recovery_prism_test PRIVATE _USE_MATH_DEFINES NOMINMAX)
 endif()
-if(COMMAND stl2step_adhoc_sign)
-    stl2step_adhoc_sign(stl2step_prism_test)
+if(COMMAND cad_mesh_recovery_adhoc_sign)
+    cad_mesh_recovery_adhoc_sign(cad_mesh_recovery_prism_test)
 endif()
 
-set(_body11 "${_stl2step_root}/tests/corpus/Body11.stl")
-set(_neg "${_stl2step_root}/tests/corpus/nonprismatic-control.stl")
+set(_body11 "${_cad_mesh_recovery_root}/tests/corpus/Body11.stl")
+set(_neg "${_cad_mesh_recovery_root}/tests/corpus/nonprismatic-control.stl")
 add_test(NAME prism_unit
-    COMMAND stl2step_prism_test "${_stl}" "${_body11}" "${_neg}")
+    COMMAND cad_mesh_recovery_prism_test "${_stl}" "${_body11}" "${_neg}")
 set_tests_properties(prism_unit PROPERTIES
     LABELS "unit;prism"
     TIMEOUT 180)
@@ -92,50 +92,50 @@ set_tests_properties(prism_literal_ban PROPERTIES
     LABELS "unit;prism"
     TIMEOUT 30)
 
-add_executable(stl2step_profile_test
+add_executable(cad_mesh_recovery_profile_test
     profile_test.cpp
-    "${_stl2step_root}/tests/tools/profile_dump/prism_levels_stub.cpp")
-target_compile_features(stl2step_profile_test PRIVATE cxx_std_17)
-set_target_properties(stl2step_profile_test PROPERTIES
+    "${_cad_mesh_recovery_root}/tests/tools/profile_dump/prism_levels_stub.cpp")
+target_compile_features(cad_mesh_recovery_profile_test PRIVATE cxx_std_17)
+set_target_properties(cad_mesh_recovery_profile_test PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-target_link_libraries(stl2step_profile_test PRIVATE stl2step::harness)
-target_include_directories(stl2step_profile_test PRIVATE
-    "${_stl2step_root}/src"
-    "${_stl2step_root}/tests/harness")
+target_link_libraries(cad_mesh_recovery_profile_test PRIVATE cad_mesh_recovery::harness)
+target_include_directories(cad_mesh_recovery_profile_test PRIVATE
+    "${_cad_mesh_recovery_root}/src"
+    "${_cad_mesh_recovery_root}/tests/harness")
 if(MSVC)
-    target_compile_definitions(stl2step_profile_test PRIVATE _USE_MATH_DEFINES NOMINMAX)
+    target_compile_definitions(cad_mesh_recovery_profile_test PRIVATE _USE_MATH_DEFINES NOMINMAX)
 endif()
-if(COMMAND stl2step_adhoc_sign)
-    stl2step_adhoc_sign(stl2step_profile_test)
+if(COMMAND cad_mesh_recovery_adhoc_sign)
+    cad_mesh_recovery_adhoc_sign(cad_mesh_recovery_profile_test)
 endif()
 
 add_test(NAME profile_unit
-    COMMAND stl2step_profile_test "${_stl}")
+    COMMAND cad_mesh_recovery_profile_test "${_stl}")
 set_tests_properties(profile_unit PROPERTIES
     LABELS "unit;profile"
     TIMEOUT 180)
 
-add_executable(stl2step_prism_build_test prism_build_test.cpp)
-target_compile_features(stl2step_prism_build_test PRIVATE cxx_std_17)
-set_target_properties(stl2step_prism_build_test PROPERTIES
+add_executable(cad_mesh_recovery_prism_build_test prism_build_test.cpp)
+target_compile_features(cad_mesh_recovery_prism_build_test PRIVATE cxx_std_17)
+set_target_properties(cad_mesh_recovery_prism_build_test PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-target_link_libraries(stl2step_prism_build_test PRIVATE stl2step::harness stl2step::core)
-target_include_directories(stl2step_prism_build_test PRIVATE
-    "${_stl2step_root}/src"
-    "${_stl2step_root}/tests/harness")
+target_link_libraries(cad_mesh_recovery_prism_build_test PRIVATE cad_mesh_recovery::harness cad_mesh_recovery::core)
+target_include_directories(cad_mesh_recovery_prism_build_test PRIVATE
+    "${_cad_mesh_recovery_root}/src"
+    "${_cad_mesh_recovery_root}/tests/harness")
 if(MSVC)
-    target_compile_definitions(stl2step_prism_build_test PRIVATE _USE_MATH_DEFINES NOMINMAX)
+    target_compile_definitions(cad_mesh_recovery_prism_build_test PRIVATE _USE_MATH_DEFINES NOMINMAX)
 endif()
-if(COMMAND stl2step_adhoc_sign)
-    stl2step_adhoc_sign(stl2step_prism_build_test)
+if(COMMAND cad_mesh_recovery_adhoc_sign)
+    cad_mesh_recovery_adhoc_sign(cad_mesh_recovery_prism_build_test)
 endif()
 
 add_test(NAME prism_build_unit
-    COMMAND stl2step_prism_build_test "${_stl}")
+    COMMAND cad_mesh_recovery_prism_build_test "${_stl}")
 set_tests_properties(prism_build_unit PROPERTIES
     LABELS "unit;prism-build"
     TIMEOUT 180)
@@ -145,43 +145,43 @@ set_tests_properties(prism_build_unit PROPERTIES
 # GeomAPI_ProjectPointOnSurf and IntAna_QuadQuadGeo.
 #
 # This target deliberately COMPILES src/refit_cone_math.cpp instead of linking
-# stl2step::core: the math under test is pure gp_ geometry (refit_cone_math.hpp
+# cad_mesh_recovery::core: the math under test is pure gp_ geometry (refit_cone_math.hpp
 # pulls in no engine header), and `--target cone_math_unit` must not drag in
 # refit_build.cpp, which another lane owns. That one file is the whole TU — the
 # cone math sits outside src/refit_math.cpp precisely because the D5.3 include
 # allowlist covers the P1 sources and admits neither gp.hxx nor a third project
 # header. Nothing else in the tree changes how it builds.
 # `OpenCASCADE::OpenCASCADE` is an IMPORTED target and therefore DIRECTORY
-# scoped: the sibling targets only see it transitively through stl2step::core.
-# When this file is configured standalone (the `NOT TARGET stl2step::core`
+# scoped: the sibling targets only see it transitively through cad_mesh_recovery::core.
+# When this file is configured standalone (the `NOT TARGET cad_mesh_recovery::core`
 # branch at the top) the engine's find_package ran in a child scope and the name
 # does not exist here, so naming it directly fails at generate time. Re-find it
 # in this scope — the module path and the cache are already primed, so it costs
-# nothing — rather than linking stl2step::core, which carries its own
+# nothing — rather than linking cad_mesh_recovery::core, which carries its own
 # refit_cone_math.cpp and would duplicate every symbol in this executable.
 if(NOT TARGET OpenCASCADE::OpenCASCADE)
-    list(APPEND CMAKE_MODULE_PATH "${_stl2step_root}/cmake")
+    list(APPEND CMAKE_MODULE_PATH "${_cad_mesh_recovery_root}/cmake")
     find_package(OpenCASCADE REQUIRED)
 endif()
 
 add_executable(cone_math_unit
     cone_math_test.cpp
-    "${_stl2step_root}/src/refit_cone_math.cpp")
+    "${_cad_mesh_recovery_root}/src/refit_cone_math.cpp")
 target_compile_features(cone_math_unit PRIVATE cxx_std_17)
 set_target_properties(cone_math_unit PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
 target_include_directories(cone_math_unit PRIVATE
-    "${_stl2step_root}/src"
-    "${_stl2step_root}/include")
+    "${_cad_mesh_recovery_root}/src"
+    "${_cad_mesh_recovery_root}/include")
 target_link_libraries(cone_math_unit PRIVATE OpenCASCADE::OpenCASCADE)
 if(MSVC)
     target_compile_definitions(cone_math_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
     target_compile_options(cone_math_unit PRIVATE /EHsc)
 endif()
-if(COMMAND stl2step_adhoc_sign)
-    stl2step_adhoc_sign(cone_math_unit)
+if(COMMAND cad_mesh_recovery_adhoc_sign)
+    cad_mesh_recovery_adhoc_sign(cone_math_unit)
 endif()
 
 add_test(NAME cone_math_unit COMMAND cone_math_unit)
@@ -193,27 +193,27 @@ set_tests_properties(cone_math_unit PROPERTIES
 # in src/refit_cone_bind.cpp: the supremum of |C3d(t) - S(pcurve(t))|, which is
 # the surface supremum cone_math_unit certifies COMPOSED with the
 # parametrisation. Same construction as cone_math_unit for the same reason: it
-# compiles the two cone TUs rather than linking stl2step::core, so
+# compiles the two cone TUs rather than linking cad_mesh_recovery::core, so
 # `--target cone_bind_unit` never drags in refit_build.cpp.
 add_executable(cone_bind_unit
     cone_bind_test.cpp
-    "${_stl2step_root}/src/refit_cone_bind.cpp"
-    "${_stl2step_root}/src/refit_cone_math.cpp")
+    "${_cad_mesh_recovery_root}/src/refit_cone_bind.cpp"
+    "${_cad_mesh_recovery_root}/src/refit_cone_math.cpp")
 target_compile_features(cone_bind_unit PRIVATE cxx_std_17)
 set_target_properties(cone_bind_unit PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
 target_include_directories(cone_bind_unit PRIVATE
-    "${_stl2step_root}/src"
-    "${_stl2step_root}/include")
+    "${_cad_mesh_recovery_root}/src"
+    "${_cad_mesh_recovery_root}/include")
 target_link_libraries(cone_bind_unit PRIVATE OpenCASCADE::OpenCASCADE)
 if(MSVC)
     target_compile_definitions(cone_bind_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
     target_compile_options(cone_bind_unit PRIVATE /EHsc)
 endif()
-if(COMMAND stl2step_adhoc_sign)
-    stl2step_adhoc_sign(cone_bind_unit)
+if(COMMAND cad_mesh_recovery_adhoc_sign)
+    cad_mesh_recovery_adhoc_sign(cone_bind_unit)
 endif()
 
 add_test(NAME cone_bind_unit COMMAND cone_bind_unit)
@@ -226,26 +226,26 @@ set_tests_properties(cone_bind_unit PROPERTIES
 # numeric distance oracle built from the OCCT parametric equation (meridian
 # circles), GeomAPI_ProjectPointOnSurf on a Geom_ToroidalSurface, and the S04 /
 # S19 tangency circles. Same construction as cone_math_unit for the same reason:
-# it COMPILES the one pure-gp_ TU instead of linking stl2step::core, so
+# it COMPILES the one pure-gp_ TU instead of linking cad_mesh_recovery::core, so
 # `--target torus_math_unit` never drags in refit_build.cpp.
 add_executable(torus_math_unit
     torus_math_test.cpp
-    "${_stl2step_root}/src/refit_torus_math.cpp")
+    "${_cad_mesh_recovery_root}/src/refit_torus_math.cpp")
 target_compile_features(torus_math_unit PRIVATE cxx_std_17)
 set_target_properties(torus_math_unit PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
 target_include_directories(torus_math_unit PRIVATE
-    "${_stl2step_root}/src"
-    "${_stl2step_root}/include")
+    "${_cad_mesh_recovery_root}/src"
+    "${_cad_mesh_recovery_root}/include")
 target_link_libraries(torus_math_unit PRIVATE OpenCASCADE::OpenCASCADE)
 if(MSVC)
     target_compile_definitions(torus_math_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
     target_compile_options(torus_math_unit PRIVATE /EHsc)
 endif()
-if(COMMAND stl2step_adhoc_sign)
-    stl2step_adhoc_sign(torus_math_unit)
+if(COMMAND cad_mesh_recovery_adhoc_sign)
+    cad_mesh_recovery_adhoc_sign(torus_math_unit)
 endif()
 
 add_test(NAME torus_math_unit COMMAND torus_math_unit)
@@ -260,26 +260,26 @@ set_tests_properties(torus_math_unit PROPERTIES
 # >= 10^4-sample refined oracle on OCCT's own pcurves (GeomAPI::To2d,
 # GeomProjLib::Curve2d) and S11-b's measured degree-8 poles. Same construction as
 # cone_math_unit for the same reason: it COMPILES the one pure-gp_ TU instead of
-# linking stl2step::core, so `--target ellipse_math_unit` never drags in
+# linking cad_mesh_recovery::core, so `--target ellipse_math_unit` never drags in
 # refit_build.cpp.
 add_executable(ellipse_math_unit
     ellipse_math_test.cpp
-    "${_stl2step_root}/src/refit_ellipse_math.cpp")
+    "${_cad_mesh_recovery_root}/src/refit_ellipse_math.cpp")
 target_compile_features(ellipse_math_unit PRIVATE cxx_std_17)
 set_target_properties(ellipse_math_unit PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
 target_include_directories(ellipse_math_unit PRIVATE
-    "${_stl2step_root}/src"
-    "${_stl2step_root}/include")
+    "${_cad_mesh_recovery_root}/src"
+    "${_cad_mesh_recovery_root}/include")
 target_link_libraries(ellipse_math_unit PRIVATE OpenCASCADE::OpenCASCADE)
 if(MSVC)
     target_compile_definitions(ellipse_math_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
     target_compile_options(ellipse_math_unit PRIVATE /EHsc)
 endif()
-if(COMMAND stl2step_adhoc_sign)
-    stl2step_adhoc_sign(ellipse_math_unit)
+if(COMMAND cad_mesh_recovery_adhoc_sign)
+    cad_mesh_recovery_adhoc_sign(ellipse_math_unit)
 endif()
 
 add_test(NAME ellipse_math_unit COMMAND ellipse_math_unit)
@@ -288,23 +288,23 @@ set_tests_properties(ellipse_math_unit PROPERTIES
     TIMEOUT 300)
 
 # 130-ABSORB-3 (D-130-12) — the mesh file's own coordinate quantization.
-# Compiles src/stl_quant.cpp directly rather than linking stl2step::core: the TU
+# Compiles src/stl_quant.cpp directly rather than linking cad_mesh_recovery::core: the TU
 # is pure <cstdio>/<cmath> with no OCCT and no engine header, so the test needs
 # no OpenCASCADE at all and `--target quant_floor_unit` drags in nothing else.
 add_executable(quant_floor_unit
     quant_floor_test.cpp
-    "${_stl2step_root}/src/stl_quant.cpp")
+    "${_cad_mesh_recovery_root}/src/stl_quant.cpp")
 target_compile_features(quant_floor_unit PRIVATE cxx_std_17)
 set_target_properties(quant_floor_unit PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-target_include_directories(quant_floor_unit PRIVATE "${_stl2step_root}/src")
+target_include_directories(quant_floor_unit PRIVATE "${_cad_mesh_recovery_root}/src")
 if(MSVC)
     target_compile_definitions(quant_floor_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
 endif()
-if(COMMAND stl2step_adhoc_sign)
-    stl2step_adhoc_sign(quant_floor_unit)
+if(COMMAND cad_mesh_recovery_adhoc_sign)
+    cad_mesh_recovery_adhoc_sign(quant_floor_unit)
 endif()
 
 add_test(NAME quant_floor_unit COMMAND quant_floor_unit "${CMAKE_BINARY_DIR}")
@@ -323,8 +323,8 @@ set_target_properties(seam_span_unit PROPERTIES
 if(MSVC)
     target_compile_definitions(seam_span_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
 endif()
-if(COMMAND stl2step_adhoc_sign)
-    stl2step_adhoc_sign(seam_span_unit)
+if(COMMAND cad_mesh_recovery_adhoc_sign)
+    cad_mesh_recovery_adhoc_sign(seam_span_unit)
 endif()
 add_test(NAME seam_span_unit COMMAND seam_span_unit)
 set_tests_properties(seam_span_unit PROPERTIES
@@ -332,9 +332,9 @@ set_tests_properties(seam_span_unit PROPERTIES
     TIMEOUT 60)
 
 # SPEC-volid §4.3 / D-140-10 — S01/S02/S03 volume-attribution identity.
-# Spawns the CLI with STL2STEP_VOLID=1; asserts the §2.5 closesA/closesB
+# Spawns the CLI with CAD_MESH_RECOVERY_VOLID=1; asserts the §2.5 closesA/closesB
 # bracket on the three synthetic fixtures only.
-if(TARGET stl2step)
+if(TARGET cad_mesh_recovery)
     add_executable(volid_identity_test volid_identity.cpp)
     target_compile_features(volid_identity_test PRIVATE cxx_std_17)
     set_target_properties(volid_identity_test PROPERTIES
@@ -346,20 +346,20 @@ if(TARGET stl2step)
     if(MSVC)
         target_compile_definitions(volid_identity_test PRIVATE _USE_MATH_DEFINES NOMINMAX)
     endif()
-    if(COMMAND stl2step_adhoc_sign)
-        stl2step_adhoc_sign(volid_identity_test)
+    if(COMMAND cad_mesh_recovery_adhoc_sign)
+        cad_mesh_recovery_adhoc_sign(volid_identity_test)
     endif()
     add_test(NAME volid_identity
         COMMAND volid_identity_test
-            $<TARGET_FILE:stl2step>
-            "${_stl2step_root}/tests/corpus/S01.stl"
-            "${_stl2step_root}/tests/corpus/S02.stl"
-            "${_stl2step_root}/tests/corpus/S03.stl")
+            $<TARGET_FILE:cad_mesh_recovery>
+            "${_cad_mesh_recovery_root}/tests/corpus/S01.stl"
+            "${_cad_mesh_recovery_root}/tests/corpus/S02.stl"
+            "${_cad_mesh_recovery_root}/tests/corpus/S03.stl")
     set_tests_properties(volid_identity PROPERTIES
         LABELS "unit;volid"
         TIMEOUT 180
         DEPENDS corpus_generate
-        SKIP_RETURN_CODE ${STL2STEP_OCCT_SKIP_EXIT_CODE})
+        SKIP_RETURN_CODE ${CAD_MESH_RECOVERY_OCCT_SKIP_EXIT_CODE})
 endif()
 
 # 140-UNION-CENSUS (SPEC-union PART B, D-140-8 U-R5..U-R8, U-R13) -- the
@@ -367,26 +367,26 @@ endif()
 # against a closed form and a numerical supremum along every welded edge, and
 # the U-R6/U-R7/U-R8 counts on hand-built rings. Same construction as
 # cone_math_unit for the same reason: it compiles the one TU rather than
-# linking stl2step::core, so `--target union_census_unit` never drags in
+# linking cad_mesh_recovery::core, so `--target union_census_unit` never drags in
 # refit_grow.cpp or refit_build.cpp, which other lanes own.
 add_executable(union_census_unit
     union_census_test.cpp
-    "${_stl2step_root}/src/refit_union_census.cpp")
+    "${_cad_mesh_recovery_root}/src/refit_union_census.cpp")
 target_compile_features(union_census_unit PRIVATE cxx_std_17)
 set_target_properties(union_census_unit PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
 target_include_directories(union_census_unit PRIVATE
-    "${_stl2step_root}/src"
-    "${_stl2step_root}/include")
+    "${_cad_mesh_recovery_root}/src"
+    "${_cad_mesh_recovery_root}/include")
 target_link_libraries(union_census_unit PRIVATE OpenCASCADE::OpenCASCADE)
 if(MSVC)
     target_compile_definitions(union_census_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
     target_compile_options(union_census_unit PRIVATE /EHsc)
 endif()
-if(COMMAND stl2step_adhoc_sign)
-    stl2step_adhoc_sign(union_census_unit)
+if(COMMAND cad_mesh_recovery_adhoc_sign)
+    cad_mesh_recovery_adhoc_sign(union_census_unit)
 endif()
 
 add_test(NAME union_census_unit COMMAND union_census_unit)
@@ -402,18 +402,18 @@ set_target_properties(threads_spawn_test PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-target_link_libraries(threads_spawn_test PRIVATE stl2step::core)
+target_link_libraries(threads_spawn_test PRIVATE cad_mesh_recovery::core)
 target_include_directories(threads_spawn_test PRIVATE
-    "${_stl2step_root}/include")
-if(COMMAND stl2step_adhoc_sign)
-    stl2step_adhoc_sign(threads_spawn_test)
+    "${_cad_mesh_recovery_root}/include")
+if(COMMAND cad_mesh_recovery_adhoc_sign)
+    cad_mesh_recovery_adhoc_sign(threads_spawn_test)
 endif()
 
 set(_threads_scratch "${CMAKE_BINARY_DIR}/threads1-test")
-set(_mesh_cyl "${_stl2step_root}/tests/mesh/seamed_cylinder.step")
+set(_mesh_cyl "${_cad_mesh_recovery_root}/tests/mesh/seamed_cylinder.step")
 add_test(NAME threads1_no_spawn
     COMMAND threads_spawn_test no_spawn
-        "${_stl2step_root}/tests/corpus"
+        "${_cad_mesh_recovery_root}/tests/corpus"
         "${_mesh_cyl}"
         "${_threads_scratch}")
 set_tests_properties(threads1_no_spawn PROPERTIES
@@ -421,7 +421,7 @@ set_tests_properties(threads1_no_spawn PROPERTIES
     TIMEOUT 300)
 add_test(NAME threads_default_spawns
     COMMAND threads_spawn_test default_spawns
-        "${_stl2step_root}/tests/corpus"
+        "${_cad_mesh_recovery_root}/tests/corpus"
         "${_mesh_cyl}"
         "${_threads_scratch}")
 set_tests_properties(threads_default_spawns PROPERTIES
@@ -438,11 +438,11 @@ set_target_properties(result_tojson_test PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-target_link_libraries(result_tojson_test PRIVATE stl2step::core)
+target_link_libraries(result_tojson_test PRIVATE cad_mesh_recovery::core)
 target_include_directories(result_tojson_test PRIVATE
-    "${_stl2step_root}/include")
-if(COMMAND stl2step_adhoc_sign)
-    stl2step_adhoc_sign(result_tojson_test)
+    "${_cad_mesh_recovery_root}/include")
+if(COMMAND cad_mesh_recovery_adhoc_sign)
+    cad_mesh_recovery_adhoc_sign(result_tojson_test)
 endif()
 add_test(NAME result_tojson_unit COMMAND result_tojson_test)
 set_tests_properties(result_tojson_unit PROPERTIES
@@ -456,11 +456,11 @@ set_target_properties(tjunction_absorb_test PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-target_link_libraries(tjunction_absorb_test PRIVATE stl2step::core)
+target_link_libraries(tjunction_absorb_test PRIVATE cad_mesh_recovery::core)
 target_include_directories(tjunction_absorb_test PRIVATE
-    "${_stl2step_root}/include")
-if(COMMAND stl2step_adhoc_sign)
-    stl2step_adhoc_sign(tjunction_absorb_test)
+    "${_cad_mesh_recovery_root}/include")
+if(COMMAND cad_mesh_recovery_adhoc_sign)
+    cad_mesh_recovery_adhoc_sign(tjunction_absorb_test)
 endif()
 add_test(NAME tjunction_absorb_test
     COMMAND tjunction_absorb_test
@@ -478,25 +478,25 @@ foreach(_fc_unit IN ITEMS relational_extrude relational_revolve tesslaw relation
         CXX_STANDARD_REQUIRED ON
         CXX_EXTENSIONS OFF
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-    target_link_libraries(${_fc_unit}_unit PRIVATE stl2step::core)
+    target_link_libraries(${_fc_unit}_unit PRIVATE cad_mesh_recovery::core)
     target_include_directories(${_fc_unit}_unit PRIVATE
-        "${_stl2step_root}/include"
-        "${_stl2step_root}/src")
+        "${_cad_mesh_recovery_root}/include"
+        "${_cad_mesh_recovery_root}/src")
     if(MSVC)
         target_compile_definitions(${_fc_unit}_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
         target_compile_options(${_fc_unit}_unit PRIVATE /EHsc)
     endif()
-    if(COMMAND stl2step_adhoc_sign)
-        stl2step_adhoc_sign(${_fc_unit}_unit)
+    if(COMMAND cad_mesh_recovery_adhoc_sign)
+        cad_mesh_recovery_adhoc_sign(${_fc_unit}_unit)
     endif()
     # posix_compat.hpp lives in tests/support (winfix 159e22a for tesslaw; portfix for the relational units).
     if(_fc_unit STREQUAL "tesslaw" OR _fc_unit STREQUAL "relational_extrude" OR _fc_unit STREQUAL "relational_revolve" OR _fc_unit STREQUAL "relational_reclaim")
         target_include_directories(${_fc_unit}_unit PRIVATE
-            "${_stl2step_root}/tests/support")
+            "${_cad_mesh_recovery_root}/tests/support")
     endif()
     if(_fc_unit STREQUAL "relational_reclaim")
         add_test(NAME ${_fc_unit}_unit
-            COMMAND ${_fc_unit}_unit "${_stl2step_root}/tests/corpus/handle-pickup.stl")
+            COMMAND ${_fc_unit}_unit "${_cad_mesh_recovery_root}/tests/corpus/handle-pickup.stl")
     else()
         add_test(NAME ${_fc_unit}_unit COMMAND ${_fc_unit}_unit)
     endif()
@@ -520,21 +520,21 @@ set_target_properties(relational_torus_unit PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-target_link_libraries(relational_torus_unit PRIVATE stl2step::core stl2step::harness)
+target_link_libraries(relational_torus_unit PRIVATE cad_mesh_recovery::core cad_mesh_recovery::harness)
 target_include_directories(relational_torus_unit PRIVATE
-    "${_stl2step_root}/include"
-    "${_stl2step_root}/src"
-    "${_stl2step_root}/tests/support"
-    "${_stl2step_root}/tests/harness")
+    "${_cad_mesh_recovery_root}/include"
+    "${_cad_mesh_recovery_root}/src"
+    "${_cad_mesh_recovery_root}/tests/support"
+    "${_cad_mesh_recovery_root}/tests/harness")
 if(MSVC)
     target_compile_definitions(relational_torus_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
     target_compile_options(relational_torus_unit PRIVATE /EHsc)
 endif()
-if(COMMAND stl2step_adhoc_sign)
-    stl2step_adhoc_sign(relational_torus_unit)
+if(COMMAND cad_mesh_recovery_adhoc_sign)
+    cad_mesh_recovery_adhoc_sign(relational_torus_unit)
 endif()
 add_test(NAME relational_torus_unit
-    COMMAND relational_torus_unit "${_stl2step_root}/tests/corpus/handle-pickup.stl")
+    COMMAND relational_torus_unit "${_cad_mesh_recovery_root}/tests/corpus/handle-pickup.stl")
 set_tests_properties(relational_torus_unit PROPERTIES
     LABELS "unit;fc-contract"
     TIMEOUT 60)
@@ -546,16 +546,16 @@ set_target_properties(relational_cylcyl_unit PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-target_link_libraries(relational_cylcyl_unit PRIVATE stl2step::core)
+target_link_libraries(relational_cylcyl_unit PRIVATE cad_mesh_recovery::core)
 target_include_directories(relational_cylcyl_unit PRIVATE
-    "${_stl2step_root}/include"
-    "${_stl2step_root}/src")
+    "${_cad_mesh_recovery_root}/include"
+    "${_cad_mesh_recovery_root}/src")
 if(MSVC)
     target_compile_definitions(relational_cylcyl_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
     target_compile_options(relational_cylcyl_unit PRIVATE /EHsc)
 endif()
-if(COMMAND stl2step_adhoc_sign)
-    stl2step_adhoc_sign(relational_cylcyl_unit)
+if(COMMAND cad_mesh_recovery_adhoc_sign)
+    cad_mesh_recovery_adhoc_sign(relational_cylcyl_unit)
 endif()
 add_test(NAME relational_cylcyl_unit COMMAND relational_cylcyl_unit)
 set_tests_properties(relational_cylcyl_unit PROPERTIES
@@ -569,17 +569,17 @@ set_target_properties(relational_axis_seam_unit PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-target_link_libraries(relational_axis_seam_unit PRIVATE stl2step::core)
+target_link_libraries(relational_axis_seam_unit PRIVATE cad_mesh_recovery::core)
 target_include_directories(relational_axis_seam_unit PRIVATE
-    "${_stl2step_root}/include"
-    "${_stl2step_root}/src"
-    "${_stl2step_root}/tests/support")
+    "${_cad_mesh_recovery_root}/include"
+    "${_cad_mesh_recovery_root}/src"
+    "${_cad_mesh_recovery_root}/tests/support")
 if(MSVC)
     target_compile_definitions(relational_axis_seam_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
     target_compile_options(relational_axis_seam_unit PRIVATE /EHsc)
 endif()
-if(COMMAND stl2step_adhoc_sign)
-    stl2step_adhoc_sign(relational_axis_seam_unit)
+if(COMMAND cad_mesh_recovery_adhoc_sign)
+    cad_mesh_recovery_adhoc_sign(relational_axis_seam_unit)
 endif()
 add_test(NAME relational_axis_seam_unit COMMAND relational_axis_seam_unit)
 set_tests_properties(relational_axis_seam_unit PROPERTIES
@@ -593,17 +593,17 @@ set_target_properties(relational_arc_unit PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-target_link_libraries(relational_arc_unit PRIVATE stl2step::core)
+target_link_libraries(relational_arc_unit PRIVATE cad_mesh_recovery::core)
 target_include_directories(relational_arc_unit PRIVATE
-    "${_stl2step_root}/include"
-    "${_stl2step_root}/src"
-    "${_stl2step_root}/tests/support")
+    "${_cad_mesh_recovery_root}/include"
+    "${_cad_mesh_recovery_root}/src"
+    "${_cad_mesh_recovery_root}/tests/support")
 if(MSVC)
     target_compile_definitions(relational_arc_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
     target_compile_options(relational_arc_unit PRIVATE /EHsc)
 endif()
-if(COMMAND stl2step_adhoc_sign)
-    stl2step_adhoc_sign(relational_arc_unit)
+if(COMMAND cad_mesh_recovery_adhoc_sign)
+    cad_mesh_recovery_adhoc_sign(relational_arc_unit)
 endif()
 add_test(NAME relational_arc_unit COMMAND relational_arc_unit)
 set_tests_properties(relational_arc_unit PROPERTIES
@@ -617,17 +617,17 @@ set_target_properties(relational_cylmeet_unit PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-target_link_libraries(relational_cylmeet_unit PRIVATE stl2step::core)
+target_link_libraries(relational_cylmeet_unit PRIVATE cad_mesh_recovery::core)
 target_include_directories(relational_cylmeet_unit PRIVATE
-    "${_stl2step_root}/include"
-    "${_stl2step_root}/src"
-    "${_stl2step_root}/tests/support")
+    "${_cad_mesh_recovery_root}/include"
+    "${_cad_mesh_recovery_root}/src"
+    "${_cad_mesh_recovery_root}/tests/support")
 if(MSVC)
     target_compile_definitions(relational_cylmeet_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
     target_compile_options(relational_cylmeet_unit PRIVATE /EHsc)
 endif()
-if(COMMAND stl2step_adhoc_sign)
-    stl2step_adhoc_sign(relational_cylmeet_unit)
+if(COMMAND cad_mesh_recovery_adhoc_sign)
+    cad_mesh_recovery_adhoc_sign(relational_cylmeet_unit)
 endif()
 add_test(NAME relational_cylmeet_unit COMMAND relational_cylmeet_unit)
 set_tests_properties(relational_cylmeet_unit PROPERTIES
@@ -640,17 +640,17 @@ set_target_properties(relational_classb_unit PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-target_link_libraries(relational_classb_unit PRIVATE stl2step::core)
+target_link_libraries(relational_classb_unit PRIVATE cad_mesh_recovery::core)
 target_include_directories(relational_classb_unit PRIVATE
-    "${_stl2step_root}/include"
-    "${_stl2step_root}/src"
-    "${_stl2step_root}/tests/support")
+    "${_cad_mesh_recovery_root}/include"
+    "${_cad_mesh_recovery_root}/src"
+    "${_cad_mesh_recovery_root}/tests/support")
 if(MSVC)
     target_compile_definitions(relational_classb_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
     target_compile_options(relational_classb_unit PRIVATE /EHsc)
 endif()
-if(COMMAND stl2step_adhoc_sign)
-    stl2step_adhoc_sign(relational_classb_unit)
+if(COMMAND cad_mesh_recovery_adhoc_sign)
+    cad_mesh_recovery_adhoc_sign(relational_classb_unit)
 endif()
 add_test(NAME relational_classb_unit COMMAND relational_classb_unit)
 set_tests_properties(relational_classb_unit PROPERTIES
@@ -666,17 +666,17 @@ set_target_properties(relational_capface_unit PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-target_link_libraries(relational_capface_unit PRIVATE stl2step::core)
+target_link_libraries(relational_capface_unit PRIVATE cad_mesh_recovery::core)
 target_include_directories(relational_capface_unit PRIVATE
-    "${_stl2step_root}/include"
-    "${_stl2step_root}/src"
-    "${_stl2step_root}/tests/support")
+    "${_cad_mesh_recovery_root}/include"
+    "${_cad_mesh_recovery_root}/src"
+    "${_cad_mesh_recovery_root}/tests/support")
 if(MSVC)
     target_compile_definitions(relational_capface_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
     target_compile_options(relational_capface_unit PRIVATE /EHsc)
 endif()
-if(COMMAND stl2step_adhoc_sign)
-    stl2step_adhoc_sign(relational_capface_unit)
+if(COMMAND cad_mesh_recovery_adhoc_sign)
+    cad_mesh_recovery_adhoc_sign(relational_capface_unit)
 endif()
 add_test(NAME relational_capface_unit COMMAND relational_capface_unit)
 set_tests_properties(relational_capface_unit PROPERTIES
@@ -691,16 +691,16 @@ set_target_properties(heal_open_boundaries_unit PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-target_link_libraries(heal_open_boundaries_unit PRIVATE stl2step::core)
+target_link_libraries(heal_open_boundaries_unit PRIVATE cad_mesh_recovery::core)
 target_include_directories(heal_open_boundaries_unit PRIVATE
-    "${_stl2step_root}/include"
-    "${_stl2step_root}/src")
+    "${_cad_mesh_recovery_root}/include"
+    "${_cad_mesh_recovery_root}/src")
 if(MSVC)
     target_compile_definitions(heal_open_boundaries_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
     target_compile_options(heal_open_boundaries_unit PRIVATE /EHsc)
 endif()
-if(COMMAND stl2step_adhoc_sign)
-    stl2step_adhoc_sign(heal_open_boundaries_unit)
+if(COMMAND cad_mesh_recovery_adhoc_sign)
+    cad_mesh_recovery_adhoc_sign(heal_open_boundaries_unit)
 endif()
 add_test(NAME heal_open_boundaries_unit
     COMMAND heal_open_boundaries_unit
@@ -716,17 +716,17 @@ set_target_properties(relational_slit_heal_unit PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-target_link_libraries(relational_slit_heal_unit PRIVATE stl2step::core)
+target_link_libraries(relational_slit_heal_unit PRIVATE cad_mesh_recovery::core)
 target_include_directories(relational_slit_heal_unit PRIVATE
-    "${_stl2step_root}/include"
-    "${_stl2step_root}/src"
-    "${_stl2step_root}/tests/support")
+    "${_cad_mesh_recovery_root}/include"
+    "${_cad_mesh_recovery_root}/src"
+    "${_cad_mesh_recovery_root}/tests/support")
 if(MSVC)
     target_compile_definitions(relational_slit_heal_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
     target_compile_options(relational_slit_heal_unit PRIVATE /EHsc)
 endif()
-if(COMMAND stl2step_adhoc_sign)
-    stl2step_adhoc_sign(relational_slit_heal_unit)
+if(COMMAND cad_mesh_recovery_adhoc_sign)
+    cad_mesh_recovery_adhoc_sign(relational_slit_heal_unit)
 endif()
 add_test(NAME relational_slit_heal_unit COMMAND relational_slit_heal_unit)
 set_tests_properties(relational_slit_heal_unit PROPERTIES
@@ -740,17 +740,17 @@ set_target_properties(relational_wire_clip_unit PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-target_link_libraries(relational_wire_clip_unit PRIVATE stl2step::core)
+target_link_libraries(relational_wire_clip_unit PRIVATE cad_mesh_recovery::core)
 target_include_directories(relational_wire_clip_unit PRIVATE
-    "${_stl2step_root}/include"
-    "${_stl2step_root}/src"
-    "${_stl2step_root}/tests/support")
+    "${_cad_mesh_recovery_root}/include"
+    "${_cad_mesh_recovery_root}/src"
+    "${_cad_mesh_recovery_root}/tests/support")
 if(MSVC)
     target_compile_definitions(relational_wire_clip_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
     target_compile_options(relational_wire_clip_unit PRIVATE /EHsc)
 endif()
-if(COMMAND stl2step_adhoc_sign)
-    stl2step_adhoc_sign(relational_wire_clip_unit)
+if(COMMAND cad_mesh_recovery_adhoc_sign)
+    cad_mesh_recovery_adhoc_sign(relational_wire_clip_unit)
 endif()
 add_test(NAME relational_wire_clip_unit COMMAND relational_wire_clip_unit)
 set_tests_properties(relational_wire_clip_unit PROPERTIES
@@ -763,17 +763,17 @@ set_target_properties(relational_island_absorb_unit PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-target_link_libraries(relational_island_absorb_unit PRIVATE stl2step::core)
+target_link_libraries(relational_island_absorb_unit PRIVATE cad_mesh_recovery::core)
 target_include_directories(relational_island_absorb_unit PRIVATE
-    "${_stl2step_root}/include"
-    "${_stl2step_root}/src"
-    "${_stl2step_root}/tests/support")
+    "${_cad_mesh_recovery_root}/include"
+    "${_cad_mesh_recovery_root}/src"
+    "${_cad_mesh_recovery_root}/tests/support")
 if(MSVC)
     target_compile_definitions(relational_island_absorb_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
     target_compile_options(relational_island_absorb_unit PRIVATE /EHsc)
 endif()
-if(COMMAND stl2step_adhoc_sign)
-    stl2step_adhoc_sign(relational_island_absorb_unit)
+if(COMMAND cad_mesh_recovery_adhoc_sign)
+    cad_mesh_recovery_adhoc_sign(relational_island_absorb_unit)
 endif()
 add_test(NAME relational_island_absorb_unit COMMAND relational_island_absorb_unit)
 set_tests_properties(relational_island_absorb_unit PROPERTIES
@@ -787,17 +787,17 @@ set_target_properties(relational_sphere_unit PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-target_link_libraries(relational_sphere_unit PRIVATE stl2step::core)
+target_link_libraries(relational_sphere_unit PRIVATE cad_mesh_recovery::core)
 target_include_directories(relational_sphere_unit PRIVATE
-    "${_stl2step_root}/include"
-    "${_stl2step_root}/src"
-    "${_stl2step_root}/tests/support")
+    "${_cad_mesh_recovery_root}/include"
+    "${_cad_mesh_recovery_root}/src"
+    "${_cad_mesh_recovery_root}/tests/support")
 if(MSVC)
     target_compile_definitions(relational_sphere_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
     target_compile_options(relational_sphere_unit PRIVATE /EHsc)
 endif()
-if(COMMAND stl2step_adhoc_sign)
-    stl2step_adhoc_sign(relational_sphere_unit)
+if(COMMAND cad_mesh_recovery_adhoc_sign)
+    cad_mesh_recovery_adhoc_sign(relational_sphere_unit)
 endif()
 add_test(NAME relational_sphere_unit COMMAND relational_sphere_unit)
 set_tests_properties(relational_sphere_unit PROPERTIES
@@ -813,17 +813,17 @@ set_target_properties(relational_ruled_unit PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-target_link_libraries(relational_ruled_unit PRIVATE stl2step::core)
+target_link_libraries(relational_ruled_unit PRIVATE cad_mesh_recovery::core)
 target_include_directories(relational_ruled_unit PRIVATE
-    "${_stl2step_root}/include"
-    "${_stl2step_root}/src"
-    "${_stl2step_root}/tests/support")
+    "${_cad_mesh_recovery_root}/include"
+    "${_cad_mesh_recovery_root}/src"
+    "${_cad_mesh_recovery_root}/tests/support")
 if(MSVC)
     target_compile_definitions(relational_ruled_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
     target_compile_options(relational_ruled_unit PRIVATE /EHsc)
 endif()
-if(COMMAND stl2step_adhoc_sign)
-    stl2step_adhoc_sign(relational_ruled_unit)
+if(COMMAND cad_mesh_recovery_adhoc_sign)
+    cad_mesh_recovery_adhoc_sign(relational_ruled_unit)
 endif()
 add_test(NAME relational_ruled_unit
     COMMAND relational_ruled_unit "${CMAKE_CURRENT_BINARY_DIR}")
@@ -838,17 +838,17 @@ set_target_properties(shell_volume_unit PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-target_link_libraries(shell_volume_unit PRIVATE stl2step::core)
+target_link_libraries(shell_volume_unit PRIVATE cad_mesh_recovery::core)
 target_include_directories(shell_volume_unit PRIVATE
-    "${_stl2step_root}/include"
-    "${_stl2step_root}/src"
-    "${_stl2step_root}/tests/support")
+    "${_cad_mesh_recovery_root}/include"
+    "${_cad_mesh_recovery_root}/src"
+    "${_cad_mesh_recovery_root}/tests/support")
 if(MSVC)
     target_compile_definitions(shell_volume_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
     target_compile_options(shell_volume_unit PRIVATE /EHsc)
 endif()
-if(COMMAND stl2step_adhoc_sign)
-    stl2step_adhoc_sign(shell_volume_unit)
+if(COMMAND cad_mesh_recovery_adhoc_sign)
+    cad_mesh_recovery_adhoc_sign(shell_volume_unit)
 endif()
 add_test(NAME shell_volume_unit COMMAND shell_volume_unit)
 set_tests_properties(shell_volume_unit PROPERTIES
@@ -862,16 +862,16 @@ set_target_properties(relational_topo_heal_unit PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-target_link_libraries(relational_topo_heal_unit PRIVATE stl2step::core)
+target_link_libraries(relational_topo_heal_unit PRIVATE cad_mesh_recovery::core)
 target_include_directories(relational_topo_heal_unit PRIVATE
-    "${_stl2step_root}/include"
-    "${_stl2step_root}/src")
+    "${_cad_mesh_recovery_root}/include"
+    "${_cad_mesh_recovery_root}/src")
 if(MSVC)
     target_compile_definitions(relational_topo_heal_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
     target_compile_options(relational_topo_heal_unit PRIVATE /EHsc)
 endif()
-if(COMMAND stl2step_adhoc_sign)
-    stl2step_adhoc_sign(relational_topo_heal_unit)
+if(COMMAND cad_mesh_recovery_adhoc_sign)
+    cad_mesh_recovery_adhoc_sign(relational_topo_heal_unit)
 endif()
 add_test(NAME relational_topo_heal_unit COMMAND relational_topo_heal_unit)
 set_tests_properties(relational_topo_heal_unit PROPERTIES
@@ -885,16 +885,16 @@ set_target_properties(relational_ringwall_unit PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-target_link_libraries(relational_ringwall_unit PRIVATE stl2step::core)
+target_link_libraries(relational_ringwall_unit PRIVATE cad_mesh_recovery::core)
 target_include_directories(relational_ringwall_unit PRIVATE
-    "${_stl2step_root}/include"
-    "${_stl2step_root}/src")
+    "${_cad_mesh_recovery_root}/include"
+    "${_cad_mesh_recovery_root}/src")
 if(MSVC)
     target_compile_definitions(relational_ringwall_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
     target_compile_options(relational_ringwall_unit PRIVATE /EHsc)
 endif()
-if(COMMAND stl2step_adhoc_sign)
-    stl2step_adhoc_sign(relational_ringwall_unit)
+if(COMMAND cad_mesh_recovery_adhoc_sign)
+    cad_mesh_recovery_adhoc_sign(relational_ringwall_unit)
 endif()
 add_test(NAME relational_ringwall_unit COMMAND relational_ringwall_unit)
 set_tests_properties(relational_ringwall_unit PROPERTIES
@@ -909,16 +909,16 @@ set_target_properties(relational_coax_closed_unit PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-target_link_libraries(relational_coax_closed_unit PRIVATE stl2step::core)
+target_link_libraries(relational_coax_closed_unit PRIVATE cad_mesh_recovery::core)
 target_include_directories(relational_coax_closed_unit PRIVATE
-    "${_stl2step_root}/include"
-    "${_stl2step_root}/src")
+    "${_cad_mesh_recovery_root}/include"
+    "${_cad_mesh_recovery_root}/src")
 if(MSVC)
     target_compile_definitions(relational_coax_closed_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
     target_compile_options(relational_coax_closed_unit PRIVATE /EHsc)
 endif()
-if(COMMAND stl2step_adhoc_sign)
-    stl2step_adhoc_sign(relational_coax_closed_unit)
+if(COMMAND cad_mesh_recovery_adhoc_sign)
+    cad_mesh_recovery_adhoc_sign(relational_coax_closed_unit)
 endif()
 add_test(NAME relational_coax_closed_unit COMMAND relational_coax_closed_unit)
 set_tests_properties(relational_coax_closed_unit PROPERTIES
@@ -933,16 +933,16 @@ set_target_properties(relational_rehost_unit PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-target_link_libraries(relational_rehost_unit PRIVATE stl2step::core)
+target_link_libraries(relational_rehost_unit PRIVATE cad_mesh_recovery::core)
 target_include_directories(relational_rehost_unit PRIVATE
-    "${_stl2step_root}/include"
-    "${_stl2step_root}/src")
+    "${_cad_mesh_recovery_root}/include"
+    "${_cad_mesh_recovery_root}/src")
 if(MSVC)
     target_compile_definitions(relational_rehost_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
     target_compile_options(relational_rehost_unit PRIVATE /EHsc)
 endif()
-if(COMMAND stl2step_adhoc_sign)
-    stl2step_adhoc_sign(relational_rehost_unit)
+if(COMMAND cad_mesh_recovery_adhoc_sign)
+    cad_mesh_recovery_adhoc_sign(relational_rehost_unit)
 endif()
 add_test(NAME relational_rehost_unit COMMAND relational_rehost_unit)
 set_tests_properties(relational_rehost_unit PROPERTIES
@@ -956,16 +956,16 @@ set_target_properties(unify_guard_unit PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-target_link_libraries(unify_guard_unit PRIVATE stl2step::core)
+target_link_libraries(unify_guard_unit PRIVATE cad_mesh_recovery::core)
 target_include_directories(unify_guard_unit PRIVATE
-    "${_stl2step_root}/include"
-    "${_stl2step_root}/src")
+    "${_cad_mesh_recovery_root}/include"
+    "${_cad_mesh_recovery_root}/src")
 if(MSVC)
     target_compile_definitions(unify_guard_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
     target_compile_options(unify_guard_unit PRIVATE /EHsc)
 endif()
-if(COMMAND stl2step_adhoc_sign)
-    stl2step_adhoc_sign(unify_guard_unit)
+if(COMMAND cad_mesh_recovery_adhoc_sign)
+    cad_mesh_recovery_adhoc_sign(unify_guard_unit)
 endif()
 add_test(NAME unify_guard_unit COMMAND unify_guard_unit)
 set_tests_properties(unify_guard_unit PROPERTIES
@@ -980,16 +980,16 @@ set_target_properties(relational_anchored_round_unit PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-target_link_libraries(relational_anchored_round_unit PRIVATE stl2step::core)
+target_link_libraries(relational_anchored_round_unit PRIVATE cad_mesh_recovery::core)
 target_include_directories(relational_anchored_round_unit PRIVATE
-    "${_stl2step_root}/include"
-    "${_stl2step_root}/src")
+    "${_cad_mesh_recovery_root}/include"
+    "${_cad_mesh_recovery_root}/src")
 if(MSVC)
     target_compile_definitions(relational_anchored_round_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
     target_compile_options(relational_anchored_round_unit PRIVATE /EHsc)
 endif()
-if(COMMAND stl2step_adhoc_sign)
-    stl2step_adhoc_sign(relational_anchored_round_unit)
+if(COMMAND cad_mesh_recovery_adhoc_sign)
+    cad_mesh_recovery_adhoc_sign(relational_anchored_round_unit)
 endif()
 add_test(NAME relational_anchored_round_unit COMMAND relational_anchored_round_unit)
 set_tests_properties(relational_anchored_round_unit PROPERTIES
@@ -1005,16 +1005,16 @@ set_target_properties(relational_drafted_cone_unit PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-target_link_libraries(relational_drafted_cone_unit PRIVATE stl2step::core)
+target_link_libraries(relational_drafted_cone_unit PRIVATE cad_mesh_recovery::core)
 target_include_directories(relational_drafted_cone_unit PRIVATE
-    "${_stl2step_root}/include"
-    "${_stl2step_root}/src")
+    "${_cad_mesh_recovery_root}/include"
+    "${_cad_mesh_recovery_root}/src")
 if(MSVC)
     target_compile_definitions(relational_drafted_cone_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
     target_compile_options(relational_drafted_cone_unit PRIVATE /EHsc)
 endif()
-if(COMMAND stl2step_adhoc_sign)
-    stl2step_adhoc_sign(relational_drafted_cone_unit)
+if(COMMAND cad_mesh_recovery_adhoc_sign)
+    cad_mesh_recovery_adhoc_sign(relational_drafted_cone_unit)
 endif()
 add_test(NAME relational_drafted_cone_unit COMMAND relational_drafted_cone_unit)
 set_tests_properties(relational_drafted_cone_unit PROPERTIES
@@ -1029,16 +1029,16 @@ set_target_properties(written_census_unit PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-target_link_libraries(written_census_unit PRIVATE stl2step::core)
+target_link_libraries(written_census_unit PRIVATE cad_mesh_recovery::core)
 target_include_directories(written_census_unit PRIVATE
-    "${_stl2step_root}/include"
-    "${_stl2step_root}/src")
+    "${_cad_mesh_recovery_root}/include"
+    "${_cad_mesh_recovery_root}/src")
 if(MSVC)
     target_compile_definitions(written_census_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
     target_compile_options(written_census_unit PRIVATE /EHsc)
 endif()
-if(COMMAND stl2step_adhoc_sign)
-    stl2step_adhoc_sign(written_census_unit)
+if(COMMAND cad_mesh_recovery_adhoc_sign)
+    cad_mesh_recovery_adhoc_sign(written_census_unit)
 endif()
 add_test(NAME written_census_unit COMMAND written_census_unit)
 set_tests_properties(written_census_unit PROPERTIES
@@ -1052,16 +1052,16 @@ set_target_properties(fillet_strip_split_unit PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-target_link_libraries(fillet_strip_split_unit PRIVATE stl2step::harness stl2step::core)
+target_link_libraries(fillet_strip_split_unit PRIVATE cad_mesh_recovery::harness cad_mesh_recovery::core)
 target_include_directories(fillet_strip_split_unit PRIVATE
-    "${_stl2step_root}/src"
-    "${_stl2step_root}/tests/harness"
-    "${_stl2step_root}/tests/support")
+    "${_cad_mesh_recovery_root}/src"
+    "${_cad_mesh_recovery_root}/tests/harness"
+    "${_cad_mesh_recovery_root}/tests/support")
 if(MSVC)
     target_compile_definitions(fillet_strip_split_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
 endif()
-if(COMMAND stl2step_adhoc_sign)
-    stl2step_adhoc_sign(fillet_strip_split_unit)
+if(COMMAND cad_mesh_recovery_adhoc_sign)
+    cad_mesh_recovery_adhoc_sign(fillet_strip_split_unit)
 endif()
 add_test(NAME fillet_strip_split_unit COMMAND fillet_strip_split_unit)
 set_tests_properties(fillet_strip_split_unit PROPERTIES
@@ -1076,18 +1076,18 @@ set_target_properties(relational_torus_grow_unit PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-target_link_libraries(relational_torus_grow_unit PRIVATE stl2step::core stl2step::harness)
+target_link_libraries(relational_torus_grow_unit PRIVATE cad_mesh_recovery::core cad_mesh_recovery::harness)
 target_include_directories(relational_torus_grow_unit PRIVATE
-    "${_stl2step_root}/include"
-    "${_stl2step_root}/src"
-    "${_stl2step_root}/tests/support"
-    "${_stl2step_root}/tests/harness")
+    "${_cad_mesh_recovery_root}/include"
+    "${_cad_mesh_recovery_root}/src"
+    "${_cad_mesh_recovery_root}/tests/support"
+    "${_cad_mesh_recovery_root}/tests/harness")
 if(MSVC)
     target_compile_definitions(relational_torus_grow_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
     target_compile_options(relational_torus_grow_unit PRIVATE /EHsc)
 endif()
-if(COMMAND stl2step_adhoc_sign)
-    stl2step_adhoc_sign(relational_torus_grow_unit)
+if(COMMAND cad_mesh_recovery_adhoc_sign)
+    cad_mesh_recovery_adhoc_sign(relational_torus_grow_unit)
 endif()
 add_test(NAME relational_torus_grow_unit COMMAND relational_torus_grow_unit)
 set_tests_properties(relational_torus_grow_unit PROPERTIES
@@ -1100,16 +1100,16 @@ set_target_properties(relational_dvol_exact_unit PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-target_link_libraries(relational_dvol_exact_unit PRIVATE stl2step::core)
+target_link_libraries(relational_dvol_exact_unit PRIVATE cad_mesh_recovery::core)
 target_include_directories(relational_dvol_exact_unit PRIVATE
-    "${_stl2step_root}/include"
-    "${_stl2step_root}/src")
+    "${_cad_mesh_recovery_root}/include"
+    "${_cad_mesh_recovery_root}/src")
 if(MSVC)
     target_compile_definitions(relational_dvol_exact_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
     target_compile_options(relational_dvol_exact_unit PRIVATE /EHsc)
 endif()
-if(COMMAND stl2step_adhoc_sign)
-    stl2step_adhoc_sign(relational_dvol_exact_unit)
+if(COMMAND cad_mesh_recovery_adhoc_sign)
+    cad_mesh_recovery_adhoc_sign(relational_dvol_exact_unit)
 endif()
 add_test(NAME relational_dvol_exact_unit COMMAND relational_dvol_exact_unit)
 set_tests_properties(relational_dvol_exact_unit PROPERTIES
@@ -1122,16 +1122,16 @@ set_target_properties(apex_cone_dvol_unit PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-target_link_libraries(apex_cone_dvol_unit PRIVATE stl2step::core)
+target_link_libraries(apex_cone_dvol_unit PRIVATE cad_mesh_recovery::core)
 target_include_directories(apex_cone_dvol_unit PRIVATE
-    "${_stl2step_root}/include"
-    "${_stl2step_root}/src")
+    "${_cad_mesh_recovery_root}/include"
+    "${_cad_mesh_recovery_root}/src")
 if(MSVC)
     target_compile_definitions(apex_cone_dvol_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
     target_compile_options(apex_cone_dvol_unit PRIVATE /EHsc)
 endif()
-if(COMMAND stl2step_adhoc_sign)
-    stl2step_adhoc_sign(apex_cone_dvol_unit)
+if(COMMAND cad_mesh_recovery_adhoc_sign)
+    cad_mesh_recovery_adhoc_sign(apex_cone_dvol_unit)
 endif()
 add_test(NAME apex_cone_dvol_unit COMMAND apex_cone_dvol_unit)
 set_tests_properties(apex_cone_dvol_unit PROPERTIES
@@ -1146,16 +1146,16 @@ set_target_properties(relational_sphere_owns_unit PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-target_link_libraries(relational_sphere_owns_unit PRIVATE stl2step::core)
+target_link_libraries(relational_sphere_owns_unit PRIVATE cad_mesh_recovery::core)
 target_include_directories(relational_sphere_owns_unit PRIVATE
-    "${_stl2step_root}/include"
-    "${_stl2step_root}/src")
+    "${_cad_mesh_recovery_root}/include"
+    "${_cad_mesh_recovery_root}/src")
 if(MSVC)
     target_compile_definitions(relational_sphere_owns_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
     target_compile_options(relational_sphere_owns_unit PRIVATE /EHsc)
 endif()
-if(COMMAND stl2step_adhoc_sign)
-    stl2step_adhoc_sign(relational_sphere_owns_unit)
+if(COMMAND cad_mesh_recovery_adhoc_sign)
+    cad_mesh_recovery_adhoc_sign(relational_sphere_owns_unit)
 endif()
 add_test(NAME relational_sphere_owns_unit COMMAND relational_sphere_owns_unit)
 set_tests_properties(relational_sphere_owns_unit PROPERTIES
@@ -1170,16 +1170,16 @@ set_target_properties(relational_capown_unit PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-target_link_libraries(relational_capown_unit PRIVATE stl2step::core)
+target_link_libraries(relational_capown_unit PRIVATE cad_mesh_recovery::core)
 target_include_directories(relational_capown_unit PRIVATE
-    "${_stl2step_root}/include"
-    "${_stl2step_root}/src")
+    "${_cad_mesh_recovery_root}/include"
+    "${_cad_mesh_recovery_root}/src")
 if(MSVC)
     target_compile_definitions(relational_capown_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
     target_compile_options(relational_capown_unit PRIVATE /EHsc)
 endif()
-if(COMMAND stl2step_adhoc_sign)
-    stl2step_adhoc_sign(relational_capown_unit)
+if(COMMAND cad_mesh_recovery_adhoc_sign)
+    cad_mesh_recovery_adhoc_sign(relational_capown_unit)
 endif()
 add_test(NAME relational_capown_unit COMMAND relational_capown_unit)
 set_tests_properties(relational_capown_unit PROPERTIES
@@ -1193,16 +1193,16 @@ set_target_properties(relational_ringlaw_unit PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-target_link_libraries(relational_ringlaw_unit PRIVATE stl2step::core)
+target_link_libraries(relational_ringlaw_unit PRIVATE cad_mesh_recovery::core)
 target_include_directories(relational_ringlaw_unit PRIVATE
-    "${_stl2step_root}/include"
-    "${_stl2step_root}/src")
+    "${_cad_mesh_recovery_root}/include"
+    "${_cad_mesh_recovery_root}/src")
 if(MSVC)
     target_compile_definitions(relational_ringlaw_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
     target_compile_options(relational_ringlaw_unit PRIVATE /EHsc)
 endif()
-if(COMMAND stl2step_adhoc_sign)
-    stl2step_adhoc_sign(relational_ringlaw_unit)
+if(COMMAND cad_mesh_recovery_adhoc_sign)
+    cad_mesh_recovery_adhoc_sign(relational_ringlaw_unit)
 endif()
 add_test(NAME relational_ringlaw_unit COMMAND relational_ringlaw_unit)
 set_tests_properties(relational_ringlaw_unit PROPERTIES
@@ -1216,16 +1216,16 @@ set_target_properties(pcurve_chart_branch_unit PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-target_link_libraries(pcurve_chart_branch_unit PRIVATE stl2step::core)
+target_link_libraries(pcurve_chart_branch_unit PRIVATE cad_mesh_recovery::core)
 target_include_directories(pcurve_chart_branch_unit PRIVATE
-    "${_stl2step_root}/include"
-    "${_stl2step_root}/src")
+    "${_cad_mesh_recovery_root}/include"
+    "${_cad_mesh_recovery_root}/src")
 if(MSVC)
     target_compile_definitions(pcurve_chart_branch_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
     target_compile_options(pcurve_chart_branch_unit PRIVATE /EHsc)
 endif()
-if(COMMAND stl2step_adhoc_sign)
-    stl2step_adhoc_sign(pcurve_chart_branch_unit)
+if(COMMAND cad_mesh_recovery_adhoc_sign)
+    cad_mesh_recovery_adhoc_sign(pcurve_chart_branch_unit)
 endif()
 add_test(NAME pcurve_chart_branch_unit COMMAND pcurve_chart_branch_unit)
 set_tests_properties(pcurve_chart_branch_unit PROPERTIES
@@ -1240,16 +1240,16 @@ set_target_properties(relational_ringfrustum_unit PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-target_link_libraries(relational_ringfrustum_unit PRIVATE stl2step::core)
+target_link_libraries(relational_ringfrustum_unit PRIVATE cad_mesh_recovery::core)
 target_include_directories(relational_ringfrustum_unit PRIVATE
-    "${_stl2step_root}/include"
-    "${_stl2step_root}/src")
+    "${_cad_mesh_recovery_root}/include"
+    "${_cad_mesh_recovery_root}/src")
 if(MSVC)
     target_compile_definitions(relational_ringfrustum_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
     target_compile_options(relational_ringfrustum_unit PRIVATE /EHsc)
 endif()
-if(COMMAND stl2step_adhoc_sign)
-    stl2step_adhoc_sign(relational_ringfrustum_unit)
+if(COMMAND cad_mesh_recovery_adhoc_sign)
+    cad_mesh_recovery_adhoc_sign(relational_ringfrustum_unit)
 endif()
 add_test(NAME relational_ringfrustum_unit COMMAND relational_ringfrustum_unit)
 set_tests_properties(relational_ringfrustum_unit PROPERTIES
@@ -1265,24 +1265,24 @@ set_target_properties(cone_bore_seam_unit PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-target_link_libraries(cone_bore_seam_unit PRIVATE stl2step::core)
+target_link_libraries(cone_bore_seam_unit PRIVATE cad_mesh_recovery::core)
 target_include_directories(cone_bore_seam_unit PRIVATE
-    "${_stl2step_root}/include"
-    "${_stl2step_root}/src"
-    "${_stl2step_root}/tests/support")
+    "${_cad_mesh_recovery_root}/include"
+    "${_cad_mesh_recovery_root}/src"
+    "${_cad_mesh_recovery_root}/tests/support")
 if(MSVC)
     target_compile_definitions(cone_bore_seam_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
     target_compile_options(cone_bore_seam_unit PRIVATE /EHsc)
 endif()
-if(COMMAND stl2step_adhoc_sign)
-    stl2step_adhoc_sign(cone_bore_seam_unit)
+if(COMMAND cad_mesh_recovery_adhoc_sign)
+    cad_mesh_recovery_adhoc_sign(cone_bore_seam_unit)
 endif()
 add_test(NAME cone_bore_seam_unit COMMAND cone_bore_seam_unit)
 set_tests_properties(cone_bore_seam_unit PROPERTIES
     LABELS "unit;fc-contract"
     TIMEOUT 180)
 
-unset(_stl2step_root)
+unset(_cad_mesh_recovery_root)
 unset(_anat)
 unset(_stl)
 unset(_mis)

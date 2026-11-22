@@ -1,4 +1,4 @@
-// stl2step P2 — refit::buildFaces (analytic face construction, shared topology).
+// cad_mesh_recovery P2 — refit::buildFaces (analytic face construction, shared topology).
 // Consumes a RegionSet + the engine's vertex slot array and produces the same
 // vector<TopoDS_Face> the per-triangle loop produces today, except accepted
 // regions become analytic (Geom_Plane / Geom_CylindricalSurface).
@@ -164,7 +164,7 @@
 #include <GeomAPI_IntSS.hxx>
 #include <GeomProjLib.hxx>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 namespace {
 
@@ -370,9 +370,9 @@ void installEPrimeDemotion(const MeshView& mv, const RegionSet& rs) {
     const gp_Dir ahat =
         rs.regions[(size_t)cylIdx[stats[(size_t)best].minIdx]].ax.Direction();
 
-    const char* ev = std::getenv("STL2STEP_EPRIME_DIAG");
+    const char* ev = std::getenv("CAD_MESH_RECOVERY_EPRIME_DIAG");
     const bool diagOn = ev && ev[0] && ev[0] != '0';
-    // E′′ v2 measurement (default-off, STL2STEP_EPRIME_DIAG only; no product change).
+    // E′′ v2 measurement (default-off, CAD_MESH_RECOVERY_EPRIME_DIAG only; no product change).
     const double diagLen = mv.diag > 0.0 ? mv.diag : 1.0;
     const double epsMesh = std::max(std::max(mv.weldTol, 1e-4 * diagLen), 1e-3);
     const double epsPlane = std::max(std::max(epsMesh, mv.sewTol), 0.02);
@@ -2164,7 +2164,7 @@ bool unionBuildOn() { return false; }
 bool diagP2Enabled() {
     static int cached = -1;
     if (cached < 0) {
-        const char* v = std::getenv("STL2STEP_P2_DIAG");
+        const char* v = std::getenv("CAD_MESH_RECOVERY_P2_DIAG");
         cached = (v && v[0] && v[0] != '0') ? 1 : 0;
     }
     return cached != 0;
@@ -2339,7 +2339,7 @@ int rimSplitVertex(const RegionSet& rs, const MeshView& mv, const BoundaryChain&
 bool diag130Enabled() {
     static int cached = -1;
     if (cached < 0) {
-        const char* v = std::getenv("STL2STEP_DIAG_130");
+        const char* v = std::getenv("CAD_MESH_RECOVERY_DIAG_130");
         cached = (v && v[0] && v[0] != '0') ? 1 : 0;
     }
     return cached != 0;
@@ -2348,7 +2348,7 @@ bool diag130Enabled() {
 bool diagRelEnabled() {
     static int cached = -1;
     if (cached < 0) {
-        const char* v = std::getenv("STL2STEP_DIAG_REL");
+        const char* v = std::getenv("CAD_MESH_RECOVERY_DIAG_REL");
         cached = (v && v[0] && v[0] != '0') ? 1 : 0;
     }
     return cached != 0;
@@ -2361,7 +2361,7 @@ bool diagRelEnabled() {
 bool diagStripxEnabled() {
     static int cached = -1;
     if (cached < 0) {
-        const char* v = std::getenv("STL2STEP_DIAG_STRIPX");
+        const char* v = std::getenv("CAD_MESH_RECOVERY_DIAG_STRIPX");
         cached = (v && v[0] && v[0] != '0') ? 1 : 0;
     }
     return cached != 0;
@@ -2377,7 +2377,7 @@ bool diagStripxEnabled() {
 int diagSametolMode() {
     static int cached = -1;
     if (cached < 0) {
-        const char* v = std::getenv("STL2STEP_DIAG_SAMETOL");
+        const char* v = std::getenv("CAD_MESH_RECOVERY_DIAG_SAMETOL");
         cached = (v && v[0] && v[0] != '0') ? ((v[0] == '2') ? 2 : 1) : 0;
     }
     return cached;
@@ -2438,7 +2438,7 @@ void dumpDiagPlateLine(int rid, const TopoDS_Face& f) {
 bool diagJ6Enabled() {
     static int cached = -1;
     if (cached < 0) {
-        const char* v = std::getenv("STL2STEP_J6_DIAG");
+        const char* v = std::getenv("CAD_MESH_RECOVERY_J6_DIAG");
         cached = (v && v[0] && v[0] != '0') ? 1 : 0;
     }
     return cached != 0;
@@ -2447,14 +2447,14 @@ bool diagJ6Enabled() {
 bool diagCoverEnabled() {
     static int cached = -1;
     if (cached < 0) {
-        const char* v = std::getenv("STL2STEP_COVER_DIAG");
+        const char* v = std::getenv("CAD_MESH_RECOVERY_COVER_DIAG");
         cached = (v && v[0] && v[0] != '0') ? 1 : 0;
     }
     return cached != 0;
 }
 
 // Default-off B0/B0.1 provenance. Thread-local so concurrent convert() calls
-// do not share stamps. Written only when STL2STEP_COVER_DIAG is set.
+// do not share stamps. Written only when CAD_MESH_RECOVERY_COVER_DIAG is set.
 thread_local int gDiagMeshEGen = 0;
 thread_local std::unordered_map<const void*, const char*> gDiagEdgeSite;
 thread_local std::unordered_map<const void*, int> gDiagEdgeGen;
@@ -2581,7 +2581,7 @@ void diagJ6FreeEdges(const MeshView& mv, const TopoDS_Shell& sh,
     }
 }
 
-// B0/B0.1: default-off coverage / free-edge attribution. STL2STEP_COVER_DIAG=1.
+// B0/B0.1: default-off coverage / free-edge attribution. CAD_MESH_RECOVERY_COVER_DIAG=1.
 // H1: twin predicate requires len > tol (no zero-length self-match); fourth
 //     class degenerate-zero-length.
 // H2: coverage keyed on builtRid membership, not Region::builtAs.
@@ -5543,7 +5543,7 @@ void dumpTier2PolesOfFace(const TopoDS_Face& f, int rid, const char* tag);
 bool diagPlatesEnabled() {
     static int cached = -1;
     if (cached < 0) {
-        const char* v = std::getenv("STL2STEP_DIAG_PLATES");
+        const char* v = std::getenv("CAD_MESH_RECOVERY_DIAG_PLATES");
         cached = (v && v[0] && v[0] != '0') ? 1 : 0;
     }
     return cached != 0;
@@ -5552,13 +5552,13 @@ bool diagPlatesEnabled() {
 bool collapseDiagEnabled() {
     static int cached = -1;
     if (cached < 0) {
-        const char* v = std::getenv("STL2STEP_COLLAPSE_DIAG");
+        const char* v = std::getenv("CAD_MESH_RECOVERY_COLLAPSE_DIAG");
         cached = (v && v[0] && v[0] != '0') ? 1 : 0;
     }
     return cached != 0;
 }
 
-// STL2STEP_FAIL_RID — parsed once (G0.1). rid 0 is legal; do not copy the
+// CAD_MESH_RECOVERY_FAIL_RID — parsed once (G0.1). rid 0 is legal; do not copy the
 // DIAG `v[0] != '0'` idiom. Unset/empty ⇒ disabled. Malformed ⇒ disabled.
 struct FailRidKnob {
     bool ready = false;
@@ -5572,7 +5572,7 @@ FailRidKnob& failRidKnob() {
     static FailRidKnob k;
     if (k.ready) return k;
     k.ready = true;
-    const char* v = std::getenv("STL2STEP_FAIL_RID");
+    const char* v = std::getenv("CAD_MESH_RECOVERY_FAIL_RID");
     if (!v || !v[0]) return k;
     const char* p = v;
     std::vector<int> ids;
@@ -5625,7 +5625,7 @@ void emitFailRidWarningOnce(WarnFn warn) {
     FailRidKnob& k = failRidKnob();
     if (!k.malformed || k.warned) return;
     k.warned = true;
-    emit(warn, "STL2STEP_FAIL_RID: malformed value, ignored");
+    emit(warn, "CAD_MESH_RECOVERY_FAIL_RID: malformed value, ignored");
 }
 
 void diagCascadeInject() {
@@ -8109,8 +8109,8 @@ int countSeamEdgesOnWire(const TopoDS_Wire& w) {
 void dumpDiagCylFail(const Region& r, const Loop* outer, const char* stage, const char* reason,
                      const TopoDS_Wire& ow, const Handle(Geom_Surface)& surf,
                      const TopoDS_Face& cand) {
-    // D-fc-7.4 Q2: a face-build failure is not silent under STL2STEP_DIAG_REL.
-    // STL2STEP_P2_DIAG keeps the same line.
+    // D-fc-7.4 Q2: a face-build failure is not silent under CAD_MESH_RECOVERY_DIAG_REL.
+    // CAD_MESH_RECOVERY_P2_DIAG keeps the same line.
     if (!diagP2Enabled() && !diagRelEnabled()) return;
     const int nE = countWireEdges(ow);
     const int nChains = outer ? (int)outer->chainIdx.size() : 0;
@@ -9003,7 +9003,7 @@ double pcurveDev(const Handle(Geom_Curve)& c3, Standard_Real f, Standard_Real l,
                  const Handle(Geom_Surface)& srf, const Handle(Geom2d_Curve)& c2d);
 
 // D-gid-8.7: the fallback projection on its face chart's periodic branch
-// (refit_pcurve_branch.hpp); prints DIAG_PCBRANCH under STL2STEP_P2_DIAG.
+// (refit_pcurve_branch.hpp); prints DIAG_PCBRANCH under CAD_MESH_RECOVERY_P2_DIAG.
 Handle(Geom2d_Curve) projectOnChartBranchDiag(const Handle(Geom_Curve)& c3, Standard_Real f,
                                               Standard_Real l, const Handle(Geom_Surface)& srf,
                                               const double* uChart, const char* site) {
@@ -12831,7 +12831,7 @@ void dumpDiagPlateWireSense(const Region& r, const Handle(Geom_Plane)& gpl, cons
 // at 8 either way: the edge those two name IS shared, so the resolver, not the
 // face, is what is wrong. Until the resolver is sound a refusal here would be
 // the same silent substitution DECISION-130 forbids, only in the other
-// direction. STL2STEP_130_TRIPWIRE_ABORT=1 is the hard stop for investigation.
+// direction. CAD_MESH_RECOVERY_130_TRIPWIRE_ABORT=1 is the hard stop for investigation.
 int plateAnalyticEdgesWithoutChain(const Region& r, const TopoDS_Face& f,
                                    const std::vector<ChainGeom>& geom,
                                    TopoDS_Edge* firstBad = nullptr) {
@@ -12865,7 +12865,7 @@ int plateAnalyticEdgesWithoutChain(const Region& r, const TopoDS_Face& f,
                      "DIAG_130_TRIPWIRE rid=%d unnamedAnalyticEdges=%d verdict=reported "
                      "first=(%.4f,%.4f,%.4f)-(%.4f,%.4f,%.4f)\n",
                      r.id, n, p0.X(), p0.Y(), p0.Z(), p1.X(), p1.Y(), p1.Z());
-        if (const char* v = std::getenv("STL2STEP_130_TRIPWIRE_ABORT"); v && v[0] && v[0] != '0')
+        if (const char* v = std::getenv("CAD_MESH_RECOVERY_130_TRIPWIRE_ABORT"); v && v[0] && v[0] != '0')
             std::abort();
     }
     return n;
@@ -14437,7 +14437,7 @@ bool buildPartialCylinder(const Region& r, const RegionSet& rs, const MeshView& 
     // D-fc-7.4 Q2. Every surface attempt failed BRepCheck. Rebuild on the
     // region's own cylinder and pull pcurves onto its angular chart by whole
     // periods. A face that becomes valid ships; one that does not is exploded
-    // below, and its status is reported under STL2STEP_DIAG_REL (and P2).
+    // below, and its status is reported under CAD_MESH_RECOVERY_DIAG_REL (and P2).
     // Doing this only after every attempt has failed leaves a face that
     // already ships on a later attempt untouched.
     {
@@ -18116,13 +18116,13 @@ bool regionShippedAnalytic(const Region& r, const std::vector<char>& exploded) {
 // ---------------------------------------------------------------------------
 // D-140-10 / SPEC-volid — volume-attribution identity (diag-only, default off).
 //   v(F) = (1/3) INT_F r·n̂ dA = (1/3) [ k A(F) + p · N(F) ]
-// Printed under STL2STEP_VOLID.  unset/0 = no stderr; 1 = CLASS+SUM; 2 = +row.
+// Printed under CAD_MESH_RECOVERY_VOLID.  unset/0 = no stderr; 1 = CLASS+SUM; 2 = +row.
 // Never read from product. Never edits faceVolumeContribution.
 // ---------------------------------------------------------------------------
 int volidLevel() {
     static int cached = -1;
     if (cached < 0) {
-        const char* e = std::getenv("STL2STEP_VOLID");
+        const char* e = std::getenv("CAD_MESH_RECOVERY_VOLID");
         if (!e || !*e || e[0] == '0') cached = 0;
         else cached = std::atoi(e);
     }
@@ -18818,7 +18818,7 @@ void diagCascadeExplode(int rid, CascadeRung rung, const RegionSet& rs) {
 
 const char* originName(Origin o);
 
-// D-gid-8.23 census (STL2STEP_DIAG_STRIPX). One line per region face that is
+// D-gid-8.23 census (CAD_MESH_RECOVERY_DIAG_STRIPX). One line per region face that is
 // BRepCheck-invalid at the closed-shell check: origin, certificate
 // (maxVertexDev / tau, ring), whether it was valid before the shell's forced
 // SameParameter (preSP: 1 valid, 0 invalid, -1 not measured), and whether
@@ -19801,7 +19801,7 @@ void dumpR2Probe(const MeshView& mv, const RegionSet& rs, const std::vector<Topo
 }  // namespace
 
 void fitAnalyticTolerances(const TopoDS_Shape& shape) {
-    // Sibling of fitPlanarTolerances (src/stl2step.cpp). Cylinder radial
+    // Sibling of fitPlanarTolerances (src/cad_mesh_recovery.cpp). Cylinder radial
     // deviation d = |‖axis × (p − loc)‖ − R|, vertices AND edge midpoints
     // (a chord's max deviation from a cylinder is at its midpoint). Same
     // ×1.001 + Precision::Confusion() policy. P3 adds the guarded call.
@@ -19984,7 +19984,7 @@ void measureClassBShipMetrics(const MeshView& mv, const RegionSet& rs,
 
 // ---------------------------------------------------------------------------
 // D-gid-8.2 (gz-capown) -- cap-ownership census of shipped cylinders. DIAG
-// ONLY, default off (STL2STEP_DIAG_CAPOWN=1; 2 = + one line per triangle).
+// ONLY, default off (CAD_MESH_RECOVERY_DIAG_CAPOWN=1; 2 = + one line per triangle).
 // Reads the final state of a successful buildFaces; changes nothing.
 // For every shipped cylinder face F (axis a, radius R from F's own surface):
 //   own  -- a triangle F's region owns whose facet normal is axial beyond the
@@ -20000,7 +20000,7 @@ void measureClassBShipMetrics(const MeshView& mv, const RegionSet& rs,
 int capOwnLevel() {
     static int cached = -1;
     if (cached < 0) {
-        const char* v = std::getenv("STL2STEP_DIAG_CAPOWN");
+        const char* v = std::getenv("CAD_MESH_RECOVERY_DIAG_CAPOWN");
         cached = (v && v[0] && v[0] != '0') ? std::max(1, std::atoi(v)) : 0;
     }
     return cached;
@@ -20563,7 +20563,7 @@ bool buildFaces(const MeshView& mv, RegionSet& rs, const std::vector<TopoDS_Vert
             chainEdgeFail.assign(rs.chains.size(), 0);
             fallbackUsed.assign(rs.chains.size(), 0);
             int diagCollapse = 0;
-            if (const char* v = std::getenv("STL2STEP_COLLAPSE_DIAG"); v && v[0] && v[0] != '0')
+            if (const char* v = std::getenv("CAD_MESH_RECOVERY_COLLAPSE_DIAG"); v && v[0] && v[0] != '0')
                 diagCollapse = 1;
             int nMix = 0, nNone = 0, nFail = 0, nOk = 0, nChainSewFb = 0;
             struct SpanPlan {
@@ -21659,7 +21659,7 @@ bool buildFaces(const MeshView& mv, RegionSet& rs, const std::vector<TopoDS_Vert
                     // non-degenerate ones -- on this part all 30 were "identic"
                     // (coincident endpoints) and so invisible here.
                     if (gMeFailN < 64) {
-                        const char* d130 = std::getenv("STL2STEP_DIAG_130");
+                        const char* d130 = std::getenv("CAD_MESH_RECOVERY_DIAG_130");
                         if (d130 && d130[0] && d130[0] != '0') {
                         gMeFailN++;
                         const gp_Pnt pa = BRep_Tool::Pnt(verts[(size_t)ia]);
@@ -25579,7 +25579,7 @@ bool buildFaces(const MeshView& mv, RegionSet& rs, const std::vector<TopoDS_Vert
                     stripxPreSp[i] = faceIsValid(built[i]) ? 1 : 0;
         }
         // D-gid-8.28: the tolerance every edge carries into SameParameter (the
-        // rule after it), and under STL2STEP_DIAG_SAMETOL the validity of every
+        // rule after it), and under CAD_MESH_RECOVERY_DIAG_SAMETOL the validity of every
         // built face before and after it (census only).
         const bool sametolOn = diagSametolEnabled();
         const std::vector<EdgeTolRow> sametolSnap = snapshotEdgeTolerances(sh);
@@ -26267,4 +26267,4 @@ bool partialConeSide(const Region* A, const Region* B) {
 }
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery

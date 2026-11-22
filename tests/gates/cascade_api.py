@@ -2,7 +2,7 @@
 """cascade_api — SPEC C3 three-state FAIL_RID via the public C++ convert() API.
 
 Spawns isolated processes (FAIL_RID is parsed-once/cached) and runs them
-concurrently. Each child calls stl2step::convert().
+concurrently. Each child calls cad_mesh_recovery::convert().
 """
 
 from __future__ import annotations
@@ -25,9 +25,9 @@ def run_probe(probe: Path, stl: Path, out_dir: Path, expect: str, fail_rid: str 
     env["CASCADE_STL"] = str(stl)
     env["CASCADE_OUT"] = str(out_dir)
     if fail_rid is None:
-        env.pop("STL2STEP_FAIL_RID", None)
+        env.pop("CAD_MESH_RECOVERY_FAIL_RID", None)
     else:
-        env["STL2STEP_FAIL_RID"] = fail_rid
+        env["CAD_MESH_RECOVERY_FAIL_RID"] = fail_rid
     proc = subprocess.run([str(probe)], capture_output=True, text=True, env=env)
     sys.stdout.write(proc.stdout)
     sys.stderr.write(proc.stderr)

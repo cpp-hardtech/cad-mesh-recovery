@@ -5,19 +5,19 @@
 #include <cstdlib>
 #include <cstring>
 
-#define STL2STEP_OCCT_VERSION "@OpenCASCADE_VERSION@"
-#define STL2STEP_OCCT_CALIBRATED_MIN_MAJOR @STL2STEP_OCCT_CALIBRATED_MIN_MAJOR@
-#define STL2STEP_OCCT_CALIBRATED_MIN_MINOR @STL2STEP_OCCT_CALIBRATED_MIN_MINOR@
-#define STL2STEP_OCCT_SKIP_EXIT_CODE @STL2STEP_OCCT_SKIP_EXIT_CODE@
+#define CAD_MESH_RECOVERY_OCCT_VERSION "@OpenCASCADE_VERSION@"
+#define CAD_MESH_RECOVERY_OCCT_CALIBRATED_MIN_MAJOR @CAD_MESH_RECOVERY_OCCT_CALIBRATED_MIN_MAJOR@
+#define CAD_MESH_RECOVERY_OCCT_CALIBRATED_MIN_MINOR @CAD_MESH_RECOVERY_OCCT_CALIBRATED_MIN_MINOR@
+#define CAD_MESH_RECOVERY_OCCT_SKIP_EXIT_CODE @CAD_MESH_RECOVERY_OCCT_SKIP_EXIT_CODE@
 
-namespace stl2step::test {
+namespace cad_mesh_recovery::test {
 
 inline const char* effectiveOcctVersion() {
-    const char* overrideVer = std::getenv("STL2STEP_TEST_OCCT_VERSION");
+    const char* overrideVer = std::getenv("CAD_MESH_RECOVERY_TEST_OCCT_VERSION");
     if (overrideVer && overrideVer[0] != '\0') {
         return overrideVer;
     }
-    return STL2STEP_OCCT_VERSION;
+    return CAD_MESH_RECOVERY_OCCT_VERSION;
 }
 
 inline bool parseOcctMajorMinor(const char* ver, int& major, int& minor) {
@@ -51,19 +51,19 @@ inline bool occtVersionAtLeast(int major, int minor, const char* ver) {
 }
 
 inline bool occtCalibrated() {
-    return occtVersionAtLeast(STL2STEP_OCCT_CALIBRATED_MIN_MAJOR,
-                              STL2STEP_OCCT_CALIBRATED_MIN_MINOR,
+    return occtVersionAtLeast(CAD_MESH_RECOVERY_OCCT_CALIBRATED_MIN_MAJOR,
+                              CAD_MESH_RECOVERY_OCCT_CALIBRATED_MIN_MINOR,
                               effectiveOcctVersion());
 }
 
-// Returns STL2STEP_OCCT_SKIP_EXIT_CODE when the battery should skip; otherwise -1.
+// Returns CAD_MESH_RECOVERY_OCCT_SKIP_EXIT_CODE when the battery should skip; otherwise -1.
 inline int skipExitIfUncalibrated() {
     if (occtCalibrated()) {
         return -1;
     }
     std::fprintf(stderr, "SKIP: calibrated on OCCT 7.9.x, found %s\n",
                  effectiveOcctVersion());
-    return STL2STEP_OCCT_SKIP_EXIT_CODE;
+    return CAD_MESH_RECOVERY_OCCT_SKIP_EXIT_CODE;
 }
 
-}  // namespace stl2step::test
+}  // namespace cad_mesh_recovery::test

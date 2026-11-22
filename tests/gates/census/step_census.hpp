@@ -1,10 +1,10 @@
 // Independent STEP census. Reads a STEP with STEPControl_Reader and describes
-// what is actually inside it. Does not include or call the stl2step engine.
+// what is actually inside it. Does not include or call the cad_mesh_recovery engine.
 //
 // SPDX-License-Identifier: MIT
 
-#ifndef STL2STEP_STEP_CENSUS_HPP
-#define STL2STEP_STEP_CENSUS_HPP
+#ifndef CAD_MESH_RECOVERY_STEP_CENSUS_HPP
+#define CAD_MESH_RECOVERY_STEP_CENSUS_HPP
 
 #include <string>
 #include <vector>
@@ -79,7 +79,7 @@ struct Result {
     double maxFaceTol = 0, maxEdgeTol = 0, maxVertexTol = 0;
 };
 
-// Read `path` independently of the stl2step engine. Never throws.
+// Read `path` independently of the cad_mesh_recovery engine. Never throws.
 Result censusFile(const std::string& path);
 
 // One JSON object, stable key order, no wall-clock. Byte-identical across

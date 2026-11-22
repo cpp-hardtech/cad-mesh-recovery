@@ -507,10 +507,10 @@ def tier1_curves_present(census: Optional[Dict[str, Any]]) -> bool:
 
 def run_convert(binary: Path, stl: Path, step: Path) -> Tuple[int, Dict[str, Any], str, str]:
     env = os.environ.copy()
-    env["STL2STEP_DIAG_130"] = "1"
+    env["CAD_MESH_RECOVERY_DIAG_130"] = "1"
     # Spec fallback: RESULT has no cone field. DIAG_130_CENSUS is the ChamferCone
     # census the engine already prints; P2_DIAG is set as the documented backup.
-    env["STL2STEP_P2_DIAG"] = "1"
+    env["CAD_MESH_RECOVERY_P2_DIAG"] = "1"
     proc = subprocess.run(
         [str(binary), str(stl), str(step), "--smooth", "--no-verify", "--quiet"],
         capture_output=True,
@@ -790,7 +790,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--binary", type=Path, required=True)
     p.add_argument("--corpus", type=Path, default=DEFAULT_CORPUS)
-    p.add_argument("--census", type=Path, help="stl2step_census (volume + STEP surfaces/curves)")
+    p.add_argument("--census", type=Path, help="cad_mesh_recovery_census (volume + STEP surfaces/curves)")
     args = p.parse_args(argv)
 
     is_strict = strict_enabled()
@@ -818,7 +818,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         f"gate_130  corpus={args.corpus}  binary={binary}  "
         f"census={census_bin or 'none'}  strict={is_strict}  "
         f"cone census=DIAG_130_CENSUS (RESULT has no cone field; "
-        f"STL2STEP_P2_DIAG=1 also set)",
+        f"CAD_MESH_RECOVERY_P2_DIAG=1 also set)",
         flush=True,
     )
     print(format_table(rows), flush=True)

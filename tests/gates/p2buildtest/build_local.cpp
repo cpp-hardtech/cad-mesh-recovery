@@ -38,10 +38,10 @@
 #include <TopoDS_Vertex.hxx>
 #include <gp_Pnt.hxx>
 
-using stl2step::harness::HarnessComponent;
-using stl2step::harness::HarnessMesh;
-using stl2step::harness::loadMesh;
-using stl2step::harness::toMeshView;
+using cad_mesh_recovery::harness::HarnessComponent;
+using cad_mesh_recovery::harness::HarnessMesh;
+using cad_mesh_recovery::harness::loadMesh;
+using cad_mesh_recovery::harness::toMeshView;
 
 namespace {
 
@@ -140,30 +140,30 @@ static gp_Ax3 readAx3(const JsonValue& o) {
     return gp_Ax3(gp_Pnt(readVec3(o.obj.at("loc"))), gp_Dir(readVec3(o.obj.at("dir"))),
                   gp_Dir(readVec3(o.obj.at("xdir"))));
 }
-static stl2step::refit::SurfType parseSurf(const std::string& s) {
-    if (s == "cylinder") return stl2step::refit::SurfType::Cylinder;
-    if (s == "cone") return stl2step::refit::SurfType::Cone;
-    if (s == "sphere") return stl2step::refit::SurfType::Sphere;
-    if (s == "torus") return stl2step::refit::SurfType::Torus;
-    return stl2step::refit::SurfType::Plane;
+static cad_mesh_recovery::refit::SurfType parseSurf(const std::string& s) {
+    if (s == "cylinder") return cad_mesh_recovery::refit::SurfType::Cylinder;
+    if (s == "cone") return cad_mesh_recovery::refit::SurfType::Cone;
+    if (s == "sphere") return cad_mesh_recovery::refit::SurfType::Sphere;
+    if (s == "torus") return cad_mesh_recovery::refit::SurfType::Torus;
+    return cad_mesh_recovery::refit::SurfType::Plane;
 }
-static stl2step::refit::Origin parseOrigin(const std::string& s) {
-    if (s == "cylGrow") return stl2step::refit::Origin::CylGrow;
-    if (s == "filletStrip") return stl2step::refit::Origin::FilletStrip;
-    return stl2step::refit::Origin::PlaneGrow;
+static cad_mesh_recovery::refit::Origin parseOrigin(const std::string& s) {
+    if (s == "cylGrow") return cad_mesh_recovery::refit::Origin::CylGrow;
+    if (s == "filletStrip") return cad_mesh_recovery::refit::Origin::FilletStrip;
+    return cad_mesh_recovery::refit::Origin::PlaneGrow;
 }
-static stl2step::refit::LoopRole parseRole(const std::string& s) {
-    if (s == "inner") return stl2step::refit::LoopRole::Inner;
-    if (s == "capLow") return stl2step::refit::LoopRole::CapLow;
-    if (s == "capHigh") return stl2step::refit::LoopRole::CapHigh;
-    return stl2step::refit::LoopRole::Outer;
+static cad_mesh_recovery::refit::LoopRole parseRole(const std::string& s) {
+    if (s == "inner") return cad_mesh_recovery::refit::LoopRole::Inner;
+    if (s == "capLow") return cad_mesh_recovery::refit::LoopRole::CapLow;
+    if (s == "capHigh") return cad_mesh_recovery::refit::LoopRole::CapHigh;
+    return cad_mesh_recovery::refit::LoopRole::Outer;
 }
 
-static bool loadRegionSet(const JsonValue& root, stl2step::refit::RegionSet& rs) {
+static bool loadRegionSet(const JsonValue& root, cad_mesh_recovery::refit::RegionSet& rs) {
     rs.compRoot = static_cast<int>(root.obj.at("compRoot").n);
     rs.nIslands = static_cast<int>(root.obj.at("nIslands").n);
     for (const JsonValue& rj : root.obj.at("regions").arr) {
-        stl2step::refit::Region r;
+        cad_mesh_recovery::refit::Region r;
         r.id = static_cast<int>(rj.obj.at("id").n);
         r.type = parseSurf(rj.obj.at("type").s);
         r.origin = parseOrigin(rj.obj.at("origin").s);
@@ -178,7 +178,7 @@ static bool loadRegionSet(const JsonValue& root, stl2step::refit::RegionSet& rs)
         for (const JsonValue& t : rj.obj.at("tris").arr)
             r.tris.push_back(static_cast<int>(t.n));
         for (const JsonValue& lj : rj.obj.at("loops").arr) {
-            stl2step::refit::Loop lp;
+            cad_mesh_recovery::refit::Loop lp;
             for (const JsonValue& ci : lj.obj.at("chainIdx").arr)
                 lp.chainIdx.push_back(static_cast<int>(ci.n));
             for (const JsonValue& rv : lj.obj.at("reversed").arr)
@@ -197,7 +197,7 @@ static bool loadRegionSet(const JsonValue& root, stl2step::refit::RegionSet& rs)
         rs.regions.push_back(r);
     }
     for (const JsonValue& cj : root.obj.at("chains").arr) {
-        stl2step::refit::BoundaryChain ch;
+        cad_mesh_recovery::refit::BoundaryChain ch;
         ch.regA = static_cast<int>(cj.obj.at("regA").n);
         ch.regB = static_cast<int>(cj.obj.at("regB").n);
         ch.islandA = static_cast<int>(cj.obj.at("islandA").n);
@@ -223,12 +223,12 @@ static std::string jnum(double v) {
     return buf;
 }
 
-static const char* builtName(stl2step::refit::BuiltAs b) {
+static const char* builtName(cad_mesh_recovery::refit::BuiltAs b) {
     switch (b) {
-        case stl2step::refit::BuiltAs::Single: return "single";
-        case stl2step::refit::BuiltAs::Seamed360: return "seamed360";
-        case stl2step::refit::BuiltAs::TwoHalves: return "twoHalves";
-        case stl2step::refit::BuiltAs::ExplodedToFacets: return "explodedToFacets";
+        case cad_mesh_recovery::refit::BuiltAs::Single: return "single";
+        case cad_mesh_recovery::refit::BuiltAs::Seamed360: return "seamed360";
+        case cad_mesh_recovery::refit::BuiltAs::TwoHalves: return "twoHalves";
+        case cad_mesh_recovery::refit::BuiltAs::ExplodedToFacets: return "explodedToFacets";
         default: return "notBuilt";
     }
 }
@@ -247,7 +247,7 @@ struct Verdict {
 static Verdict runVerdict(const std::vector<TopoDS_Face>& faces,
                           const std::vector<TopoDS_Vertex>& verts,
                           const HarnessMesh& hm,
-                          stl2step::refit::RegionSet& rs) {
+                          cad_mesh_recovery::refit::RegionSet& rs) {
     Verdict v;
     BRep_Builder B;
     TopoDS_Shell shell;
@@ -340,13 +340,13 @@ static std::string sibling(const std::string& regionset, const char* suffix) {
     return p;
 }
 
-void splitChainInHalf(stl2step::refit::RegionSet& rs, int ci) {
+void splitChainInHalf(cad_mesh_recovery::refit::RegionSet& rs, int ci) {
     if (ci < 0 || (size_t)ci >= rs.chains.size()) return;
-    stl2step::refit::BoundaryChain ch = rs.chains[(size_t)ci];
+    cad_mesh_recovery::refit::BoundaryChain ch = rs.chains[(size_t)ci];
     if (ch.meshEdges.size() < 4 || ch.meshVerts.size() < 3) return;
     const size_t nE = ch.meshEdges.size();
     const size_t mid = nE / 2;
-    stl2step::refit::BoundaryChain a = ch, b = ch;
+    cad_mesh_recovery::refit::BoundaryChain a = ch, b = ch;
     a.closedLoop = false;
     b.closedLoop = false;
     a.meshEdges.assign(ch.meshEdges.begin(), ch.meshEdges.begin() + (std::ptrdiff_t)mid);
@@ -376,7 +376,7 @@ void splitChainInHalf(stl2step::refit::RegionSet& rs, int ci) {
 int runSelfTests(const std::string& rsPath, const std::string& stlPath) {
     JsonValue root;
     JsonParser().parse(slurp(rsPath), root);
-    stl2step::refit::RegionSet base;
+    cad_mesh_recovery::refit::RegionSet base;
     if (!loadRegionSet(root, base)) {
         std::fprintf(stderr, "selftest: failed to load RegionSet\n");
         return 1;
@@ -388,7 +388,7 @@ int runSelfTests(const std::string& rsPath, const std::string& stlPath) {
         return 1;
     }
     const HarnessComponent& comp = mesh.comps[0];
-    stl2step::refit::MeshView mv;
+    cad_mesh_recovery::refit::MeshView mv;
     toMeshView(mesh, comp, mv);
     std::vector<TopoDS_Vertex> verts(comp.compVtx.size());
     BRep_Builder bb;
@@ -396,11 +396,11 @@ int runSelfTests(const std::string& rsPath, const std::string& stlPath) {
         bb.MakeVertex(verts[i], gp_Pnt(mesh.pts[comp.compVtx[i]]), Precision::Confusion());
 
     int nFail = 0;
-    auto call = [&](stl2step::refit::RegionSet rs, const char* tag, bool wantOk) {
+    auto call = [&](cad_mesh_recovery::refit::RegionSet rs, const char* tag, bool wantOk) {
         std::vector<TopoDS_Face> faces;
         bool ok = false;
         try {
-            ok = stl2step::refit::buildFaces(mv, rs, verts, faces, nullptr);
+            ok = cad_mesh_recovery::refit::buildFaces(mv, rs, verts, faces, nullptr);
         } catch (...) {
             std::printf("SELFTEST %s THREW\n", tag);
             nFail++;
@@ -436,10 +436,10 @@ int runSelfTests(const std::string& rsPath, const std::string& stlPath) {
         auto rs = base;
         std::vector<int> caps;
         for (const auto& r : rs.regions) {
-            if (!r.closed360 || r.type != stl2step::refit::SurfType::Cylinder) continue;
+            if (!r.closed360 || r.type != cad_mesh_recovery::refit::SurfType::Cylinder) continue;
             for (const auto& lp : r.loops) {
-                if (lp.role != stl2step::refit::LoopRole::CapLow &&
-                    lp.role != stl2step::refit::LoopRole::CapHigh)
+                if (lp.role != cad_mesh_recovery::refit::LoopRole::CapLow &&
+                    lp.role != cad_mesh_recovery::refit::LoopRole::CapHigh)
                     continue;
                 for (int ci : lp.chainIdx) caps.push_back(ci);
             }
@@ -450,14 +450,14 @@ int runSelfTests(const std::string& rsPath, const std::string& stlPath) {
         std::vector<TopoDS_Face> faces;
         bool ok = false;
         try {
-            ok = stl2step::refit::buildFaces(mv, rs, verts, faces, nullptr);
+            ok = cad_mesh_recovery::refit::buildFaces(mv, rs, verts, faces, nullptr);
         } catch (...) {
             std::printf("SELFTEST twoHalves THREW\n");
             return 1;
         }
         bool fired = false;
         for (const auto& r : rs.regions)
-            if (r.builtAs == stl2step::refit::BuiltAs::TwoHalves) fired = true;
+            if (r.builtAs == cad_mesh_recovery::refit::BuiltAs::TwoHalves) fired = true;
         std::printf("SELFTEST twoHalves buildFaces=%s fired=%s %s builtAs=[", ok ? "true" : "false",
                     fired ? "true" : "false", fired ? "PASS" : "FAIL");
         for (size_t i = 0; i < rs.regions.size(); i++) {
@@ -522,7 +522,7 @@ int main(int argc, char** argv) {
 
     JsonValue root;
     JsonParser().parse(slurp(pos[0]), root);
-    stl2step::refit::RegionSet rs;
+    cad_mesh_recovery::refit::RegionSet rs;
     if (!loadRegionSet(root, rs)) {
         std::fprintf(stderr, "failed to load RegionSet\n");
         return 1;
@@ -545,7 +545,7 @@ int main(int argc, char** argv) {
     }
     const HarnessComponent& comp = mesh.comps[(size_t)component];
 
-    stl2step::refit::MeshView mv;
+    cad_mesh_recovery::refit::MeshView mv;
     toMeshView(mesh, comp, mv);
 
     std::vector<TopoDS_Vertex> verts(comp.compVtx.size());
@@ -558,7 +558,7 @@ int main(int argc, char** argv) {
     std::vector<TopoDS_Face> faces;
     bool built = false;
     try {
-        built = stl2step::refit::buildFaces(mv, rs, verts, faces, warnFn);
+        built = cad_mesh_recovery::refit::buildFaces(mv, rs, verts, faces, warnFn);
     } catch (...) {
         built = false;
     }
@@ -687,18 +687,18 @@ int main(int argc, char** argv) {
     int nClosed360 = 0, nSeamed = 0, nHalves = 0, nExploded360 = 0;
     int nExplodedHole = 0, nExplodedCyl = 0, nBuiltCyl = 0;
     for (const auto& r : rs.regions) {
-        if (r.type == stl2step::refit::SurfType::Cylinder) {
-            if (r.builtAs == stl2step::refit::BuiltAs::ExplodedToFacets) nExplodedCyl++;
-            else if (r.builtAs == stl2step::refit::BuiltAs::Single ||
-                     r.builtAs == stl2step::refit::BuiltAs::Seamed360 ||
-                     r.builtAs == stl2step::refit::BuiltAs::TwoHalves)
+        if (r.type == cad_mesh_recovery::refit::SurfType::Cylinder) {
+            if (r.builtAs == cad_mesh_recovery::refit::BuiltAs::ExplodedToFacets) nExplodedCyl++;
+            else if (r.builtAs == cad_mesh_recovery::refit::BuiltAs::Single ||
+                     r.builtAs == cad_mesh_recovery::refit::BuiltAs::Seamed360 ||
+                     r.builtAs == cad_mesh_recovery::refit::BuiltAs::TwoHalves)
                 nBuiltCyl++;
         }
         if (!r.closed360) continue;
         nClosed360++;
-        if (r.builtAs == stl2step::refit::BuiltAs::Seamed360) nSeamed++;
-        else if (r.builtAs == stl2step::refit::BuiltAs::TwoHalves) nHalves++;
-        else if (r.builtAs == stl2step::refit::BuiltAs::ExplodedToFacets) {
+        if (r.builtAs == cad_mesh_recovery::refit::BuiltAs::Seamed360) nSeamed++;
+        else if (r.builtAs == cad_mesh_recovery::refit::BuiltAs::TwoHalves) nHalves++;
+        else if (r.builtAs == cad_mesh_recovery::refit::BuiltAs::ExplodedToFacets) {
             nExploded360++;
             if (!r.outwardNormal) nExplodedHole++;
         }

@@ -5,7 +5,7 @@
 // detail::triangleAreaDegenerate (mag < 1e-12 or mag^2 < l2^2 * 1e-20).
 // SPDX-License-Identifier: MIT
 
-#include "stl2step/stl2step.hpp"
+#include "cad_mesh_recovery/cad_mesh_recovery.hpp"
 
 #include <array>
 #include <cmath>
@@ -16,7 +16,7 @@
 #include <utility>
 #include <vector>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace detail {
 int absorbZeroAreaTJunctions(std::vector<std::array<int, 3>>& tris,
                              const std::vector<std::array<double, 3>>& pts,
@@ -158,7 +158,7 @@ int main(int argc, char** argv) {
           "fixture: closed box, consistent winding");
     check(before.zeroArea == 1, "fixture: exactly one zero-area triangle");
 
-    const int nOn = stl2step::detail::absorbZeroAreaTJunctions(trisOn, ptsOn, q, false);
+    const int nOn = cad_mesh_recovery::detail::absorbZeroAreaTJunctions(trisOn, ptsOn, q, false);
     const EdgeHealth after = health(trisOn, ptsOn);
     check(nOn == 1, "on-edge: one absorb");
     check((int)trisOn.size() == nBefore, "on-edge: triangle count unchanged");
@@ -168,7 +168,7 @@ int main(int argc, char** argv) {
     check(after.zeroArea == 0, "on-edge: 0 zero-area triangles");
 
     auto trisAgain = trisOn;
-    const int nAgain = stl2step::detail::absorbZeroAreaTJunctions(trisAgain, ptsOn, q, false);
+    const int nAgain = cad_mesh_recovery::detail::absorbZeroAreaTJunctions(trisAgain, ptsOn, q, false);
     check(nAgain == 0, "on-edge: second pass absorbs nothing");
 
     auto ptsOff = boxPoints(true, tau);
@@ -192,13 +192,13 @@ int main(int argc, char** argv) {
         check(std::fabs(dist / (3.0 * tau) - 1.0) < 1e-3, "3·tau: distance is 3·tau");
         check(dist > tau, "3·tau: distance is outside tau");
     }
-    const int nOff = stl2step::detail::absorbZeroAreaTJunctions(trisOff, ptsOff, q, false);
+    const int nOff = cad_mesh_recovery::detail::absorbZeroAreaTJunctions(trisOff, ptsOff, q, false);
     check(nOff == 0, "3·tau: nothing absorbed");
     check((int)trisOff.size() == nBefore, "3·tau: triangle count unchanged");
     check(health(trisOff, ptsOff).zeroArea == 1, "3·tau: zero-area triangle remains");
 
     auto trisQ = boxTris();
-    const int nQ = stl2step::detail::absorbZeroAreaTJunctions(trisQ, ptsOn, 0.0, false);
+    const int nQ = cad_mesh_recovery::detail::absorbZeroAreaTJunctions(trisQ, ptsOn, 0.0, false);
     check(nQ == 0, "q <= 0: absorb nothing");
     check(health(trisQ, ptsOn).zeroArea == 1, "q <= 0: zero-area triangle remains");
 
@@ -207,13 +207,13 @@ int main(int argc, char** argv) {
     auto ptsFile = boxPoints(false, tau);
     auto trisFile = boxTris();
     check(writeStl(stl, trisFile, ptsFile), "wrote synthetic STL");
-    stl2step::Options opt;
+    cad_mesh_recovery::Options opt;
     opt.input = stl;
     opt.output = step;
     opt.threads = 1;
     opt.smooth = false;
     opt.verify = true;
-    const stl2step::Result r = stl2step::convert(opt);
+    const cad_mesh_recovery::Result r = cad_mesh_recovery::convert(opt);
     check(r.ok, "convert ok");
     if (!r.ok) std::fprintf(stderr, "  error: %s\n", r.error.c_str());
     check(r.solids == 1, "convert: 1 solid");

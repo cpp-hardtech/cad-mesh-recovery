@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""SPEC AC2-L3 — C1/C2/C3 driver. Exercises stl2step::convert() via rule22_adopt_api.
+"""SPEC AC2-L3 — C1/C2/C3 driver. Exercises cad_mesh_recovery::convert() via rule22_adopt_api.
 
-C2/C3 parse DIAG_CASCADE resid from the probe (STL2STEP_COLLAPSE_DIAG=1).
+C2/C3 parse DIAG_CASCADE resid from the probe (CAD_MESH_RECOVERY_COLLAPSE_DIAG=1).
 C1 hashes .step + RESULT against a 34ae192 baseline binary (parallel).
 """
 
@@ -179,8 +179,8 @@ def run_c1(live: Path, base: Path, corpus: Path, work: Path) -> list[str]:
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--probe", type=Path, required=True)
-    p.add_argument("--live", type=Path, required=True, help="this-lane stl2step")
-    p.add_argument("--baseline", type=Path, help="34ae192 stl2step for C1")
+    p.add_argument("--live", type=Path, required=True, help="this-lane cad_mesh_recovery")
+    p.add_argument("--baseline", type=Path, help="34ae192 cad_mesh_recovery for C1")
     p.add_argument("--stl", type=Path, default=REPO / "tests" / "corpus" / "handle-lock.stl")
     p.add_argument("--corpus", type=Path, default=REPO / "tests" / "corpus")
     args = p.parse_args(argv)
@@ -202,7 +202,7 @@ def main(argv: list[str] | None = None) -> int:
     with tempfile.TemporaryDirectory(prefix="rule22-adopt-") as td:
         work = Path(td)
         env = os.environ.copy()
-        env["STL2STEP_COLLAPSE_DIAG"] = "1"
+        env["CAD_MESH_RECOVERY_COLLAPSE_DIAG"] = "1"
         env["RULE22_STL"] = str(stl)
         env["RULE22_OUT"] = str(work / "api")
         proc = subprocess.run(

@@ -1,12 +1,12 @@
 // Shared profile certificate (D-fc-1.10). Bodies moved verbatim from refit_torus.cpp.
 // SPDX-License-Identifier: MIT
 
-#ifndef STL2STEP_REFIT_PROFILE_CERT_HPP
-#define STL2STEP_REFIT_PROFILE_CERT_HPP
+#ifndef CAD_MESH_RECOVERY_REFIT_PROFILE_CERT_HPP
+#define CAD_MESH_RECOVERY_REFIT_PROFILE_CERT_HPP
 
 #include <vector>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 
 struct ProfPt {
@@ -38,6 +38,6 @@ bool fitProfileCircle(const std::vector<ProfPt>& P, double tau, double& Rmaj, do
 
 TorusCert certifyTorus(const std::vector<ProfPt>& P, double tau);
 
-}}  // namespace stl2step::refit
+}}  // namespace cad_mesh_recovery::refit
 
-#endif  // STL2STEP_REFIT_PROFILE_CERT_HPP
+#endif  // CAD_MESH_RECOVERY_REFIT_PROFILE_CERT_HPP

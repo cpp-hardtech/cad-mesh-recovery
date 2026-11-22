@@ -72,7 +72,7 @@ int main(int argc, char** argv) {
     }
     if (stl.empty() || step.empty()) {
         std::fprintf(stderr,
-                     "usage: stl2step_grade <stl> <step> [-o dir] [--json p] [--md p] "
+                     "usage: cad_mesh_recovery_grade <stl> <step> [-o dir] [--json p] [--md p] "
                      "[--engine-bin p] [--quiet] [--reverse-seeds] [--seed-order n]\n");
         return 1;
     }

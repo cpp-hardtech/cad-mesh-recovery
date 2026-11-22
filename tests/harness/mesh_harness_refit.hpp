@@ -3,22 +3,22 @@
 //
 // SPDX-License-Identifier: MIT
 
-#ifndef STL2STEP_MESH_HARNESS_REFIT_HPP
-#define STL2STEP_MESH_HARNESS_REFIT_HPP
+#ifndef CAD_MESH_RECOVERY_MESH_HARNESS_REFIT_HPP
+#define CAD_MESH_RECOVERY_MESH_HARNESS_REFIT_HPP
 
 #include "mesh_harness.hpp"
 
 #if __has_include("../../src/refit.hpp")
 #include "../../src/refit.hpp"
-#define STL2STEP_HARNESS_HAVE_REFIT 1
+#define CAD_MESH_RECOVERY_HARNESS_HAVE_REFIT 1
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace harness {
 
 // Fills a non-owning refit::MeshView over `m`/`c`. The MeshView is valid only as
 // long as both outlive it; nothing is copied.
 inline void toMeshView(const HarnessMesh& m, const HarnessComponent& c,
-                       stl2step::refit::MeshView& mv) {
+                       cad_mesh_recovery::refit::MeshView& mv) {
     static_assert(sizeof(std::array<int, 3>) == sizeof(int[3]),
                   "std::array<int,3> must be layout-compatible with int[3]");
     mv.pts       = m.pts.data();
@@ -38,7 +38,7 @@ inline void toMeshView(const HarnessMesh& m, const HarnessComponent& c,
 }
 
 }  // namespace harness
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery
 
 #endif  // __has_include("../../src/refit.hpp")
 

@@ -47,21 +47,21 @@
 #include <gp_Vec.hxx>
 #include <gp_XYZ.hxx>
 
-using stl2step::refit::TorusDevClass;
-using stl2step::refit::circleOnTorusMax;
-using stl2step::refit::pointCircleDist;
-using stl2step::refit::pointTorusDist;
-using stl2step::refit::torusAxialCoord;
-using stl2step::refit::torusDevClassIsExact;
-using stl2step::refit::torusDevClassName;
-using stl2step::refit::hornVIsoCircle;
-using stl2step::refit::torusCylinderContactCircle;
-using stl2step::refit::torusIsHorn;
-using stl2step::refit::torusIsRing;
-using stl2step::refit::torusPlaneContactCircle;
-using stl2step::refit::torusRadialCoord;
-using stl2step::refit::torusVIsoCircle;
-using stl2step::refit::torusVOfProfilePoint;
+using cad_mesh_recovery::refit::TorusDevClass;
+using cad_mesh_recovery::refit::circleOnTorusMax;
+using cad_mesh_recovery::refit::pointCircleDist;
+using cad_mesh_recovery::refit::pointTorusDist;
+using cad_mesh_recovery::refit::torusAxialCoord;
+using cad_mesh_recovery::refit::torusDevClassIsExact;
+using cad_mesh_recovery::refit::torusDevClassName;
+using cad_mesh_recovery::refit::hornVIsoCircle;
+using cad_mesh_recovery::refit::torusCylinderContactCircle;
+using cad_mesh_recovery::refit::torusIsHorn;
+using cad_mesh_recovery::refit::torusIsRing;
+using cad_mesh_recovery::refit::torusPlaneContactCircle;
+using cad_mesh_recovery::refit::torusRadialCoord;
+using cad_mesh_recovery::refit::torusVIsoCircle;
+using cad_mesh_recovery::refit::torusVOfProfilePoint;
 
 static const double kPi = 3.14159265358979323846264338327950288;
 static const int kSamples = 10000;  // SPEC-torus B.2: >= 10^4 sampled circle points

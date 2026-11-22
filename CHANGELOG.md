@@ -92,7 +92,7 @@ converts to the same STEP as 1.9.0.
 ## [1.9.0] - 2026-11-07
 
 TrueForm stops giving up on whole parts and finishes the drilled and rounded details of plate parts
-(task `stl2step-gid`). A component whose shell misses its volume check no longer reverts to facets as a
+(task `cad_mesh_recovery-gid`). A component whose shell misses its volume check no longer reverts to facets as a
 whole when no single region is to blame: every region that fails its own vertex certificate dissolves to
 facets and every certified region stays analytic. The faceted fallback can no longer lose a face in the
 unify step, so a written STEP always re-reads as the solid RESULT reports. Drill-point cones, blind and
@@ -146,7 +146,7 @@ byte-identically to 1.8.0.
 TrueForm finishes the corners. Sphere corners (since 1.6.0 for three equal cylindrical rounds)
 now also form where one of the three rounds is a certified torus, closed hub rings carry their windows as one cylinder,
 and a partial cylinder whose trim starts on the cylinder's own seam no longer fails its validity
-check (task `stl2step-fc`, phase fc-8, the handle-pickup round).
+check (task `cad_mesh_recovery-fc`, phase fc-8, the handle-pickup round).
 
 On the public corpus part handle-pickup the output drops from 639 to 341 faces: five R3 corner
 spheres replace about 190 facet faces and nine cylinders that did not fit the mesh, the R9 hub
@@ -170,7 +170,7 @@ and training file converts byte-identically to 1.7.0.
 - The same-surface whole-turn fill also runs for a single certified partial cylinder, not only
   for merged groups.
 - A certified region whose face build fails reports its BRepCheck status under
-  `STL2STEP_DIAG_REL` instead of being dropped silently.
+  `CAD_MESH_RECOVERY_DIAG_REL` instead of being dropped silently.
 
 ### Fixed
 
@@ -194,7 +194,7 @@ and training file converts byte-identically to 1.7.0.
 TrueForm heals what it used to discard. A component whose analytic rebuild failed in one place
 was reverted whole and shipped faceted; 1.7.0 dissolves only what failed, stops rejecting shells
 whose volume check failed for the wrong reason, and recognises the mechanical features those
-reverts were hiding (task `stl2step-fc`, phase fc-7).
+reverts were hiding (task `cad_mesh_recovery-fc`, phase fc-7).
 
 On a new training part, a flanged wheel full of bolt-circle holes, bores and spoke windows, every
 cylinder used to be thrown away with the rest of the part. It now ships as one closed solid of
@@ -259,7 +259,7 @@ converts byte-identically to 1.6.0.
 ## [1.6.0] - 2026-10-18
 
 TrueForm now builds tori, sphere corners, hems, horn tori, ruled walls and arcs without a common
-radius from the planes and holes it has already identified (task `stl2step-fc`, increments 4 and 5
+radius from the planes and holes it has already identified (task `cad_mesh_recovery-fc`, increments 4 and 5
 below).
 
 ### Fifth increment
@@ -308,9 +308,9 @@ one wall and cut off by another) ship as cylinders. No training file or test fix
 ## [1.5.0] - 2026-10-16
 
 TrueForm now infers fillets and hole chamfers from their relationship to the planes and
-holes it has already identified (task `stl2step-fc`, three increments below).
+holes it has already identified (task `cad_mesh_recovery-fc`, three increments below).
 
-TrueForm changes from the fillet/chamfer training phase (task `stl2step-fc`), first
+TrueForm changes from the fillet/chamfer training phase (task `cad_mesh_recovery-fc`), first
 increment. Two user-visible results on the training files: the tray (`test copy`) no longer
 reverts to a faceted solid, and six-sided holes that the file's own tessellation shows to be
 real hexagons stay planar instead of being rebuilt as round cylinders.
@@ -358,7 +358,7 @@ file or corpus fixture reverts.
 - Relational revolution stage: bands around a certified cylinder axis are mapped to a (ρ, z) profile; a straight profile between two rings certifies a closed cone (funnels, countersinks, counterbore chamfers).
 - Public synthetic fixtures S23–S29 (fine-tessellated plane|plane fillet, U-turn hem, peg with base fillet, funnel, sphere corner, variable-radius negative, hexagon law); features the engine does not build yet are registered expected-red.
 - Gates read `expected-red.json` for `partial_recovery_gate` (by check name) and `p1_compose_gate` (sidecar recoverable rows only); ratchet ceilings tightened where the new faces reduced mesh-polyline edges.
-- Diagnostics (off unless requested): `STL2STEP_DIAG_ABSORB`, `STL2STEP_DIAG_TESSLAW`., `STL2STEP_DIAG_REL`, `DIAG_RELFACE`.
+- Diagnostics (off unless requested): `CAD_MESH_RECOVERY_DIAG_ABSORB`, `CAD_MESH_RECOVERY_DIAG_TESSLAW`., `CAD_MESH_RECOVERY_DIAG_REL`, `DIAG_RELFACE`.
 
 ## [1.4.4] - 2026-09-24
 
@@ -375,10 +375,10 @@ and training file is byte-identical to 1.4.3 in canonical STEP DATA.
 - Expected-red rows for the plate's three unbuilt edge rounds (R5 ×2 along +Y at x = 53, R3 along +Z at (51, −7)) and two permanent residue components. The rounds are real cylinders, but their chord folds (2.9–4.5°) sit below the 5° cylinder-growth floor, so they stay faceted.
 
 ### Changed
-- `stl2step_grade` cylinder admission uses the curved-normal test already used for cones and tori; coaxial walls that share a radius stay two oracles when their domains are disjoint; intersection tiers for coaxial and tangent pairs are decided from `tau` first.
+- `cad_mesh_recovery_grade` cylinder admission uses the curved-normal test already used for cones and tori; coaxial walls that share a radius stay two oracles when their domains are disjoint; intersection tiers for coaxial and tangent pairs are decided from `tau` first.
 - Grader cylinder certificate: at least four azimuth columns at `dφ_τ = τ/ρmax` and a section that is not a straight line. A pair that does not grow is extended in ascending triangle index until the certificate holds. The emit floor lives in `certifies` (registered as `grade.cyl-emit-triangle-floor`).
 - Grader plane handling: every certified plane is held; only a four-vertex quad enters the curved ambient set; larger faces reach a cylinder through per-triangle release after the other classes have seeded; release and claim/merge run to a joint fixpoint.
-- `grade_selftest` grades the corpus fixtures in parallel (`std::thread::hardware_concurrency()` workers; `STL2STEP_GRADE_SELFTEST_JOBS=1` for serial) and consumes checks in source order: about 159 s, under the unchanged 300 s timeout. Graded numbers are unchanged by the speed-up.
+- `grade_selftest` grades the corpus fixtures in parallel (`std::thread::hardware_concurrency()` workers; `CAD_MESH_RECOVERY_GRADE_SELFTEST_JOBS=1` for serial) and consumes checks in source order: about 159 s, under the unchanged 300 s timeout. Graded numbers are unchanged by the speed-up.
 - `p1_ac2_gates_baseline` waits up to 6000 s, the same budget as `gates_full`.
 - `rimSplitVertex` also splits an open cap chain of a closed-360 cylinder or chamfer cone at the region's u = 0 column when that column is an interior vertex of the chain. Output is unchanged on all 44 artefacts.
 - An invalid cone face is refused where it is built, and its component is exploded rather than published.
@@ -403,14 +403,14 @@ and training file is byte-identical to 1.4.3 in canonical STEP DATA.
   `volid_identity`, `grade_selftest`, `gates_full` G0.1 (when the `187ead0`
   baseline is not in the clone), and G5 soft rows report `SKIP` instead of
   failing on uncalibrated OCCT; hosted CI still pins 7.9. Set
-  `STL2STEP_TEST_OCCT_VERSION` to exercise the skip path locally.
+  `CAD_MESH_RECOVERY_TEST_OCCT_VERSION` to exercise the skip path locally.
 
 ### Fixed
 - **Windows `/GS` cookie smash after convert (GitHub #7, D-I-4).** `Result::toJson` used two-pass `snprintf(nullptr, 0)` then `std::string((size_t)n + 1)`. On MSVC `n < 0` wraps that size to 0 and the second write overflows the 16-byte SSO into the hidden `Result` in `main` (cookie immediately after, 320-byte slot vs 336-byte `sizeof(Result)`). Mac/Linux ASan missed it: libc++ SSO is 23 bytes and there is no `/GS`. The writer is now the same append path as `MeshResult::toJson`. Iterator offsets that went through `long` (32-bit on MSVC) now use `std::ptrdiff_t`. `fflush(stdout)` after `RESULT` / `MESH_RESULT`.
 
 ### Added
 - Unit test `result_tojson_unit`: the exact bad size (`int n = -1` → `(size_t)n + 1 == 0`, write past 16-byte SSO) plus `toJson` on paths longer than MSVC SSO.
-- CMake option `STL2STEP_SANITIZE=ON` — ASan+UBSan (Clang) or `/fsanitize=address` (MSVC) on the engine so CI can smoke the CLI under a sanitizer.
+- CMake option `CAD_MESH_RECOVERY_SANITIZE=ON` — ASan+UBSan (Clang) or `/fsanitize=address` (MSVC) on the engine so CI can smoke the CLI under a sanitizer.
 
 ## [1.4.2] - 2026-09-07
 
@@ -420,17 +420,17 @@ and training file is byte-identical to 1.4.3 in canonical STEP DATA.
 ## [1.4.1] - 2026-09-06
 
 ### Fixed
-- Version string fix: the v1.4.0 binary reported `stl2step 1.3.0` because `project(stl2step VERSION …)` in `CMakeLists.txt` and `STL2STEP_VERSION_*` in the public header were never bumped for the 1.4.0 release.
+- Version string fix: the v1.4.0 binary reported `cad_mesh_recovery 1.3.0` because `project(cad_mesh_recovery VERSION …)` in `CMakeLists.txt` and `CAD_MESH_RECOVERY_VERSION_*` in the public header were never bumped for the 1.4.0 release.
 
 ### Added
-- Per-platform engine bundles (`stl2step-engine-<tag>-macos-arm64.tar.gz`, `windows-x64.zip`) and `engine-manifest.json` for the SolidOut in-app updater (published with the release).
+- Per-platform engine bundles (`cad_mesh_recovery-engine-<tag>-macos-arm64.tar.gz`, `windows-x64.zip`) and `engine-manifest.json` for the SolidOut in-app updater (published with the release).
 
 ## [1.4.0] - 2026-09-06
 
 ### Added
 - **Torus engine — stage T transactional reclaim + U-3 face sharing the cylinder rim** (D-140-6, D-140-11). Stage T admits torus candidates, but cylinder reclaim commits only when the U-3 `Geom_ToroidalSurface` face ships; a failed U-3 build restores the pre-stage-T topology and rebuilds with fresh vertices (Body28/Body11 byte-identical to the no-torus binary). The toroidal face shares the cylinder rim via explicit pcurves (`Geom2d_Line((u0−f, v), (1,0))` on the reused rim TShape, both seam pcurves at `u0` / `u0+2π`, and the c-rev wire). S04's boss-top round ships as a valid closed solid (`TOROIDAL_SURFACE`, `solids=1`, `faceCount=9`, I-checker PASS). S19 mouth rounds, the plate mouth band, and Handle pickup admit 0 tori — the certificate is honest on the real parts (`smoothBuiltTori=0`, expected-red `S19.mouth-round-not-built`). The torus closed-360 gate uses `bandArc + asin(min(1, τ/hmin))` (θ_q) instead of the retired `1.5·bandArc` hand constant; U-3 probe warnings are discarded on topology revert.
 - **Torus math — the `circle-on-torus` class** (`src/refit_torus_math.{hpp,cpp}`, `torus_math_unit`; D-140-6 §3(4), the D-130-3 hard gate applied verbatim; D-130-2). `circleOnTorusMax` returns, in closed form, the supremum distance from a circle COAXIAL with a ring torus to the untrimmed toroidal surface: every point of such a circle has the same `(rho, z) = (r_c, h)`, so the distance is the constant `|hypot(r_c − Rmaj, h) − Rmin|` and that constant is the supremum — exactly `0` on every v-iso circle, in particular on the two tangency circles a mouth round is bounded by (S04: `rho = 10 @ z = 22` and `rho = 7 @ z = 25`; S19: both rims of both tori). A non-coaxial circle, a spindle or horn torus (`Rmaj − Rmin <= gp::Resolution()`, OCCT's own guard) and a degenerate tube are refused with `-1.0` / `unhandled-circle-on-torus` — tier 2, counted, never a widened tolerance. With `pointTorusDist`, `torusVIsoCircle` (the tier-1 bounds a blend patch carries) and `torusVOfProfilePoint`. Own translation unit for the reason the cone math has one (0d67eba): the P1 include allowlist is neither touched nor widened. **No build path is edited; `exactMaxAtBind` still returns `unhandled-surface` for a torus until the build lane binds through this class.**
-- **The same-surface union census is readable with the door closed** (D-140-8 U-R13; SPEC-union PART B). Under `STL2STEP_LAWBAND_DIAG` the `DIAG_LAWUNION` line no longer reports the `STL2STEP_UNION` door's behaviour: it takes a copy of every law band's claim, applies D-140-8 U-R1…U-R4 to the copy (the D-130-13(2) same-surface islands under `max(bandResid, q)`, the joint-refit roll-back, the axial-extent overlap, the mutual-containment merge, in band order) and prints, per certified surface, `nTri sigma punctures edgePieces domainFaces pinchVertices sizes=[..] pieces=[..] domainTris loc dir`. `sigma` is U-R5's closed-form supremum `max over the claim's welded edges of (R − dist(axis, midpoint))`, punctures are U-R6's non-claim vertices within `sigma` of the surface, `domainFaces` counts U-R7's components of the claim plus the on-surface stars of its punctures, `pinchVertices` counts U-R8's vertices whose link inside a component is two or more fans. The copy is never written back: `claimTris`, the band fits and every emitted Region are untouched, so the shipped STEP is byte-identical with the diag on or off and with the door open or closed (the plate: `R=10.000000 nTri=255 sigma=0.019733720 punctures=8 edgePieces=6 domainFaces=1 pinchVertices=0 domainTris=279`; Handle pickup: `R=3.999998 nTri=52 punctures=20 edgePieces=11 domainFaces=1 pinchVertices=0 domainTris=84`). New TU `src/refit_union_census.cpp` (`claimChordSagitta`, `unionCensus`, declared in `refit_internal.hpp`; pure `MeshView` measurement, no Region, no build path) and unit target `union_census_unit`: `sigma` against the regular-ring closed form and a numerical supremum along every welded edge at three radii × three densities, world and placed frames, to `Precision::Confusion()`, plus the U-R6/U-R7/U-R8 counts on hand-built interrupted rings.
+- **The same-surface union census is readable with the door closed** (D-140-8 U-R13; SPEC-union PART B). Under `CAD_MESH_RECOVERY_LAWBAND_DIAG` the `DIAG_LAWUNION` line no longer reports the `CAD_MESH_RECOVERY_UNION` door's behaviour: it takes a copy of every law band's claim, applies D-140-8 U-R1…U-R4 to the copy (the D-130-13(2) same-surface islands under `max(bandResid, q)`, the joint-refit roll-back, the axial-extent overlap, the mutual-containment merge, in band order) and prints, per certified surface, `nTri sigma punctures edgePieces domainFaces pinchVertices sizes=[..] pieces=[..] domainTris loc dir`. `sigma` is U-R5's closed-form supremum `max over the claim's welded edges of (R − dist(axis, midpoint))`, punctures are U-R6's non-claim vertices within `sigma` of the surface, `domainFaces` counts U-R7's components of the claim plus the on-surface stars of its punctures, `pinchVertices` counts U-R8's vertices whose link inside a component is two or more fans. The copy is never written back: `claimTris`, the band fits and every emitted Region are untouched, so the shipped STEP is byte-identical with the diag on or off and with the door open or closed (the plate: `R=10.000000 nTri=255 sigma=0.019733720 punctures=8 edgePieces=6 domainFaces=1 pinchVertices=0 domainTris=279`; Handle pickup: `R=3.999998 nTri=52 punctures=20 edgePieces=11 domainFaces=1 pinchVertices=0 domainTris=84`). New TU `src/refit_union_census.cpp` (`claimChordSagitta`, `unionCensus`, declared in `refit_internal.hpp`; pure `MeshView` measurement, no Region, no build path) and unit target `union_census_unit`: `sigma` against the regular-ring closed form and a numerical supremum along every welded edge at three radii × three densities, world and placed frames, to `Precision::Confusion()`, plus the U-R6/U-R7/U-R8 counts on hand-built interrupted rings.
 - **Ellipse math — the two closed forms behind the ELLIPSE bind class** (`src/refit_ellipse_math.{hpp,cpp}`, `ellipse_math_unit`; D-140-9 §2, D-130-2, D-S3-111; the third instance of the 130-CONE-MATH / torus-math shape). Measured first (SPEC-ellipse PART 0): all 55 `unhandled` edges on the 9-fixture edge-class red line are plane∩cylinder ellipses whose plane-side pcurve is the exact 2-D `ELLIPSE` `GeomAPI::To2d` writes and whose cylinder-side pcurve is one degree-8 Bézier with affine `u` and a sinusoid-approximating `v`. `ellipseOnPlaneMax` is the EXACT supremum of `|E(t) − S(pc(t))| = |W + A cos t + B sin t|` over `[f, l]`: the `tan(t/2)` quartic's real roots (Ferrari, threshold-free shift, fixed Newton polish) plus the endpoints; `W = 0` collapses to `σ_max([A B])` (`ellipseTrigSupZeroOffset`), the shipped case to exactly `0.0`, and for `a = b` it is `≤ circleOnPlaneMax` (the D-S3-111 triangle bound) — the sanity relation between the two classes. `ellipseOnCylMax` is a certified UPPER BOUND and says so in its name: the section identity (`ellipseIsCylinderSection`: `ρ ≡ R`, `θ = θ₀ ± t`, `z = z₀ + Λ cos(t − ψ)`, residual carried exactly), `ε_u` exact from the poles by the Bernstein hull, the axial residual per knot span by Chebyshev interpolation (`L_n max_j |v(x_j) − z(x_j)| + Λ H^{n+1}/(2^{2n+1}(n+1)!)`, the refused midpoint-Taylor form is 2⁸ = 256× looser), composed through the exact two-point identity on a cylinder. The grazing predicate (D-S3-111's open predicate): `ellipseCylGrazingSin = |N̂·d̂| = cos α = b/a` and `ellipseVertexBound = √(s² + h²) + s²/(2ρ_min)` with `|h| ≤ δ_pl`, `|s| ≤ (δ_cy + δ_pl|cos γ|)/sin γ`; the class refuses (`unhandled-ellipse-grazing`) where that exceeds `meshTolCap` — never a hand angle. Every refusal is named (`unhandled-ellipse-plane-{param,degenerate}`, `unhandled-ellipse-cyl-{oncyl,uaffine,span,degenerate}`). **No build path is edited; `exactMaxAtBind` still returns `unhandled-other` for an ellipse until the bind lane binds through these classes (SPEC-ellipse PART B), so `edgeUnhandled` is unchanged by construction and B0 holds trivially.**
 - **The ELLIPSE bind class** — `ellipse-on-plane` (EXACT) and `ellipse-on-cylinder` / `ellipse-on-cylinder-bound` (a certified upper bound) in `src/refit_ellipse_bind.{hpp,cpp}` on top of `src/refit_ellipse_math.{hpp,cpp}`, reached by two branches in `exactMaxAtBind` (D-140-9 §1/§3). `unhandled` on the 9-fixture edge-class red line was **55, and every one of the 55 was an ellipse** — an oblique plane∩cylinder cut shipping as tier-1 `Geom_Ellipse` with no closed-form supremum. The plane side is exact: both curves are evaluated at the same `t`, so `E(t) − S(pc(t)) = W + A cos t + B sin t` identically, and the supremum is the maximum of `|·|` over the real roots of the quartic in `τ = tan(t/2)` plus the two endpoints. The cylinder side is a **bound, and says so in its name**: under the section identity (`centre on axis`, `a|Û⊥| = b|V̂⊥| = R`, `Û⊥·V̂⊥ = 0`) the azimuth is affine — so `|Δθ| ≤ ε_u` exactly, from the poles, by the convex hull at the Greville abscissae — while the axial coordinate is `z₀ + Λ cos(t−ψ)`, and **no NURBS reproduces `cos t` in `t`**, so the axial residual is bounded per span by `L_n·max_j |v_pc(x_j) − z(x_j)| + Λ h^{n+1}/(2^{2n+1}(n+1)!)` at the `n+1` Chebyshev nodes, over an exact de Casteljau subdivision (every depth is a valid bound, so the minimum over a fixed depth set is taken). The two compose on the cylinder as `√(4R² sin²(ε_u/2) + max|Δz|²)`. Refusal is by **named clause**, never by silence: `unhandled-ellipse-{plane-param,plane-degenerate,cyl-oncyl,cyl-uaffine,cyl-span,cyl-degenerate,grazing}`; the range clause carries D-130-16's seam sub-clause, so a **full-turn** ellipse edge is refused rather than certified. Measured: `unhandled` **55 → 1** (Body28 25→0, S11-b 24→0, linkage_bores_chamfer 4→0, handle-pickup 1→0; S16-R1-explode-success stays 1 under the seam clause, residue `ellipse.s16-post-bind-tolerance`), with `overTol`, `overCap` and `polylineTier2` unchanged on every fixture and **every corpus STEP byte-identical**. No tolerance writer, no pcurve writer and no instrument was touched.
 - **J6/free-edge containment, landed then fully sunset** (D-140-4, D-140-5, D-140-12; SPEC-reverts-cycle2 §2). Cycle 2 landed three edits; none of them ships. Change 3 (the J6 `if (j6UncollapsePass > 0)` handoff plus `smoothContainedRegions`/`smoothContainedTriangles`) was reverted by D-140-5's sunset. Changes 1–2 — `regionClosureHealEligible` dropping `builtAs == BuiltAs::Single` in favour of `regionBuiltAnalytic(...)`, and `fallbackGuardPass == 0` widened to `<= 2` — were kept as "dormant" by D-140-5, then **reverted by D-140-12**: on Linux they were live, not dormant, and let `S16-R2-ChainUnstable` complete the analytic path (spike-s16r2-linux: first build at `78f85b4`). Restored to the `3bf0575` form: eligibility requires `builtAs == Single`; the heal stays behind `fallbackGuardPass == 0`.
@@ -438,14 +438,14 @@ and training file is byte-identical to 1.4.3 in canonical STEP DATA.
   **The site never shipped live containment on any artefact this project owned** (keys `0`/`0`, `DIAG_CONTAIN` count `0`). **Sunset (D-140-4 §1(5)) fired in D-140-5** for the J6 handoff. **D-140-12 then reverted changes 1–2 as well:** they were not dormant on Linux — they let S16-R2-ChainUnstable build (planes/cylinders/tier2) where macOS and `3bf0575` Linux still revert. Eligibility and reachability do **not** stay.
 - **`S20_cross_bore_union`, the same-surface union fixture, with its own negative control** (D-140-8 U-R15/U-R16). An 80×60×40 block with a mid-span slot, one Ø20 bore on +X across both walls — so it ships as **two coaxial faces at disjoint axial spans**, [0,30] and [50,80] — and a Ø12 cross bore on +Z at x = 15 piercing the wall-A span at `u = 90°` and `u = 270°`, strictly inside it. Both bores are 48-gon prisms, and that is the mechanism: the two prisms' intersection polyline alternates between bore-edge × cross-facet vertices (exactly on R = 10) and cross-edge × bore-facet vertices, which lie on a chord of the bore and are therefore **punctures** in D-140-8 U-R6's sense — the plate's eight slot-window corners, reproduced by construction. `gen_corpus` asserts the topology on its own welded float32 mesh **before any engine run** and prints the `S20-UNION` census: union bore `sigma=0.0214118609` mm `= 3240.66178 q`, `edgePieces=38`, `punctures=92`, `domainFaces=1`, `innerWires=2`, `windingPerWire=[0,0]`, `pinchVertices=40`; control bore `domainFaces=1`, `innerWires=0`; `axialOverlap=0`. The predicate is never relaxed — a deflection-halving retry loop runs up to 8 times and the lane throws if it exhausts. `exactVolume` is a closed form on the generator's own parameters (inclusion–exclusion over slot ∪ bore ∪ cross bore; the two prisms' intersection integrand is piecewise **quadratic**, so Simpson on the breakpoint intervals is exact, not a quadrature) and is asserted against `BRepGProp::VolumeProperties` on the exact solid: `closedForm=142038.9690342799 BRepGProp=142038.96903428048`. The PRG multiset ceiling for R = 10 on this fixture is therefore exactly **2**: over-segmentation fails (D-130-14) and over-merging fails (U-R3). `src/` is untouched — the union itself is expected-red as `S20.union-not-built`.
 - **Two real-export corpus fixtures**, `shelf_bracket` (2340 tris; 32 planes + 20 cylinders + 735 facet faces in one valid closed solid, `volumeDeltaPct = 0.000142`) and `Body244` (6268 tris; `builtPlanes`/`builtCylinders` 364/178 (D-140-3 record), `volumeDeltaPct = 0.000099`, `rid=1` explodes to 148 facets under expected-red `Body244.cyl360.rid1`). shelf_bracket is the analytic-plus-facet-island proof on real geometry that `S17_hole_vs_island` was to assert synthetically; S17 is withdrawn this cycle under expected-red `S17.cap-claimed-by-a2` (D-140-4 §4).
-- **`stl2step_grade`, the mesh-oracle recovery grader** (`tests/grade/`, targets `stl2step_grade` + `stl2step_grade_selftest`; D-140-1). Independent of `stl2step::core` (grafts only `stl_quant`); oracle classes plane / cylinder / cone / sphere / torus from the mesh at `τ = 2q`; seven training grades + ctest selftests. Cycle 6 torus/cone oracles certify on the training parts (D-140-1, D-140-6). Selftest core **68/68**, synthetic 25/25.
+- **`cad_mesh_recovery_grade`, the mesh-oracle recovery grader** (`tests/grade/`, targets `cad_mesh_recovery_grade` + `cad_mesh_recovery_grade_selftest`; D-140-1). Independent of `cad_mesh_recovery::core` (grafts only `stl_quant`); oracle classes plane / cylinder / cone / sphere / torus from the mesh at `τ = 2q`; seven training grades + ctest selftests. Cycle 6 torus/cone oracles certify on the training parts (D-140-1, D-140-6). Selftest core **68/68**, synthetic 25/25.
 - **Torus fixtures — S04 recoverable + `S19_mouth_round`** (D-140-6 §4, SPEC-torus PART A). S04's `mustRemainFaceted` TorusNYI is cleared and recoverable gains `torusRec(7.0, 3.0, {25,25,22}, +Z, 1, true)` (STL bytes unchanged); `S19_mouth_round` is a 60×60×20 box, R=10 through hole, mouth rounds r=2 top / r=1 bottom. Generator-exact sidecars and `*.exact.step`; S04 now builds a toroidal face; expected-red `S19.mouth-round-not-built` stays; `gates_full` I-checker XFAIL on S19 registered (D-140-6 §4(e)). Fixtures only on the fixture commit; build landed on this branch.
-- **Volume-attribution identity, default-off** (`STL2STEP_VOLID`; D-140-10). Diag-only instrument beside `dumpR2Probe`: pcurve and contour readings of `v(F)=(1/3)[kA+p·N]`, the §2.5 `closes` bracket, and the S01/S02/S03 unit (`volid_identity` 17/17). `faceVolumeContribution` and the caller probe are untouched; no product read of `closes`. Knob unset/`0` is a no-op (OFF≡ON for STEP bytes). Measured `closes` 8/9 (plate `volid.cone-bracket`).
+- **Volume-attribution identity, default-off** (`CAD_MESH_RECOVERY_VOLID`; D-140-10). Diag-only instrument beside `dumpR2Probe`: pcurve and contour readings of `v(F)=(1/3)[kA+p·N]`, the §2.5 `closes` bracket, and the S01/S02/S03 unit (`volid_identity` 17/17). `faceVolumeContribution` and the caller probe are untouched; no product read of `closes`. Knob unset/`0` is a no-op (OFF≡ON for STEP bytes). Measured `closes` 8/9 (plate `volid.cone-bracket`).
 
 ### Removed
 - **The J6 handoff containment round and its two RESULT keys** (D-140-5): D-140-4 §1(5)'s sunset fired — 1 529 generated candidates found no constructible `S18_uncontainable_rim` (clause A, an orphaned collapsed chain within the site's 1.0 mm `matchTol`, fires 0 times post-heal) — so `refit_build.cpp:15877-15925` reverts to its `3bf0575` form, dropping the containment round, `smoothContainedRegions`/`smoothContainedTriangles`, `resetContained()`, and the `smooth: contained ...` warning.
 - **J6 eligibility and heal reachability restored to `3bf0575`** (D-140-12, completing D-140-5): D-140-5 had left change 1 (`regionClosureHealEligible` → `regionBuiltAnalytic`) and change 2 (`fallbackGuardPass <= 2`) in place as widenings of a "live" heal. On Linux those two lines were the first-build at `78f85b4` for S16-R2-ChainUnstable (spike-s16r2-linux: `smoothRevertedComponents` 1→0, `polylineTier2` 0→25, `overCap` 0→1). Restored: `builtAs == BuiltAs::Single` and `fallbackGuardPass == 0`. MacOS B0 is unchanged because the path was dormant there; Linux S16-R2 returns to the revert contract.
-- **The `STL2STEP_UNION` door** (D-140-8 U-R14): cycle 1 did not close U-R9 (plate seamed cylinder with 2 inner window wires = `UnorientableShape` st=27; domain-boundary extraction yields window-sized caps and fragment loops, not a face-construction miss). The door is deleted; merge/emit stay off so no partial construction lands. S20 fixture, census, and expected-red rows stay. The union engine is deferred to 1.5.
+- **The `CAD_MESH_RECOVERY_UNION` door** (D-140-8 U-R14): cycle 1 did not close U-R9 (plate seamed cylinder with 2 inner window wires = `UnorientableShape` st=27; domain-boundary extraction yields window-sized caps and fragment loops, not a face-construction miss). The door is deleted; merge/emit stay off so no partial construction lands. S20 fixture, census, and expected-red rows stay. The union engine is deferred to 1.5.
 
 ### Tests (1.4.0)
 - **S19_mouth_round compose expectation (lane seeds-140c, D-130-24; D-140-6 §4(e))** — generator sidecar: six box planes in `recoverable[]`; recoverable6/7/8 (R=10 closed360 cylinder + two coaxial mouth-round tori) declared `mustRemainFaceted` with `S19.mouth-round-not-built` / TorusNYI wording; closed-form geometry kept in deferred comments. STL bytes unchanged; `p1_compose_gate` green.
@@ -461,12 +461,12 @@ and training file is byte-identical to 1.4.3 in canonical STEP DATA.
 - **A component with refused-mint composites takes the facet fallback when its shell fails** (D-140-13; D-140-2): `buildWithInners` still returns true after a failed `prepare()` on a mintRefused polyline-rim face — those faces can ship in a closing shell (shelf_bracket 32/20, Body244 364/178). When the component's shell then fails to close or validate, `buildFaces` takes the existing ChainUnstable → all-facet path instead of returning false, so S16-R2 ships as facets the way `3bf0575` did. Components without a mintRefused face keep the previous shell-failure semantics. Cap-mint refusal is unchanged.
 - **Torus U-3 probe warnings discarded on topology revert** (D-140-6, D-140-11): when stage T admits candidates but U-3 fails and the pre-T snapshot rebuild ships, warnings from the discarded probe build are no longer forwarded — Body244 returns to 2 warnings (IntAna + seamed360) with byte-identical STEP.
 - **Transactional torus cylinder reclaim** (D-140-6, D-140-11): stage T still admits candidates, but a failed U-3 torus face build restores the pre-stage-T topology and rebuilds with fresh vertices so Body28/Body11 match the no-torus binary; cylinder reclaim commits only when `Geom_ToroidalSurface` ships. The torus closed-360 gate uses `bandArc + asin(min(1, τ/hmin))` (θ_q) instead of the retired `1.5·bandArc` hand constant.
-- **The OpenCASCADE toolkits the engine uses are named explicitly** (github issue #1): `stl2step_core` linked only the finder's umbrella target, which omitted TKPrim (`BRepPrimAPI_MakePrism`) and TKBO (`BRepAlgoAPI_Fuse`, `BOPAlgo_GlueEnum`); they arrived transitively on Homebrew and on an OCCT that ships a CMake package config, and not at all under Debian/Ubuntu's `ld --as-needed` when OCCT is installed without one (`undefined reference to BRepAlgoAPI_Fuse::~BRepAlgoAPI_Fuse()` / `libTKBO.so: DSO missing from command line`). CMakeLists.txt now links the measured minimal cover of 15 toolkits, selected by `if(TARGET ...)` with a `find_library` fallback and the pre-7.8 TKSTL/TKSTEP* spellings as alternates.
+- **The OpenCASCADE toolkits the engine uses are named explicitly** (github issue #1): `cad_mesh_recovery_core` linked only the finder's umbrella target, which omitted TKPrim (`BRepPrimAPI_MakePrism`) and TKBO (`BRepAlgoAPI_Fuse`, `BOPAlgo_GlueEnum`); they arrived transitively on Homebrew and on an OCCT that ships a CMake package config, and not at all under Debian/Ubuntu's `ld --as-needed` when OCCT is installed without one (`undefined reference to BRepAlgoAPI_Fuse::~BRepAlgoAPI_Fuse()` / `libTKBO.so: DSO missing from command line`). CMakeLists.txt now links the measured minimal cover of 15 toolkits, selected by `if(TARGET ...)` with a `find_library` fallback and the pre-7.8 TKSTL/TKSTEP* spellings as alternates.
 - **takeFullCap may not mint against an unbuilt partner** (D-140-2): a `Seamed360` cap facing an island / eprimeFill / exploded / non-analytic region keeps the mesh polyline both sides already share, instead of inventing a full-2π `CIRCLE` TShape that the fill cannot carry. shelf_bracket's eight through-holes ship as cylinders; the shell closes with no `J6:` line. Body244 ships `builtPlanes`/`builtCylinders` 364/178 (D-140-3 record; `volumeDeltaPct = 0.000099`); the shell closes with no `J6:` line.
 - **Corpus checker parses sidecars linearly** (MSVC hosted CI): `check_corpus.cpp` parsed each sidecar with `std::regex` patterns chaining `[\s\S]*?` across the document; MSVC throws `regex_error(error_complexity)` on the plate sidecar (`Exit code 0xc0000409`, no stdout). Replaced with a single forward scan; matching semantics kept.
 ### Changed
 - **Grader selftest expected-red, and its first row retired in the same release (D-140-7)**: `tests/gates/baseline/expected-red.json` gains a `grader` section and `grade_selftest` the `XFAIL`/`XPASS` reporting that reads it — a listed check that fails is reported `XFAIL` and excluded from the exit code; a listed check that *passes* is reported `XPASS`, **counted as a failure**, and names the row to delete, so the list can only shrink. The section's first and only row, `grade.reverse-seed.handle-pickup` (case 9's cylinder-phase claim-order dependence), was registered when the grader landed and **is gone again in this same 1.4.0 cycle**. What closed it: the oracle's stage-A pass no longer consumes triangles or names a seed. Each class phase now answers one boolean per edge-connected component of the unclaimed set — *does this component carry the class?* — over a frozen ambient set, and §5.4's growth walk is then re-run over the union of the carrying components, entered at the lowest triangle index. That domain is a function of `(mesh, class order)` alone, so no permutation of the seed enumeration can move it; the three mechanisms that used to move it (band-offset chop, skipped-seed slack, two competing cylinders on the same quads) are each closed by it. The probe itself is untouched and still real — `--reverse-seeds` still reverses `seedList()`, which still drives the growth for every seed, and `grade_selftest.cpp`'s assertions are unchanged. Selftest core **68/68** (was 67/68), synthetic 25/25, **0 XFAIL, 0 XPASS**; the seven training grades are byte-identical under file order, `--reverse-seeds` and a third geometry-derived permutation (`--seed-order n`, triangle-centroid order), with no grade changed. The empty `grader` section stays: the machinery is what landed, the deferral was not.
-- **Same-surface union engine → 1.5** (D-140-8): the `STL2STEP_UNION` door is deleted, not compiled-in-off. 1.4.0 ships the seed piece(s) per surface (plate cross bore 214/279 in 2 faces); S20 remains expected-red `S20.union-not-built`.
+- **Same-surface union engine → 1.5** (D-140-8): the `CAD_MESH_RECOVERY_UNION` door is deleted, not compiled-in-off. 1.4.0 ships the seed piece(s) per surface (plate cross bore 214/279 in 2 faces); S20 remains expected-red `S20.union-not-built`.
 
 ## [1.3.0] - 2026-09-05
 
@@ -510,7 +510,7 @@ and training file is byte-identical to 1.4.3 in canonical STEP DATA.
 
 ### Deferred
 - **Torus surfaces → 1.4** (D-130-7, amended by D-130-9(a) and D-130-10(3)): the plate's three toroidal rounds at the cross-bore mouths stay faceted; no lane builds `Geom_ToroidalSurface` in 1.3.0. The 13 two-facet fillet-strip slivers on those bands are the 1.4 item's inherited count.
-- **Same-surface islands and the loop-level union → 1.4, with the tori** (D-130-13(2), D-130-14, D-130-16, D-130-17 and the 2026-09-05 addendum). The island claiming landed and was reverted the same lane (228dfbc → 000c29f) because its per-piece emit shipped Handle pickup's single R 4 wall as eleven faces and `partial_recovery_gate` refused it — the instrument was not edited. The union is compiled-in behind `STL2STEP_UNION`, off by default (d3179af, 0477c72). 1.3.0 ships the seed piece(s) per surface: the plate's cross bore as **214 of 279** triangles in 2 faces; each R 3 slot-end top row stays facets (28 of 39 tris per wall in two faces). The plate sidecar's cross-bore entry is the mesh truth (255 on-surface + 24 off-surface, D-130-13(2)) and is **not** edited to match the shipped 214/279; the plate's `gates_full` SIDECAR row is **expected-red** by D-130-17.
+- **Same-surface islands and the loop-level union → 1.4, with the tori** (D-130-13(2), D-130-14, D-130-16, D-130-17 and the 2026-09-05 addendum). The island claiming landed and was reverted the same lane (228dfbc → 000c29f) because its per-piece emit shipped Handle pickup's single R 4 wall as eleven faces and `partial_recovery_gate` refused it — the instrument was not edited. The union is compiled-in behind `CAD_MESH_RECOVERY_UNION`, off by default (d3179af, 0477c72). 1.3.0 ships the seed piece(s) per surface: the plate's cross bore as **214 of 279** triangles in 2 faces; each R 3 slot-end top row stays facets (28 of 39 tris per wall in two faces). The plate sidecar's cross-bore entry is the mesh truth (255 on-surface + 24 off-surface, D-130-13(2)) and is **not** edited to match the shipped 214/279; the plate's `gates_full` SIDECAR row is **expected-red** by D-130-17.
 - **B6 `cyl_meets_chamfer`** (a cone cut by a second bore: non-coaxial cone∩cyl and a trimmed cone face) stays `expected-red` and may slip to 1.3.1 (D-130-5). `gate_130` remains inverted on `GATE_130_EXPECTED_RED` while B6 is unmet.
 - **Edge-class red lines on 9 fixtures** (082194b; D-130-2): Body11, Body28, S03, S04, S09, S11-b, S16-R1-explode-success, handle-pickup, linkage_bores_chamfer — recorded in `edge-class-ratchet.json` `expectedRed`; widening that map is a defect.
 - **Intersection edges** (D-130-2): tier 1 analytic only where `IntAna` on the shipped surfaces yields a line, circle or ellipse; general cyl∩cyl and non-coaxial cyl∩cone ship as the mesh polyline, counted and ratcheted, never absorbed; free BSpline approximations and `BRepAlgoAPI_Section` curves are refused as shipped geometry (door D-130-2b).
@@ -526,7 +526,7 @@ and training file is byte-identical to 1.4.3 in canonical STEP DATA.
 
 ### Added
 - Gates: the plane census maps each shipped face to one ground-truth face (co-equation faces are no longer double counted); the partial-recovery phantom ratchet is re-derived from the current shell with the one new phantom attributed by region.
-- Diagnostics (all off unless `STL2STEP_P2_DIAG` is set): first-keep in-context census, tolerance/supremum prints, wire-order and orientation prints, repair-rung fire counters.
+- Diagnostics (all off unless `CAD_MESH_RECOVERY_P2_DIAG` is set): first-keep in-context census, tolerance/supremum prints, wire-order and orientation prints, repair-rung fire counters.
 
 ### Fixed
 - Builds against OpenCASCADE 8.0 as well as 7.9.
@@ -612,7 +612,7 @@ Optional analytic-surface recovery behind **TrueForm** mode (`--engine trueform`
   fillet; an asymmetric chamfer (`sL/sR ≥ 1.3`) is rejected.
 
 ### Changed
-- Engine version string is `1.1.0-pre` (`STL2STEP_VERSION_*` macros). CMake
+- Engine version string is `1.1.0-pre` (`CAD_MESH_RECOVERY_VERSION_*` macros). CMake
   `project(... VERSION …)` is owned separately and is not part of this
   changelog entry.
 - **Verbatim mode is byte-identical to 1.0.0** (STEP + RESULT), measured by
@@ -626,11 +626,11 @@ Optional analytic-surface recovery behind **TrueForm** mode (`--engine trueform`
 First public release as a standalone, cross-platform engine.
 
 ### Added
-- Reusable engine library (`stl2step::core`) exposing a single
-  `stl2step::convert(Options, LogCallback) -> Result` entry point, plus
+- Reusable engine library (`cad_mesh_recovery::core`) exposing a single
+  `cad_mesh_recovery::convert(Options, LogCallback) -> Result` entry point, plus
   `version()`, `schemaName()`, and `parseSchema()`. The whole public interface
-  is one header (`include/stl2step/stl2step.hpp`).
-- Standalone `stl2step` command-line tool built on the library.
+  is one header (`include/cad_mesh_recovery/cad_mesh_recovery.hpp`).
+- Standalone `cad_mesh_recovery` command-line tool built on the library.
 - `Result::toJson()` producing the stable, machine-readable `RESULT {json}`
   payload that the CLI prints as its last stdout line.
 - Optional `LogCallback` progress sink (Info / Warning / Error) so host
@@ -639,7 +639,7 @@ First public release as a standalone, cross-platform engine.
   config package; falls back to manual discovery, handling the 7.8 toolkit
   rename `TKSTEP`/`TKSTL` -> `TKDESTEP`/`TKDESTL`).
 - Install + package-config export so downstream projects can
-  `find_package(stl2step)`; also usable via `add_subdirectory` / `FetchContent`.
+  `find_package(cad_mesh_recovery)`; also usable via `add_subdirectory` / `FetchContent`.
 - `AGENTS.md` integration guide, a minimal C++ example, and a CTest smoke test.
 
 ### Verified

@@ -3,8 +3,8 @@
 // certifyTorus itself.
 // SPDX-License-Identifier: MIT
 
-#ifndef STL2STEP_REFIT_RELATIONAL_TORUS_HPP
-#define STL2STEP_REFIT_RELATIONAL_TORUS_HPP
+#ifndef CAD_MESH_RECOVERY_REFIT_RELATIONAL_TORUS_HPP
+#define CAD_MESH_RECOVERY_REFIT_RELATIONAL_TORUS_HPP
 
 #include "refit_internal.hpp"
 #include "refit_profile_cert.hpp"
@@ -13,7 +13,7 @@
 #include <gp_XYZ.hxx>
 #include <vector>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 
 // F2. An atom is an accepted, non-closed CylGrow cylinder (a B1 commit or a
@@ -183,6 +183,6 @@ std::vector<int> torusStationCands(const std::vector<std::array<int, 3>>& triVer
                                    const std::vector<int>& sheetOfTri, int sheet);
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery
 
-#endif  // STL2STEP_REFIT_RELATIONAL_TORUS_HPP
+#endif  // CAD_MESH_RECOVERY_REFIT_RELATIONAL_TORUS_HPP

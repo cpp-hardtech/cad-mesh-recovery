@@ -34,13 +34,13 @@
 #include <utility>
 #include <vector>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 
 namespace {
 
 bool diagRelOn() {
-    const char* v = std::getenv("STL2STEP_DIAG_REL");
+    const char* v = std::getenv("CAD_MESH_RECOVERY_DIAG_REL");
     return v && v[0] && v[0] != '0';
 }
 
@@ -681,4 +681,4 @@ bool claimRuledQuads(const MeshView& mv, const SegmentParams& p, const DerivedTo
 }
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery

@@ -1,14 +1,14 @@
 // Class-B volume heal predicates (D-fc-6.7). Header-only quantities; no OCCT.
 // SPDX-License-Identifier: MIT
 
-#ifndef STL2STEP_REFIT_CLASSB_HPP
-#define STL2STEP_REFIT_CLASSB_HPP
+#ifndef CAD_MESH_RECOVERY_REFIT_CLASSB_HPP
+#define CAD_MESH_RECOVERY_REFIT_CLASSB_HPP
 
 #include "refit_cyl_meet.hpp"
 
 #include <cmath>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 
 // Per-region share of the caller's RULE 2.2 budget (kR = kCascadeResidFactor).
@@ -63,6 +63,6 @@ inline bool classBCertFailPassMember(bool shippedAnalytic, double maxVertexDev,
 }
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery
 
 #endif

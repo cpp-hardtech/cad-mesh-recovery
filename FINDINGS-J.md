@@ -16,7 +16,7 @@ model as `refit_grow.cpp`), with `epsMesh` floor when dev is zero, and a
 **0.01°** minimum. Analytic faces stay protected via existing `KeepShape`.
 Verbatim path unchanged (G0.1).
 
-Implementation: `src/stl2step.cpp` — `smooth-flat` unify pass inside
+Implementation: `src/cad_mesh_recovery.cpp` — `smooth-flat` unify pass inside
 `if (smooth)` only.
 
 ## Proof (macOS arm64, hl/J worktree)
@@ -24,7 +24,7 @@ Implementation: `src/stl2step.cpp` — `smooth-flat` unify pass inside
 ### handle-lock TrueForm revert (unchanged analytic outcome)
 
 ```sh
-./build/stl2step tests/diag/handle-lock/handle-lock.stl -o /tmp/o.step \
+./build/cad_mesh_recovery tests/diag/handle-lock/handle-lock.stl -o /tmp/o.step \
   --engine trueform --quiet
 ```
 
@@ -39,7 +39,7 @@ STEP census: `faces=230 plane=230 cylinder=0 line=683` (was 434/888).
 ### handle-lock Verbatim (byte-identical off-path)
 
 ```sh
-./build/stl2step tests/diag/handle-lock/handle-lock.stl -o /tmp/v.step \
+./build/cad_mesh_recovery tests/diag/handle-lock/handle-lock.stl -o /tmp/v.step \
   --quiet --no-verify
 ```
 
@@ -49,7 +49,7 @@ STEP census: `faces=230 plane=230 cylinder=0 line=683` (was 434/888).
 
 ```sh
 python3 tests/gates/run_gates.py --fixture S01,S02,S03 --gate G0.1 \
-  --binary ./build/stl2step --no-verify
+  --binary ./build/cad_mesh_recovery --no-verify
 ```
 
 `G0.1 PASS` on S01, S02, S03 (canonicalize.py step+result IDENTICAL vs 187ead0).

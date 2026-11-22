@@ -151,8 +151,8 @@ struct Synth {
         for (std::size_t i = 0; i < pts.size(); ++i) compVtx[i] = static_cast<int>(i);
     }
 
-    stl2step::refit::MeshView view(double q) const {
-        stl2step::refit::MeshView mv{};
+    cad_mesh_recovery::refit::MeshView view(double q) const {
+        cad_mesh_recovery::refit::MeshView mv{};
         mv.pts = pts.data();
         mv.tris = reinterpret_cast<const int(*)[3]>(tris.data());
         mv.compTris = compTris.empty() ? nullptr : compTris.data();
@@ -168,8 +168,8 @@ struct Synth {
     }
 };
 
-static void addStrip(stl2step::refit::SegmentWork& w, const std::vector<int>& tris) {
-    using namespace stl2step::refit;
+static void addStrip(cad_mesh_recovery::refit::SegmentWork& w, const std::vector<int>& tris) {
+    using namespace cad_mesh_recovery::refit;
     Provisional pr;
     pr.claim = ProvClaim::Unclaimed;
     pr.tris = tris;
@@ -179,9 +179,9 @@ static void addStrip(stl2step::refit::SegmentWork& w, const std::vector<int>& tr
     w.provisionals.push_back(std::move(pr));
 }
 
-static void addAnchor(stl2step::refit::SegmentWork& w, const std::vector<int>& tris,
+static void addAnchor(cad_mesh_recovery::refit::SegmentWork& w, const std::vector<int>& tris,
                       const gp_XYZ& n, const gp_XYZ& p0, double maxDev) {
-    using namespace stl2step::refit;
+    using namespace cad_mesh_recovery::refit;
     Provisional pr;
     pr.claim = ProvClaim::Unclaimed;
     pr.tris = tris;
@@ -192,13 +192,13 @@ static void addAnchor(stl2step::refit::SegmentWork& w, const std::vector<int>& t
 }
 
 struct Run {
-    stl2step::refit::SegmentWork work;
+    cad_mesh_recovery::refit::SegmentWork work;
     std::string diag;
     double tau = 0;
 };
 
-static Run runClaim(Synth& s, stl2step::refit::SegmentWork work, double q, int threads) {
-    using namespace stl2step::refit;
+static Run runClaim(Synth& s, cad_mesh_recovery::refit::SegmentWork work, double q, int threads) {
+    using namespace cad_mesh_recovery::refit;
     s.seal();
     SegmentParams p;
     p.requestedThreads = threads;
@@ -227,7 +227,7 @@ static void dumpFail(const char* name, const Run& r) {
 // Concave quarter fillet along +Y. Centre (R, y, R), planes x=0 and z=0.
 struct FilletMesh {
     Synth synth;
-    stl2step::refit::SegmentWork work;
+    cad_mesh_recovery::refit::SegmentWork work;
     std::vector<int> bandTris;
     int wallA = -1;
     int wallB = -1;
@@ -262,7 +262,7 @@ static FilletMesh makeFillet(double R, double y0, double y1, double ang0, double
 }
 
 static void pins() {
-    using namespace stl2step::refit;
+    using namespace cad_mesh_recovery::refit;
     MeshView qHalf{};
     qHalf.quantFloor = 0.5;
     MeshView qZero{};
@@ -309,12 +309,12 @@ static void pins() {
     expect(c3, "a3WouldCommit 3-triangle = true");
 }
 
-static bool nearRadius(const stl2step::refit::Region& r, double want, double tau) {
+static bool nearRadius(const cad_mesh_recovery::refit::Region& r, double want, double tau) {
     return std::abs(r.radius - want) <= tau && r.maxVertexDev <= tau;
 }
 
 static void case1() {
-    using namespace stl2step::refit;
+    using namespace cad_mesh_recovery::refit;
     auto built = makeFillet(3.0, 0.0, 8.0, 0.0, 0.5 * kPi, 24, 0.0);
     const double q = 1e-4;
     Run r = runClaim(built.synth, std::move(built.work), q, 1);
@@ -338,7 +338,7 @@ static void case1() {
 }
 
 static void case2() {
-    using namespace stl2step::refit;
+    using namespace cad_mesh_recovery::refit;
     Synth s;
     SegmentWork w;
     const double L = 8.0;
@@ -360,7 +360,7 @@ static void case2() {
 }
 
 static void case3() {
-    using namespace stl2step::refit;
+    using namespace cad_mesh_recovery::refit;
     auto built = makeFillet(3.0, 0.0, 8.0, 0.0, 0.5 * kPi, 2, 0.0);
     Run r = runClaim(built.synth, std::move(built.work), 1e-4, 1);
     const std::string acc = lineWithWhy(r.diag, "accept");
@@ -377,7 +377,7 @@ static void case3() {
 }
 
 static void case4() {
-    using namespace stl2step::refit;
+    using namespace cad_mesh_recovery::refit;
     Synth s;
     SegmentWork w;
     const double L = 8.0;
@@ -411,7 +411,7 @@ static void case4() {
 }
 
 static void case5() {
-    using namespace stl2step::refit;
+    using namespace cad_mesh_recovery::refit;
     Synth s;
     SegmentWork w;
     const double L = 20.0;
@@ -451,7 +451,7 @@ static void case5() {
 }
 
 static void case6() {
-    using namespace stl2step::refit;
+    using namespace cad_mesh_recovery::refit;
     const double ang = 4.0 * kPi / 180.0;
     auto built = makeFillet(3.0, 0.0, 8.0, 0.0, ang, 4, 0.0);
     const double q = 0.01;
@@ -462,7 +462,7 @@ static void case6() {
 }
 
 static void case7() {
-    using namespace stl2step::refit;
+    using namespace cad_mesh_recovery::refit;
     auto alongY = makeFillet(3.0, 4.0, 12.0, 0.0, 0.5 * kPi, 8, 0.0);
     Synth s = std::move(alongY.synth);
     SegmentWork w = std::move(alongY.work);
@@ -522,7 +522,7 @@ static void case7() {
 }
 
 static void case8() {
-    using namespace stl2step::refit;
+    using namespace cad_mesh_recovery::refit;
     Synth s;
     SegmentWork w;
     const double R = 4.0;
@@ -577,7 +577,7 @@ static void case8() {
 }
 
 static void case9() {
-    using namespace stl2step::refit;
+    using namespace cad_mesh_recovery::refit;
     const double q = 1e-4;
     const double tau = 2.0 * q;
     auto built = makeFillet(3.0, 0.0, 8.0, 0.0, 0.5 * kPi, 2, 10.0 * tau);
@@ -591,7 +591,7 @@ static void case9() {
 }
 
 static void case10() {
-    using namespace stl2step::refit;
+    using namespace cad_mesh_recovery::refit;
     Synth s;
     SegmentWork w;
     const double R = 5.0;
@@ -642,7 +642,7 @@ static void case10() {
 }
 
 static void case11() {
-    using namespace stl2step::refit;
+    using namespace cad_mesh_recovery::refit;
     auto a = makeFillet(3.0, 0.0, 8.0, 0.0, 0.5 * kPi, 24, 0.0);
     auto b = makeFillet(3.0, 0.0, 8.0, 0.0, 0.5 * kPi, 24, 0.0);
     Run ra = runClaim(a.synth, std::move(a.work), 1e-4, 1);
@@ -671,7 +671,7 @@ static void case11() {
 // Five pairs => compsI >= 5; the trim quads are the cover that joins them.
 struct TrimFillet {
     Synth synth;
-    stl2step::refit::SegmentWork work;
+    cad_mesh_recovery::refit::SegmentWork work;
     std::vector<int> lo;
     std::vector<int> hi;
     std::vector<int> bandTris;
@@ -727,12 +727,12 @@ static TrimFillet makeTrimFillet() {
     return m;
 }
 
-static bool regionHas(const stl2step::refit::Region& a, int t) {
+static bool regionHas(const cad_mesh_recovery::refit::Region& a, int t) {
     return std::find(a.tris.begin(), a.tris.end(), t) != a.tris.end();
 }
 
 static void case12() {
-    using namespace stl2step::refit;
+    using namespace cad_mesh_recovery::refit;
     auto built = makeTrimFillet();
     Run r = runClaim(built.synth, std::move(built.work), 1e-4, 1);
     const std::string acc = lineWithWhy(r.diag, "accept");
@@ -750,7 +750,7 @@ static void case12() {
 }
 
 static void case13() {
-    using namespace stl2step::refit;
+    using namespace cad_mesh_recovery::refit;
     auto built = makeTrimFillet();
     // Widest I chord is 16 deg. s is at least that sagitta; a vertex at 2 s is outside cover.
     const double sag = built.R * (1.0 - std::cos(8.0 * kPi / 180.0));
@@ -776,7 +776,7 @@ static void case13() {
 }
 
 static void case14() {
-    using namespace stl2step::refit;
+    using namespace cad_mesh_recovery::refit;
     auto built = makeTrimFillet();
     // Three on-circle vertices of the y=0 ring. All within tau of the cylinder,
     // one axial level, so the ear is not a member of I or Cover.
@@ -793,7 +793,7 @@ static void case14() {
 }
 
 static void case15() {
-    using namespace stl2step::refit;
+    using namespace cad_mesh_recovery::refit;
     Synth s;
     SegmentWork w;
     const double R = 3.0;
@@ -878,7 +878,7 @@ static void case15() {
     expect(ok, "case15 three fillets, sphere corner not claimed");
 }
 
-static void addVariable(Synth& s, stl2step::refit::SegmentWork& w, int nY) {
+static void addVariable(Synth& s, cad_mesh_recovery::refit::SegmentWork& w, int nY) {
     const double L = 16.0;
     const int nAng = 3;
     std::vector<std::vector<int>> id((std::size_t)nY + 1, std::vector<int>((std::size_t)nAng));
@@ -907,7 +907,7 @@ static void addVariable(Synth& s, stl2step::refit::SegmentWork& w, int nY) {
 }
 
 static void case16() {
-    using namespace stl2step::refit;
+    using namespace cad_mesh_recovery::refit;
     Synth oneS;
     SegmentWork oneW;
     addVariable(oneS, oneW, 1);
@@ -927,7 +927,7 @@ static void case16() {
 }
 
 static void case17() {
-    using namespace stl2step::refit;
+    using namespace cad_mesh_recovery::refit;
     const double q = 1e-4;
     const double tau = 2.0 * q;
     auto built = makeFillet(3.0, 0.0, 8.0, 0.0, 0.5 * kPi, 24, 0.0);
@@ -962,7 +962,7 @@ static void case17() {
 }
 
 static void case18() {
-    using namespace stl2step::refit;
+    using namespace cad_mesh_recovery::refit;
     Synth s;
     SegmentWork w;
     const double R = 3.0;
@@ -999,7 +999,7 @@ static void case18() {
 }
 
 static void case19() {
-    using namespace stl2step::refit;
+    using namespace cad_mesh_recovery::refit;
     const double q = 1e-4;
     const double tau = 2.0 * q;
     auto built = makeFillet(3.0, 0.0, 8.0, 0.0, 0.5 * kPi, 24, 0.0);
@@ -1041,7 +1041,7 @@ static void case19() {
 }
 
 static void case20() {
-    using namespace stl2step::refit;
+    using namespace cad_mesh_recovery::refit;
     const double q = 1e-4;
     const double tau = 2.0 * q;
     const double R = 3.0;
@@ -1077,8 +1077,8 @@ struct RobFixture {
 };
 
 static RobFixture makeRob(double robDevTau,
-                          stl2step::refit::Origin robOrigin = stl2step::refit::Origin::CylGrow) {
-    using namespace stl2step::refit;
+                          cad_mesh_recovery::refit::Origin robOrigin = cad_mesh_recovery::refit::Origin::CylGrow) {
+    using namespace cad_mesh_recovery::refit;
     RobFixture f;
     f.m = makeFillet(3.0, 0.0, 8.0, 0.0, 0.5 * kPi, 24, 0.0);
     const double tau = 2.0 * 1e-4;
@@ -1124,7 +1124,7 @@ static RobFixture makeRob(double robDevTau,
 }
 
 static void case21() {
-    using namespace stl2step::refit;
+    using namespace cad_mesh_recovery::refit;
     RobFixture f = makeRob(100.0);
     const std::vector<int> band = f.m.bandTris;
     Run r = runClaim(f.m.synth, std::move(f.m.work), 1e-4, 1);
@@ -1163,7 +1163,7 @@ static void case21() {
 }
 
 static void case22() {
-    using namespace stl2step::refit;
+    using namespace cad_mesh_recovery::refit;
     RobFixture f = makeRob(0.5);
     Run r = runClaim(f.m.synth, std::move(f.m.work), 1e-4, 1);
     // A region within τ is never touched: it keeps its triangles and no
@@ -1183,7 +1183,7 @@ static void case22() {
 }
 
 static void case31() {
-    using namespace stl2step::refit;
+    using namespace cad_mesh_recovery::refit;
     // D-fc-4.3 with the segment's fillet strips: a prior FilletStrip at 100 τ
     // (uncertified, D-fc-1.4) is robbed by the certified band and dissolves
     // like an uncertified CylGrow. Its stray provisional (fillet
@@ -1216,7 +1216,7 @@ static void case31() {
 }
 
 static void case32() {
-    using namespace stl2step::refit;
+    using namespace cad_mesh_recovery::refit;
     // A prior FilletStrip within τ is a certified surface: never robbed.
     RobFixture f = makeRob(0.5, Origin::FilletStrip);
     Run r = runClaim(f.m.synth, std::move(f.m.work), 1e-4, 1);
@@ -1231,7 +1231,7 @@ static void case32() {
 }
 
 static void case36() {
-    using namespace stl2step::refit;
+    using namespace cad_mesh_recovery::refit;
     // D-fc-1.6.11 with D-fc-4.3. An uncertified CylGrow region (its stored
     // surface misses its own vertices by 100 τ) holds band strips 10 and 11
     // and nothing else, so every one of its vertices lies on the band's
@@ -1282,7 +1282,7 @@ static void case36() {
 }
 
 static void case23() {
-    using namespace stl2step::refit;
+    using namespace cad_mesh_recovery::refit;
     // D-fc-3.2.2. Walls x = 0 and z = 0 whose bodies lie far from each other's
     // contact: every boundary vertex of A sits at z >= 50, every one of B at
     // x <= 33, so no circle tangent to both brings a vertex of each within τ.
@@ -1335,7 +1335,7 @@ static void case23() {
 }
 
 static void case24() {
-    using namespace stl2step::refit;
+    using namespace cad_mesh_recovery::refit;
     // D-fc-3.2.2. The band meets a small piece of the x = 0 wall that is not an
     // anchor (shatter-class); the x = 0 anchor is another piece of the same
     // plane, far from the band. Its body boundary gives no radius near the
@@ -1385,7 +1385,7 @@ static void case24() {
 // axis source (n_T x n_X = Y).
 struct OsbMesh {
     Synth synth;
-    stl2step::refit::SegmentWork work;
+    cad_mesh_recovery::refit::SegmentWork work;
     std::vector<int> bandTris;
 };
 
@@ -1437,7 +1437,7 @@ static std::string osbLine(const std::string& diag, const char* why) {
 }
 
 static void case25() {
-    using namespace stl2step::refit;
+    using namespace cad_mesh_recovery::refit;
     // D-fc-4.9 accept: R10 arc of 57 deg on 12 strips, tangent to T, crossed by
     // X' (|dist(axis, X') - r| = R(1 - sin 57) >> tanDistTol). Two free
     // parameters; the vertex span equals the fitted contact->X' arc.
@@ -1490,7 +1490,7 @@ static std::string hemLine(const std::string& diag, const char* why) {
 // half the gap, zero free parameters, span pi, and (outward >= 0) the
 // convex/concave side.
 static bool hemAccepted(const Run& r, std::size_t nBand, double R, int outward, const char* tag) {
-    using namespace stl2step::refit;
+    using namespace cad_mesh_recovery::refit;
     const std::string acc = hemLine(r.diag, "accept");
     bool ok = r.work.accepted.size() == 1 && !acc.empty() &&
               acc.find("params=0") != std::string::npos &&
@@ -1512,7 +1512,7 @@ static bool hemAccepted(const Run& r, std::size_t nBand, double R, int outward, 
 }
 
 static void case26() {
-    using namespace stl2step::refit;
+    using namespace cad_mesh_recovery::refit;
     // D-fc-5.11 F9 (un-defers D-fc-3.1): a half circle between antiparallel T
     // and X', tangent to X' at its far end, is a hem. r = half the gap, the
     // centre midway, the contact where T's body ends: nothing is fitted.
@@ -1534,7 +1534,7 @@ static void case26() {
 }
 
 static void case27() {
-    using namespace stl2step::refit;
+    using namespace cad_mesh_recovery::refit;
     // D-fc-4.9: no certified plane holds the far end generator.
     auto built = makeOneSided(10.0, 8.0, 57.0 * kPi / 180.0, 12, 0);
     Run r = runClaim(built.synth, std::move(built.work), 1e-4, 1);
@@ -1544,7 +1544,7 @@ static void case27() {
 }
 
 static void case28() {
-    using namespace stl2step::refit;
+    using namespace cad_mesh_recovery::refit;
     // D-fc-4.9: a planar 45 deg chamfer from T's contact to the crossing plane
     // x = 4, four collinear strips. A circle tangent to T meets at most two of
     // its stations, so it never certifies.
@@ -1619,7 +1619,7 @@ static OsbMesh makeHem(double R, double L, int nStrips, bool concave, double xOf
 }
 
 static void hemPins() {
-    using namespace stl2step::refit;
+    using namespace cad_mesh_recovery::refit;
     std::fprintf(stderr, "kParamsHem=%d minStations=%d\n", kParamsHem, minStations(kParamsHem));
     expect(kParamsHem == 0 && minStations(kParamsHem) == 1,
            "hem kParamsHem = 0, minStations = 1");
@@ -1640,7 +1640,7 @@ static void hemPins() {
 }
 
 static void case29() {
-    using namespace stl2step::refit;
+    using namespace cad_mesh_recovery::refit;
     // D-fc-5.11 F9 concave: a slot end, the planes' normals face each other.
     auto built = makeHem(4.0, 8.0, 24, true, 0.0);
     const std::size_t nBand = built.bandTris.size();
@@ -1658,7 +1658,7 @@ static void case29() {
 }
 
 static void case30() {
-    using namespace stl2step::refit;
+    using namespace cad_mesh_recovery::refit;
     // D-fc-5.11 F9 refusal: X' sits 1.5 tau past the half circle's far
     // generator. It is still tangent to the one-sided fit within tanDistTol,
     // so the walk reaches the hem; the hem surface (r = half the gap, centre
@@ -1688,7 +1688,7 @@ static void case30() {
 
 struct PoleMesh {
     Synth synth;
-    stl2step::refit::SegmentWork work;
+    cad_mesh_recovery::refit::SegmentWork work;
 };
 
 // Partial cylinder about Z, R=5, height 3, arc from 0. Each quad is its own
@@ -1749,7 +1749,7 @@ static PoleMesh makePoleArc(int nStrips, bool withAnchors, bool spike, bool cert
 }
 
 static void case33() {
-    using namespace stl2step::refit;
+    using namespace cad_mesh_recovery::refit;
     const double q = 1e-4;
     const double R = 5.0;
     auto anchored = makePoleArc(6, true, false);
@@ -1803,7 +1803,7 @@ static void case33() {
 }
 
 static void case34() {
-    using namespace stl2step::refit;
+    using namespace cad_mesh_recovery::refit;
     const double q = 1e-4;
     const double R = 5.0;
     // Each wall quad is itself an A3 anchor (n = 2, area above the floor).
@@ -1855,7 +1855,7 @@ static PoleMesh makePoleLoop(int nSides) {
 }
 
 static void case35() {
-    using namespace stl2step::refit;
+    using namespace cad_mesh_recovery::refit;
     const double q = 1e-4;
     // Four stations, but three without an end quad (D-fc-5.5 F-2).
     auto three = makePoleArc(3, true, false, true);
@@ -1880,7 +1880,7 @@ static void case35() {
 }
 
 int main() {
-    setenv("STL2STEP_DIAG_REL", "1", 1);
+    setenv("CAD_MESH_RECOVERY_DIAG_REL", "1", 1);
     pins();
     case1();
     case2();

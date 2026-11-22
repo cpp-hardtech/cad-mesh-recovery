@@ -10,7 +10,7 @@
 inputs → JSON array on stdout + human diff table on stderr. `--expect <json>`
 asserts against a ground-truth sidecar (exit 1 on mismatch).
 
-## Self-test vs OCCT census (`build/stl2step_census`)
+## Self-test vs OCCT census (`build/cad_mesh_recovery_census`)
 
 | fixture | py faces | occt | py plane/cyl | occt | py line/circle | occt |
 |---------|----------|------|--------------|------|----------------|------|
@@ -24,7 +24,7 @@ S06 smooth cylinder radius: py `[25]`, occt `24.999999996806` (6 dp round).
 `tests/diag/handle-lock/ground-truth.json` — 28 faces (13 planes + 15 cylinders),
 30 circles, radii per COMMON.md.
 
-Current stl2step output census (verbatim & trueform revert — identical):
+Current cad_mesh_recovery output census (verbatim & trueform revert — identical):
 
 ```
 faces=434 plane=434 cylinder=0 circle=0 line=888

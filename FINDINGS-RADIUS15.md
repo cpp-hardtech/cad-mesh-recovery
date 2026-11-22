@@ -18,7 +18,7 @@ Corpus / Body11 unchanged — `refineCylinderRadius` still gated to 500–1200 t
 ## Proof — handle-lock radii (`regiondump --diag`)
 
 ```
-$ ./build/stl2step_regiondump tests/diag/handle-lock/handle-lock.stl --diag
+$ ./build/cad_mesh_recovery_regiondump tests/diag/handle-lock/handle-lock.stl --diag
 segment comp0 ok regions=25 … cylinders=16
   id=16 type=cylinder … radius=15.5781  (15 mm GT bore)
   cylinder radii: …,15.578,…,16.012,20.247,29.999,…

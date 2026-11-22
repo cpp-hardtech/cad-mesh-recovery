@@ -1,4 +1,4 @@
-// stl2step cone math — the closed-form primitives behind the 1.3.0 chamfer
+// cad_mesh_recovery cone math — the closed-form primitives behind the 1.3.0 chamfer
 // frustum (lane 130-CONE-MATH, SPEC-130-cone-math).  Signatures are published in
 // src/refit_cone_math.hpp; the derivations are in
 // docs/1.3.0-linkage-detectors.md.
@@ -44,7 +44,7 @@
 #include <gp_Vec.hxx>
 #include <gp_XYZ.hxx>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 namespace {
 
@@ -392,4 +392,4 @@ double coneFrustumDVolDensity(double rho, double R1, double R2, double height, i
 }
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery

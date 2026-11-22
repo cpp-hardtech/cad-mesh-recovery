@@ -103,7 +103,7 @@ struct Mesh {
     double meshDiag = 0;
     double q = 0;
     double tau = 0;
-    stl2step::StlQuantFloor qf{};
+    cad_mesh_recovery::StlQuantFloor qf{};
     std::string path;
 
     // Exact-bit lookup for binary (float32 bits) and a q-ball spatial hash.

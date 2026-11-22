@@ -31,9 +31,9 @@ P1. All four previously failing partials (rid **14 / 19 / 20 / 23**) now build.
    **exploded all partial cylinders** when a Seamed360 survived; census stayed at
    1× closed-360 despite per-face validity. Containment: skip that explode when
    ≥10 partial regions built analytic on a closed shell in the Fusion coarse band
-   (500–1200 tris); matching probe waiver in `stl2step.cpp`.
+   (500–1200 tris); matching probe waiver in `cad_mesh_recovery.cpp`.
 
-## Fixes (`refit_build.cpp`, `stl2step.cpp` — TrueForm only)
+## Fixes (`refit_build.cpp`, `cad_mesh_recovery.cpp` — TrueForm only)
 
 - `wantRotTrim` + `tryRotTrimmedSheet` — rotated trimmed sheet; uMax rotation for
   positive-u quarter holes; gated to `mv.nTri ≥ 500`.
@@ -41,19 +41,19 @@ P1. All four previously failing partials (rid **14 / 19 / 20 / 23**) now build.
   poisoning across surface attempts; preserves fixture volume on small STLs).
 - `keepValidPartials` — closed shell + ≥10 built partials in coarse band: do not
   blanket-explode partials on `shellIsValid` recover.
-- `stl2step.cpp` — accept closed probe shell when ≥10 partial `builtAs` and
+- `cad_mesh_recovery.cpp` — accept closed probe shell when ≥10 partial `builtAs` and
   `mv.nTri` in coarse band despite whole-shell `BRepCheck_Analyzer` fail.
 
 ## Proof (macOS arm64)
 
 ```sh
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DSTL2STEP_BUILD_TESTS=ON
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCAD_MESH_RECOVERY_BUILD_TESTS=ON
 cmake --build build -j 8
 ctest --test-dir build                    # 27/27 pass
 ```
 
 ```sh
-./build/stl2step tests/diag/handle-lock/handle-lock.stl \
+./build/cad_mesh_recovery tests/diag/handle-lock/handle-lock.stl \
   -o /tmp/hl-rids.step --engine trueform --no-verify --quiet
 python3 tests/tools/step_census.py /tmp/hl-rids.step
 ```

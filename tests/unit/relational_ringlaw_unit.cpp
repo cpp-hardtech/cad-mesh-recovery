@@ -17,18 +17,18 @@
 #include <gp_Pnt.hxx>
 #include <gp_XYZ.hxx>
 
-using stl2step::refit::MeshView;
-using stl2step::refit::Origin;
-using stl2step::refit::Region;
-using stl2step::refit::SegmentParams;
-using stl2step::refit::SegmentWork;
-using stl2step::refit::SurfType;
-using stl2step::refit::TessLawDecision;
-using stl2step::refit::TessLawSample;
-using stl2step::refit::TessLawVerdict;
-using stl2step::refit::tessLawBandStep;
-using stl2step::refit::tessLawDecide;
-using stl2step::refit::tessLawSamples;
+using cad_mesh_recovery::refit::MeshView;
+using cad_mesh_recovery::refit::Origin;
+using cad_mesh_recovery::refit::Region;
+using cad_mesh_recovery::refit::SegmentParams;
+using cad_mesh_recovery::refit::SegmentWork;
+using cad_mesh_recovery::refit::SurfType;
+using cad_mesh_recovery::refit::TessLawDecision;
+using cad_mesh_recovery::refit::TessLawSample;
+using cad_mesh_recovery::refit::TessLawVerdict;
+using cad_mesh_recovery::refit::tessLawBandStep;
+using cad_mesh_recovery::refit::tessLawDecide;
+using cad_mesh_recovery::refit::tessLawSamples;
 
 static const double kPi = 3.14159265358979323846264338327950288;
 static const double kTwoPi = 2.0 * kPi;

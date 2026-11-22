@@ -13,23 +13,23 @@
 #include <string>
 #include <vector>
 
-using stl2step::harness::HarnessMesh;
-using stl2step::harness::loadMesh;
-using stl2step::harness::toMeshView;
-using stl2step::refit::MeshView;
-using stl2step::refit::PrismLevels;
-using stl2step::refit::PrismTols;
-using stl2step::refit::ProfLoop;
-using stl2step::refit::ProfSeg;
-using stl2step::refit::Profile;
-using stl2step::refit::RegionSet;
-using stl2step::refit::SegmentParams;
-using stl2step::refit::detectPrismatic;
-using stl2step::refit::fitProfile;
-using stl2step::refit::segment;
-using stl2step::refit::sliceProfiles;
+using cad_mesh_recovery::harness::HarnessMesh;
+using cad_mesh_recovery::harness::loadMesh;
+using cad_mesh_recovery::harness::toMeshView;
+using cad_mesh_recovery::refit::MeshView;
+using cad_mesh_recovery::refit::PrismLevels;
+using cad_mesh_recovery::refit::PrismTols;
+using cad_mesh_recovery::refit::ProfLoop;
+using cad_mesh_recovery::refit::ProfSeg;
+using cad_mesh_recovery::refit::Profile;
+using cad_mesh_recovery::refit::RegionSet;
+using cad_mesh_recovery::refit::SegmentParams;
+using cad_mesh_recovery::refit::detectPrismatic;
+using cad_mesh_recovery::refit::fitProfile;
+using cad_mesh_recovery::refit::segment;
+using cad_mesh_recovery::refit::sliceProfiles;
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 PrismTols makePrismTols(const MeshView& mv, const RegionSet& rs);
 }
@@ -114,7 +114,7 @@ int main(int argc, char** argv) {
         return 2;
     }
 
-    const PrismTols tol = stl2step::refit::makePrismTols(mv, rs);
+    const PrismTols tol = cad_mesh_recovery::refit::makePrismTols(mv, rs);
     const PrismLevels lv = detectPrismatic(mv, rs, tol);
     check(lv.ok, "detect_ok");
     if (!lv.ok) {

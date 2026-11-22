@@ -1,7 +1,7 @@
 // 140-UNION-CENSUS (SPEC-union PART B, D-140-8 U-R5..U-R8, U-R13) -- certifies
 // `claimChordSagitta` and `unionCensus` in src/refit_union_census.cpp against
 // independent ground truth on synthetic rings whose MeshView is built here,
-// by hand, with the engine's own welded-edge convention (stl2step.cpp:447).
+// by hand, with the engine's own welded-edge convention (cad_mesh_recovery.cpp:447).
 //
 // Two oracles for sigma, neither sharing a line with the implementation:
 //   * the closed form of a regular N-gon ring, R (1 - cos(pi / N)) -- every
@@ -36,10 +36,10 @@
 #include <gp_Pnt.hxx>
 #include <gp_XYZ.hxx>
 
-using stl2step::refit::MeshView;
-using stl2step::refit::UnionCensus;
-using stl2step::refit::claimChordSagitta;
-using stl2step::refit::unionCensus;
+using cad_mesh_recovery::refit::MeshView;
+using cad_mesh_recovery::refit::UnionCensus;
+using cad_mesh_recovery::refit::claimChordSagitta;
+using cad_mesh_recovery::refit::unionCensus;
 
 static const double kPi = 3.14159265358979323846264338327950288;
 
@@ -58,7 +58,7 @@ static void check(bool ok, const char* name) {
 
 // ---------------------------------------------------------------------------
 // A hand-built MeshView: one component, local == global, welded edges keyed on
-// (lo, hi) exactly as stl2step.cpp builds CompStat (bit s of triDirs set when
+// (lo, hi) exactly as cad_mesh_recovery.cpp builds CompStat (bit s of triDirs set when
 // side s runs global-lo -> hi). Owns its storage; the view points into it.
 struct SynthMesh {
     std::vector<gp_XYZ> pts;

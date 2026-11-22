@@ -1,8 +1,8 @@
 // Partial counterbore walls (D-fc-5.17). Predicates only; no face builder.
 // SPDX-License-Identifier: MIT
 
-#ifndef STL2STEP_REFIT_CYL_MEET_HPP
-#define STL2STEP_REFIT_CYL_MEET_HPP
+#ifndef CAD_MESH_RECOVERY_REFIT_CYL_MEET_HPP
+#define CAD_MESH_RECOVERY_REFIT_CYL_MEET_HPP
 
 #include "refit_relational.hpp"
 
@@ -10,7 +10,7 @@
 #include <cmath>
 #include <vector>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 
 // RULE 2.2 volume budget, the two numbers the cascade already used as bare
@@ -193,6 +193,6 @@ inline double chordMidDevCylinder(const gp_Ax3& ax, double R, const gp_XYZ& p, c
 }
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery
 
 #endif

@@ -6,9 +6,9 @@ get_filename_component(_grade_dir "${CMAKE_CURRENT_LIST_DIR}" ABSOLUTE)
 
 set(_forbidden
     "MeshView"
-    "stl2step::core"
-    "stl2step_harness"
-    "stl2step_core"
+    "cad_mesh_recovery::core"
+    "cad_mesh_recovery_harness"
+    "cad_mesh_recovery_core"
     "refit"
     "regex")
 

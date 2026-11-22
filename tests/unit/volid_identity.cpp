@@ -41,9 +41,9 @@ std::string quoteArg(const std::string& p) {
 
 bool setVolidEnv() {
 #ifdef _WIN32
-    return _putenv_s("STL2STEP_VOLID", "1") == 0;
+    return _putenv_s("CAD_MESH_RECOVERY_VOLID", "1") == 0;
 #else
-    return setenv("STL2STEP_VOLID", "1", 1) == 0;
+    return setenv("CAD_MESH_RECOVERY_VOLID", "1", 1) == 0;
 #endif
 }
 
@@ -115,7 +115,7 @@ int runOne(const char* bin, const char* stl, const char* tag) {
     cmd = "\"" + cmd + "\"";
 #endif
     if (!setVolidEnv()) {
-        std::fprintf(stderr, "FAIL %s: setenv STL2STEP_VOLID\n", tag);
+        std::fprintf(stderr, "FAIL %s: setenv CAD_MESH_RECOVERY_VOLID\n", tag);
         ++gFail;
         return 1;
     }
@@ -174,12 +174,12 @@ int runOne(const char* bin, const char* stl, const char* tag) {
 }  // namespace
 
 int main(int argc, char** argv) {
-    const int skipRc = stl2step::test::skipExitIfUncalibrated();
+    const int skipRc = cad_mesh_recovery::test::skipExitIfUncalibrated();
     if (skipRc >= 0) {
         return skipRc;
     }
     if (argc < 5) {
-        std::fprintf(stderr, "usage: volid_identity_test <stl2step> <S01.stl> <S02.stl> <S03.stl>\n");
+        std::fprintf(stderr, "usage: volid_identity_test <cad_mesh_recovery> <S01.stl> <S02.stl> <S03.stl>\n");
         return 2;
     }
     runOne(argv[1], argv[2], "S01");

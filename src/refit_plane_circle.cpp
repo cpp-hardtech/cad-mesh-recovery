@@ -30,7 +30,7 @@
 #include <gp_Pnt.hxx>
 #include <gp_Vec.hxx>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 namespace {
 
@@ -248,4 +248,4 @@ bool planeLoopCircleForChain(int chainIndex, gp_Ax2& ax, double& R) {
 }
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery

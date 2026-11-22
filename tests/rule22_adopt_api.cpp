@@ -1,9 +1,9 @@
-// SPEC AC2-L3 — exercise stl2step::convert() (the public C++ API) plus the
+// SPEC AC2-L3 — exercise cad_mesh_recovery::convert() (the public C++ API) plus the
 // D4 §3 scoped RULE 2.2 formula (C4/C5/C6). Not a ctest (C8 pins clean count).
 //
 // SPDX-License-Identifier: MIT
 
-#include <stl2step/stl2step.hpp>
+#include <cad_mesh_recovery/cad_mesh_recovery.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -72,17 +72,17 @@ int checkC6() {
     return 0;
 }
 
-int runConvert(const std::string& stl, const std::string& step, stl2step::Result& r) {
-    stl2step::Options opt;
+int runConvert(const std::string& stl, const std::string& step, cad_mesh_recovery::Result& r) {
+    cad_mesh_recovery::Options opt;
     opt.input = stl;
     opt.output = step;
     opt.smooth = true;
     opt.verify = true;
     std::mutex logMu;
-    auto log = [&](stl2step::Severity, const std::string&) {
+    auto log = [&](cad_mesh_recovery::Severity, const std::string&) {
         std::lock_guard<std::mutex> g(logMu);
     };
-    r = stl2step::convert(opt, log);
+    r = cad_mesh_recovery::convert(opt, log);
     return r.ok ? 0 : 1;
 }
 
@@ -101,7 +101,7 @@ int main(int argc, char** argv) {
     if (std::system(mkdir.c_str()) != 0) return 2;
 
     int c4 = 1, c5c6 = 1, conv = 1;
-    stl2step::Result r;
+    cad_mesh_recovery::Result r;
     // Formula checks are independent of convert(); run them concurrently
     // with the API conversion (real compute).
     std::thread tFormula([&]() {

@@ -30,7 +30,7 @@ STEP PLANE faces fall, and merging split pieces of one plane lowers both.
 
 Usage:
   plane_census_gate.py --self-test
-  plane_census_gate.py --binary ./build/stl2step
+  plane_census_gate.py --binary ./build/cad_mesh_recovery
 """
 
 from __future__ import annotations
@@ -79,7 +79,7 @@ def parse_result_line(stdout: str) -> Dict[str, Any]:
             return json.loads(line[len("RESULT ") :])
         if line.startswith("RESULT{"):
             return json.loads(line[len("RESULT") :])
-    raise GateError("no RESULT line in stl2step stdout")
+    raise GateError("no RESULT line in cad_mesh_recovery stdout")
 
 
 def vdot(a: Sequence[float], b: Sequence[float]) -> float:
@@ -648,7 +648,7 @@ def run_gate(args: argparse.Namespace) -> int:
     if not stl.is_file():
         raise GateError(f"handle-pickup STL missing: {stl}")
     if binary is None or not binary.is_file():
-        raise GateError(f"stl2step binary missing: {binary}")
+        raise GateError(f"cad_mesh_recovery binary missing: {binary}")
 
     with tempfile.TemporaryDirectory(prefix="plane_census_gate_") as td:
         step = Path(td) / "handle-pickup.step"
@@ -886,7 +886,7 @@ def _self_test() -> int:
 
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--binary", type=Path, help="stl2step CLI")
+    p.add_argument("--binary", type=Path, help="cad_mesh_recovery CLI")
     p.add_argument("--stl", type=Path, default=DEFAULT_STL)
     p.add_argument("--ground-truth", type=Path, default=DEFAULT_GT)
     p.add_argument("--ratchet", type=Path, default=DEFAULT_RATCHET)

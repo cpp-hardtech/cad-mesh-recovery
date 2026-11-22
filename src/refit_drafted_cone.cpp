@@ -41,7 +41,7 @@
 #include <gp_Dir.hxx>
 #include <gp_Pnt.hxx>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 
 namespace {
@@ -54,7 +54,7 @@ constexpr int kDraftFitIters = 16;
 
 bool diagOn() {
     static const bool on = [] {
-        const char* e = std::getenv("STL2STEP_DIAG_DRAFT");
+        const char* e = std::getenv("CAD_MESH_RECOVERY_DIAG_DRAFT");
         return e && e[0] && e[0] != '0';
     }();
     return on;
@@ -1068,4 +1068,4 @@ bool claimDraftedCones(const MeshView& mv, const SegmentParams& /*p*/, const Der
 }
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery

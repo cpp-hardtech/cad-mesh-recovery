@@ -1,11 +1,11 @@
-// Minimal example of embedding the stl2step engine in another C++ program.
+// Minimal example of embedding the cad_mesh_recovery engine in another C++ program.
 //
-//   c++ -std=c++17 convert_min.cpp -lstl2step ... -o convert_min   (see README)
+//   c++ -std=c++17 convert_min.cpp -lcad_mesh_recovery ... -o convert_min   (see README)
 //   ./convert_min part.stl part.step
 //
 // SPDX-License-Identifier: MIT
 
-#include <stl2step/stl2step.hpp>
+#include <cad_mesh_recovery/cad_mesh_recovery.hpp>
 
 #include <cstdio>
 
@@ -15,20 +15,20 @@ int main(int argc, char** argv) {
         return 2;
     }
 
-    stl2step::Options opt;
+    cad_mesh_recovery::Options opt;
     opt.input  = argv[1];
     if (argc > 2) opt.output = argv[2];
     opt.verify = false;   // the host is about to import the STEP, so skip the re-read
 
     // Optional: forward engine progress to your own logger.
-    auto log = [](stl2step::Severity sev, const std::string& msg) {
-        const char* tag = sev == stl2step::Severity::Warning ? "[warn] "
-                        : sev == stl2step::Severity::Error   ? "[err ] "
+    auto log = [](cad_mesh_recovery::Severity sev, const std::string& msg) {
+        const char* tag = sev == cad_mesh_recovery::Severity::Warning ? "[warn] "
+                        : sev == cad_mesh_recovery::Severity::Error   ? "[err ] "
                                                              : "       ";
         std::fprintf(stderr, "%s%s\n", tag, msg.c_str());
     };
 
-    stl2step::Result r = stl2step::convert(opt, log);
+    cad_mesh_recovery::Result r = cad_mesh_recovery::convert(opt, log);
 
     if (!r.ok) {
         std::fprintf(stderr, "conversion failed: %s\n", r.error.c_str());

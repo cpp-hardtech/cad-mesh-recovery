@@ -1,4 +1,4 @@
-// stl2step - a universal mesh-to-B-Rep conversion engine.
+// cad_mesh_recovery - a universal mesh-to-B-Rep conversion engine.
 //
 // Converts a triangle mesh (STL) into a parametric B-Rep solid (STEP), suitable
 // for import into CAD/CAM kernels that expect analytic boundary representations
@@ -8,29 +8,29 @@
 // fits tolerances to true geometric deviation, and writes a validated STEP file.
 //
 // This header is the entire public interface. Everything is in namespace
-// stl2step. The engine is dependency-light at the API boundary: only the C++
+// cad_mesh_recovery. The engine is dependency-light at the API boundary: only the C++
 // standard library appears here (OpenCASCADE is an implementation detail).
 //
 // SPDX-License-Identifier: MIT
 
-#ifndef STL2STEP_STL2STEP_HPP
-#define STL2STEP_STL2STEP_HPP
+#ifndef CAD_MESH_RECOVERY_CAD_MESH_RECOVERY_HPP
+#define CAD_MESH_RECOVERY_CAD_MESH_RECOVERY_HPP
 
 #include <cstdint>
 #include <functional>
 #include <string>
 #include <vector>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 
 // -------------------------------------------------------------------- version
 
-// Semantic version of the engine (also available as STL2STEP_VERSION macros
+// Semantic version of the engine (also available as CAD_MESH_RECOVERY_VERSION macros
 // below for preprocessor checks).
-#define STL2STEP_VERSION_MAJOR 1
-#define STL2STEP_VERSION_MINOR 11
-#define STL2STEP_VERSION_PATCH 0
-#define STL2STEP_VERSION_STRING "1.11.0"
+#define CAD_MESH_RECOVERY_VERSION_MAJOR 1
+#define CAD_MESH_RECOVERY_VERSION_MINOR 11
+#define CAD_MESH_RECOVERY_VERSION_PATCH 0
+#define CAD_MESH_RECOVERY_VERSION_STRING "1.11.0"
 
 // Returns the runtime version string ("1.0.0"). Useful for logging which engine
 // build a host application linked against.
@@ -333,6 +333,6 @@ struct MeshResult {
 // are caught and reported through MeshResult::error / MeshResult::ok.
 MeshResult meshFromStep(const MeshOptions& opt, const LogCallback& log = nullptr);
 
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery
 
-#endif  // STL2STEP_STL2STEP_HPP
+#endif  // CAD_MESH_RECOVERY_CAD_MESH_RECOVERY_HPP

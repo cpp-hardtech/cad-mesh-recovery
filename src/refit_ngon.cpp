@@ -1,4 +1,4 @@
-// stl2step P1 stage A — closed N-gon cylinder claim (docs/1.3.0-linkage-detectors.md).
+// cad_mesh_recovery P1 stage A — closed N-gon cylinder claim (docs/1.3.0-linkage-detectors.md).
 // Unclaimed A2 planar walls, N>=6, prismatic generators. R = circumradius
 // (mean vertex distance to axis), not Eberly. Origin::NgonWall.
 // Commit only a through-hole or outer cylindrical boss: closed360, N in [6,256],
@@ -32,7 +32,7 @@
 #include <gp_Pnt.hxx>
 #include <gp_XYZ.hxx>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 namespace {
 
@@ -47,10 +47,10 @@ constexpr double kCapAreaMul = 4.0;
 constexpr double kSinChamLo = 0.42261826174069944;  // sin(25°)
 constexpr double kSinChamHi = 0.9063077870366499;   // sin(65°)
 
-// Measurement only (STL2STEP_DIAG_130): why a candidate cycle was refused.
+// Measurement only (CAD_MESH_RECOVERY_DIAG_130): why a candidate cycle was refused.
 // Never changes a decision -- every caller passes the reason it already took.
 bool ngonDiagOn() {
-    const char* e = std::getenv("STL2STEP_DIAG_130");
+    const char* e = std::getenv("CAD_MESH_RECOVERY_DIAG_130");
     return e && e[0] != '\0' && e[0] != '0';
 }
 
@@ -1217,4 +1217,4 @@ bool claimNgonWallsA(const MeshView& mv, const SegmentParams& p, const DerivedTo
     return true;
 }
 
-}}  // namespace stl2step::refit
+}}  // namespace cad_mesh_recovery::refit

@@ -35,7 +35,7 @@ maps to mesh-measured **R≈40.1** (no STL strip fits R=28–32 with residual <1
 ## Proof — TrueForm build (was R2 revert)
 
 ```sh
-./build/stl2step tests/diag/handle-lock/handle-lock.stl -o /tmp/hl-f.step --engine trueform --quiet
+./build/cad_mesh_recovery tests/diag/handle-lock/handle-lock.stl -o /tmp/hl-f.step --engine trueform --quiet
 ```
 
 ```

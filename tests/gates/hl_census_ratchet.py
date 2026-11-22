@@ -5,7 +5,7 @@ Floor authority is tests/gates/baseline/hl-ratchet.json (start floor=1).
 tests/corpus/handle-lock.expected.json live[].builtCylindersFloor stays 0.
 
 Usage:
-  hl_census_ratchet.py --binary ./build/stl2step --census ./build/stl2step_census
+  hl_census_ratchet.py --binary ./build/cad_mesh_recovery --census ./build/cad_mesh_recovery_census
   hl_census_ratchet.py --ratchet-up          # orchestrator: floor += 1
   hl_census_ratchet.py --ratchet-up 2        # orchestrator: set floor
   hl_census_ratchet.py --self-test           # API unit tests (no engine)
@@ -105,7 +105,7 @@ def parse_result_line(stdout: str) -> Dict[str, Any]:
             return json.loads(line[len("RESULT ") :])
         if line.startswith("RESULT{"):
             return json.loads(line[len("RESULT") :])
-    raise GateError("no RESULT line in stl2step stdout")
+    raise GateError("no RESULT line in cad_mesh_recovery stdout")
 
 
 def census_cylinder_count(cen: Dict[str, Any]) -> int:
@@ -253,9 +253,9 @@ def run_gate(args: argparse.Namespace) -> int:
     if not stl.is_file():
         raise GateError(f"handle-lock STL missing: {stl}")
     if binary is None or not binary.is_file():
-        raise GateError(f"stl2step binary missing: {binary}")
+        raise GateError(f"cad_mesh_recovery binary missing: {binary}")
     if census_bin is None or not census_bin.is_file():
-        raise GateError(f"stl2step_census binary missing: {census_bin}")
+        raise GateError(f"cad_mesh_recovery_census binary missing: {census_bin}")
 
     with tempfile.TemporaryDirectory(prefix="hl_census_ratchet_") as td:
         step = Path(td) / "handle-lock.step"
@@ -357,7 +357,7 @@ def run_waiver_audit(args: argparse.Namespace) -> int:
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     if args.binary:
-        mod.STL2STEP = Path(args.binary).resolve()
+        mod.CAD_MESH_RECOVERY = Path(args.binary).resolve()
     if args.census:
         mod.CENSUS = Path(args.census).resolve()
     if args.dump:
@@ -437,9 +437,9 @@ def _self_test() -> int:
 
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--binary", type=Path, help="stl2step CLI")
-    p.add_argument("--census", type=Path, help="stl2step_census witness")
-    p.add_argument("--dump", type=Path, help="stl2step_regiondump (waiver_audit)")
+    p.add_argument("--binary", type=Path, help="cad_mesh_recovery CLI")
+    p.add_argument("--census", type=Path, help="cad_mesh_recovery_census witness")
+    p.add_argument("--dump", type=Path, help="cad_mesh_recovery_regiondump (waiver_audit)")
     p.add_argument("--stl", type=Path, default=DEFAULT_STL)
     p.add_argument("--ratchet", type=Path, default=DEFAULT_RATCHET)
     p.add_argument("--fixture", type=Path, default=DEFAULT_FIXTURE)
@@ -449,7 +449,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         "--threads",
         type=int,
         default=0,
-        help="stl2step --threads (0 = all cores)",
+        help="cad_mesh_recovery --threads (0 = all cores)",
     )
     p.add_argument(
         "--ratchet-up",

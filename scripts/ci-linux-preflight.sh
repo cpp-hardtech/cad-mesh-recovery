@@ -8,7 +8,7 @@
 #
 #   scripts/ci-linux-preflight.sh [host]     # default host: cnc (shop NUC)
 #
-# Remote workspace: ~/stl2step-ci (repo copy, micromamba, build tree).
+# Remote workspace: ~/cad_mesh_recovery-ci (repo copy, micromamba, build tree).
 # Everything runs nice -n 10 with two cores held back so the machine's
 # real workload (cnc-node) keeps priority.
 #
@@ -31,7 +31,7 @@ ORIG_SCRIPT="$PREFLIGHT_SELF_COPY"
 
 HOST="${1:-cnc}"
 REPO_ROOT="$(cd "$(dirname "$ORIG_SCRIPT")/.." && pwd)"
-WS="stl2step-ci"
+WS="cad_mesh_recovery-ci"
 
 # Record the exact local HEAD the tree is synced from.
 SYNC_SHA="$(git -C "$REPO_ROOT" rev-parse HEAD)"
@@ -185,7 +185,7 @@ fi
 # tests/gates/build_fixtures/ and 11 p2buildtest cases vanish — the exact
 # historical trap the fixtures dir was renamed to dodge.
 rsync -a --delete "${GIT_SYNC_EXCLUDE[@]+"${GIT_SYNC_EXCLUDE[@]}"}" \
-  --exclude '/build*/' --exclude '/_team/' --exclude '/.stl2step-*' \
+  --exclude '/build*/' --exclude '/_team/' --exclude '/.cad_mesh_recovery-*' \
   --exclude '/.ci-local/' \
   --exclude '/tests/gates/baseline/.worktree-*' \
   --exclude '/tests/gates/baseline/.build/' \
@@ -203,7 +203,7 @@ LOG="$(mktemp)"
 
 ssh "$HOST" bash -s <<'REMOTE' 2>&1 | tee "$LOG"
 set -euo pipefail
-cd ~/stl2step-ci
+cd ~/cad_mesh_recovery-ci
 
 # micromamba + pinned OCCT (idempotent; ~25MB binary package, no sudo)
 if [ ! -x bin/micromamba ]; then
@@ -211,7 +211,7 @@ if [ ! -x bin/micromamba ]; then
   curl -Ls https://micro.mamba.pm/api/micromamba/linux-64/latest \
     | tar -xj bin/micromamba
 fi
-export MAMBA_ROOT_PREFIX="$HOME/stl2step-ci/mamba"
+export MAMBA_ROOT_PREFIX="$HOME/cad_mesh_recovery-ci/mamba"
 if [ ! -d "$MAMBA_ROOT_PREFIX/envs/occt" ]; then
   bin/micromamba create -y -n occt -c conda-forge occt=7.9.3
 fi
@@ -262,7 +262,7 @@ ENV_LIB="$MAMBA_ROOT_PREFIX/envs/occt/lib"
 nice -n 10 cmake -S repo -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER="$CC" -DCMAKE_CXX_COMPILER="$CXX" \
   -DCMAKE_EXE_LINKER_FLAGS="-L${ENV_LIB}" -DCMAKE_SHARED_LINKER_FLAGS="-L${ENV_LIB}" \
   -DCMAKE_BUILD_RPATH="${ENV_LIB}" \
-  -DSTL2STEP_BUILD_EXAMPLES=ON -DSTL2STEP_BUILD_TESTS=ON
+  -DCAD_MESH_RECOVERY_BUILD_EXAMPLES=ON -DCAD_MESH_RECOVERY_BUILD_TESTS=ON
 nice -n 10 cmake --build build -j "$JOBS"
 
 # Drop Mac-synced baseline artifacts; keep healthy node-built trees.

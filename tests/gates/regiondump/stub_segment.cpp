@@ -8,9 +8,9 @@
 // SPDX-License-Identifier: MIT
 
 #if defined(_MSC_VER)
-#pragma message("stl2step_regiondump: STUB refit::segment() — src/refit_segment.cpp is absent; this TU is compiled only until the real one lands")
+#pragma message("cad_mesh_recovery_regiondump: STUB refit::segment() — src/refit_segment.cpp is absent; this TU is compiled only until the real one lands")
 #else
-#warning "stl2step_regiondump: STUB refit::segment() — src/refit_segment.cpp is absent; this TU is compiled only until the real one lands"
+#warning "cad_mesh_recovery_regiondump: STUB refit::segment() — src/refit_segment.cpp is absent; this TU is compiled only until the real one lands"
 #endif
 
 #include "refit.hpp"
@@ -20,7 +20,7 @@
 #include <initializer_list>
 #include <utility>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 namespace {
 
@@ -160,4 +160,4 @@ bool segment(const MeshView& mv, const SegmentParams& /*p*/, RegionSet& out, War
 }
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery

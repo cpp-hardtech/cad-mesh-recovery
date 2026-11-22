@@ -1,8 +1,8 @@
 // Shared mesh I/O, measurement, and JSON helpers for the P0 corpus lane.
 // SPDX-License-Identifier: MIT
 
-#ifndef STL2STEP_CORPUS_UTIL_HPP
-#define STL2STEP_CORPUS_UTIL_HPP
+#ifndef CAD_MESH_RECOVERY_CORPUS_UTIL_HPP
+#define CAD_MESH_RECOVERY_CORPUS_UTIL_HPP
 
 #include <algorithm>
 #include <array>

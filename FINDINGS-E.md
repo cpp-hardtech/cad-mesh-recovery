@@ -5,7 +5,7 @@ from `hl/integrate` (a095f01).
 
 ## Inventory (49 free edges @ J6 recover=2)
 
-`STL2STEP_J6_DIAG=1` on this worktree:
+`CAD_MESH_RECOVERY_J6_DIAG=1` on this worktree:
 
 ```
 DIAG_J6 summary freeEdges=49 analyticCollapsed=12 analyticPolyline=62
@@ -20,7 +20,7 @@ Pattern (representative):
 | Faceted rim polylines | ~46 | `len≈0.752 mm` mesh chords on plane faces rid=0/1 (`ci=-1`, no collapsed chain) |
 | Collapsed chain gap | ~2 | isolated edges where one side collapsed, neighbour still facet |
 
-First-pass collapse (`STL2STEP_COLLAPSE_DIAG=1`):
+First-pass collapse (`CAD_MESH_RECOVERY_COLLAPSE_DIAG=1`):
 
 ```
 DIAG_COLLAPSE mix=0 none=6 fail=2 ok=66 total=74 recover=0 rounds=0
@@ -48,18 +48,18 @@ post-fit gate.
 5. **`bindCylPCurves`** — ellipse edges use `ShapeFix_Edge` pcurves, not linear UV chord.
 6. **`makeEllipseArc` path** for open ellipse chains (2+ verts).
 7. **Seamed360 inner-wire `Reversed()`** in `buildPlanarFace` when sharing full cap edge.
-8. **`STL2STEP_J6_DIAG=1`** — `diagJ6FreeEdges` inventory (region/chain/length).
+8. **`CAD_MESH_RECOVERY_J6_DIAG=1`** — `diagJ6FreeEdges` inventory (region/chain/length).
 
 ## Proof (macOS arm64, this worktree)
 
 ```sh
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DSTL2STEP_BUILD_TESTS=ON
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCAD_MESH_RECOVERY_BUILD_TESTS=ON
 cmake --build build -j 8
 ctest -R "p2buildtest|gates_smoke"   # 12/12 pass
 ```
 
 ```sh
-./build/stl2step tests/diag/handle-lock/handle-lock.stl \
+./build/cad_mesh_recovery tests/diag/handle-lock/handle-lock.stl \
   -o /tmp/hl-e.step --engine trueform --quiet
 ```
 

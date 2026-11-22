@@ -43,26 +43,26 @@
 #include <gp_Vec.hxx>
 #include <gp_XYZ.hxx>
 
-using stl2step::refit::ConeDevClass;
-using stl2step::refit::circleOnConeMax;
-using stl2step::refit::coneApexV;
-using stl2step::refit::coneApexZ;
-using stl2step::refit::coneAxialCoord;
-using stl2step::refit::coneDevClassIsExact;
-using stl2step::refit::coneDevClassName;
-using stl2step::refit::coneFromRims;
-using stl2step::refit::coneFrustumChordVolume;
-using stl2step::refit::coneFrustumDVolDensity;
-using stl2step::refit::coneFrustumVRange;
-using stl2step::refit::coneFrustumVRangeFromRadii;
-using stl2step::refit::coneIntConeCircle;
-using stl2step::refit::coneIntCylCircle;
-using stl2step::refit::coneIntPlaneCircle;
-using stl2step::refit::coneRadialCoord;
-using stl2step::refit::coneRadiusAt;
-using stl2step::refit::coneVAtRadius;
-using stl2step::refit::coneVAtZ;
-using stl2step::refit::pointConeDist;
+using cad_mesh_recovery::refit::ConeDevClass;
+using cad_mesh_recovery::refit::circleOnConeMax;
+using cad_mesh_recovery::refit::coneApexV;
+using cad_mesh_recovery::refit::coneApexZ;
+using cad_mesh_recovery::refit::coneAxialCoord;
+using cad_mesh_recovery::refit::coneDevClassIsExact;
+using cad_mesh_recovery::refit::coneDevClassName;
+using cad_mesh_recovery::refit::coneFromRims;
+using cad_mesh_recovery::refit::coneFrustumChordVolume;
+using cad_mesh_recovery::refit::coneFrustumDVolDensity;
+using cad_mesh_recovery::refit::coneFrustumVRange;
+using cad_mesh_recovery::refit::coneFrustumVRangeFromRadii;
+using cad_mesh_recovery::refit::coneIntConeCircle;
+using cad_mesh_recovery::refit::coneIntCylCircle;
+using cad_mesh_recovery::refit::coneIntPlaneCircle;
+using cad_mesh_recovery::refit::coneRadialCoord;
+using cad_mesh_recovery::refit::coneRadiusAt;
+using cad_mesh_recovery::refit::coneVAtRadius;
+using cad_mesh_recovery::refit::coneVAtZ;
+using cad_mesh_recovery::refit::pointConeDist;
 
 static const double kPi = 3.14159265358979323846264338327950288;
 

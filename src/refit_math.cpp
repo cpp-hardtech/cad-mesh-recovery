@@ -1,4 +1,4 @@
-// stl2step P1 math primitives. Written in-TU; no Eigen, no GProp_, no GeomConvert_.
+// cad_mesh_recovery P1 math primitives. Written in-TU; no Eigen, no GProp_, no GeomConvert_.
 // Signatures are frozen in refit_internal.hpp.
 //
 // SPDX-License-Identifier: MIT
@@ -16,10 +16,10 @@
 #include <map>
 #include <vector>
 
-#ifndef STL2STEP_ARCHCHAIN_BAND_MAX
-#define STL2STEP_ARCHCHAIN_BAND_MAX 8000
+#ifndef CAD_MESH_RECOVERY_ARCHCHAIN_BAND_MAX
+#define CAD_MESH_RECOVERY_ARCHCHAIN_BAND_MAX 8000
 #endif
-static_assert(STL2STEP_ARCHCHAIN_BAND_MAX < 15300,
+static_assert(CAD_MESH_RECOVERY_ARCHCHAIN_BAND_MAX < 15300,
               "archChainBand upper bound must exclude Body11 file (15300 tris)");
 
 #include <gp_Ax3.hxx>
@@ -27,7 +27,7 @@ static_assert(STL2STEP_ARCHCHAIN_BAND_MAX < 15300,
 #include <gp_Pnt.hxx>
 #include <gp_Vec.hxx>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 namespace {
 
@@ -1669,7 +1669,7 @@ bool coefficientOfVariation(const std::vector<double>& vals, int skipEnds, doubl
 }
 
 bool collapseDiagOn() {
-    const char* v = std::getenv("STL2STEP_COLLAPSE_DIAG");
+    const char* v = std::getenv("CAD_MESH_RECOVERY_COLLAPSE_DIAG");
     return v && v[0] && v[0] != '0';
 }
 
@@ -2159,4 +2159,4 @@ bool detectArchChain(const MeshView& mv, const std::vector<int>& tris,
 }
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery

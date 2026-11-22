@@ -1,4 +1,4 @@
-// Test-side port of Converter::run() stages 2–3 from src/stl2step.cpp.
+// Test-side port of Converter::run() stages 2–3 from src/cad_mesh_recovery.cpp.
 // Loops are transcribed in source order; do not "improve" them — local ids
 // are the I5 sort keys.
 //
@@ -23,12 +23,12 @@
 #include <RWStl.hxx>
 #include <Standard_Failure.hxx>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace harness {
 namespace {
 
 // Exact-bit vertex key (normalises -0.0 -> +0.0); tolerance welding quantises instead.
-// Ported from src/stl2step.cpp:150-166.
+// Ported from src/cad_mesh_recovery.cpp:150-166.
 struct VKey {
     uint64_t x, y, z;
     bool operator==(const VKey& o) const { return x == o.x && y == o.y && z == o.z; }
@@ -73,7 +73,7 @@ bool loadMesh(const std::string& stlPath, double scale, double weldTolArg,
         double weldTol = weldTolArg;
 
         // ---- 2. weld vertices (exact by default, tolerance grid via weldTol) ---
-        // Ported from src/stl2step.cpp:312-338.
+        // Ported from src/cad_mesh_recovery.cpp:312-338.
         std::vector<gp_XYZ> pts;             // welded, scaled points
         std::vector<int> remap(rawVerts + 1);
         {
@@ -101,7 +101,7 @@ bool loadMesh(const std::string& stlPath, double scale, double weldTolArg,
             }
         }
 
-        // Ported from src/stl2step.cpp:340-348.
+        // Ported from src/cad_mesh_recovery.cpp:340-348.
         gp_XYZ bbMin(1e300, 1e300, 1e300), bbMax(-1e300, -1e300, -1e300);
         for (auto& p : pts) {
             bbMin.SetX(std::min(bbMin.X(), p.X())); bbMax.SetX(std::max(bbMax.X(), p.X()));
@@ -113,7 +113,7 @@ bool loadMesh(const std::string& stlPath, double scale, double weldTolArg,
                                       : std::min(std::max(1e-6, diag * 1e-5), 0.5);
 
         // ---- 3. edge stats + manifold component split ---------------------------
-        // Ported from src/stl2step.cpp:357-368.
+        // Ported from src/cad_mesh_recovery.cpp:357-368.
         struct Tri { int a, b, c; };
         std::vector<Tri> tris;
         tris.reserve(nTri);
@@ -126,14 +126,14 @@ bool loadMesh(const std::string& stlPath, double scale, double weldTolArg,
         }
         mesh.Nullify();
 
-        // Ported from src/stl2step.cpp:370-373.
+        // Ported from src/cad_mesh_recovery.cpp:370-373.
         auto ekey = [](int a, int b) {
             return a < b ? ((uint64_t)(uint32_t)a << 32) | (uint32_t)b
                          : ((uint64_t)(uint32_t)b << 32) | (uint32_t)a;
         };
 
         // Pass A: global edge use counts. Pass B: union triangles ONLY across edges
-        // used exactly twice. Ported from src/stl2step.cpp:379-395.
+        // used exactly twice. Ported from src/cad_mesh_recovery.cpp:379-395.
         UnionFind uf((int)tris.size());
         {
             struct EdgeStat { uint32_t cnt = 0; int t1 = -1, t2 = -1; };
@@ -152,7 +152,7 @@ bool loadMesh(const std::string& stlPath, double scale, double weldTolArg,
                 if (kv.second.cnt == 2) uf.unite(kv.second.t1, kv.second.t2);
         }
 
-        // Pass C: per component tables. Ported from src/stl2step.cpp:401-466.
+        // Pass C: per component tables. Ported from src/cad_mesh_recovery.cpp:401-466.
         struct CompStat {
             int open = 0, conflict = 0, nonManifold = 0;
             double vol = 0;
@@ -228,7 +228,7 @@ bool loadMesh(const std::string& stlPath, double scale, double weldTolArg,
         out.sewTol = sewTol;
         // D-130-12: same measurement the engine makes at read time, so a gate
         // tool driving segment() through this harness carries the same q.
-        out.quantFloor = stl2step::stlQuantFloor(stlPath).q * std::fabs(scale);
+        out.quantFloor = cad_mesh_recovery::stlQuantFloor(stlPath).q * std::fabs(scale);
 
         // Gate-tool order: ascending UnionFind root id. The engine then sorts
         // by triangle-count desc for build scheduling; that is not the contract.
@@ -270,4 +270,4 @@ bool loadMesh(const std::string& stlPath, double scale, double weldTolArg,
 }
 
 }  // namespace harness
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery

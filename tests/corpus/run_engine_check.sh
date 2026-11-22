@@ -3,7 +3,7 @@
 # expectedSolids / expectedOpenShells (smooth off). When smoothExpectedExit is
 # set, also run --smooth and check warning/volume/solids never-get-worse bounds.
 set -euo pipefail
-STL2STEP="$1"
+CAD_MESH_RECOVERY="$1"
 CENSUS="${CENSUS:-}"
 CORPUS="${CORPUS:-tests/corpus}"
 # Prefer CMake-injected PYTHON (real interpreter). Git Bash `python3` on
@@ -24,7 +24,7 @@ if [[ -z "${PYTHON:-}" ]]; then
   echo "FAIL: no usable Python (set PYTHON=... or install CPython)" >&2
   exit 1
 fi
-T=$(mktemp -d "${TMPDIR:-/tmp}/stl2step-run_engine_check.XXXXXX")
+T=$(mktemp -d "${TMPDIR:-/tmp}/cad_mesh_recovery-run_engine_check.XXXXXX")
 trap 'rm -rf "$T"' EXIT
 FAIL=0
 for stl in "$CORPUS"/*.stl; do
@@ -33,7 +33,7 @@ for stl in "$CORPUS"/*.stl; do
   sidecar="$CORPUS/${id}.expected.json"
   out="$T/${id}.step"
   set +e
-  "$STL2STEP" "$stl" "$out" --quiet --no-verify >"$T/${id}_result.json" 2>"$T/${id}_stderr.txt"
+  "$CAD_MESH_RECOVERY" "$stl" "$out" --quiet --no-verify >"$T/${id}_result.json" 2>"$T/${id}_stderr.txt"
   rc=$?
   set -e
   if [[ ! -f "$sidecar" ]]; then
@@ -75,9 +75,9 @@ PY
     sout="$T/${id}_smooth.step"
     set +e
     if grep -q '"demotedSeedsShipped"' "$sidecar" 2>/dev/null; then
-      STL2STEP_EPRIME_DIAG=1 "$STL2STEP" "$stl" "$sout" --quiet --smooth >"$T/${id}_smooth_result.json" 2>"$T/${id}_smooth_stderr.txt"
+      CAD_MESH_RECOVERY_EPRIME_DIAG=1 "$CAD_MESH_RECOVERY" "$stl" "$sout" --quiet --smooth >"$T/${id}_smooth_result.json" 2>"$T/${id}_smooth_stderr.txt"
     else
-      "$STL2STEP" "$stl" "$sout" --quiet --smooth >"$T/${id}_smooth_result.json" 2>"$T/${id}_smooth_stderr.txt"
+      "$CAD_MESH_RECOVERY" "$stl" "$sout" --quiet --smooth >"$T/${id}_smooth_result.json" 2>"$T/${id}_smooth_stderr.txt"
     fi
     src=$?
     set -e

@@ -39,12 +39,12 @@ for mixed analytic plates.
 | **A2** | `addPcurvesOnFace` before BRepCheck validity gate |
 | **A3** | Status-routed at-source wire repair (route on `BRepCheck_Status`, fix wire in place — no copy) |
 
-A0 diagnostic: `STL2STEP_DIAG_PLATES=1` dumps `BRepCheck_Status` after a failing
+A0 diagnostic: `CAD_MESH_RECOVERY_DIAG_PLATES=1` dumps `BRepCheck_Status` after a failing
 `makeFaceKeep` (stderr only; zero default-path effect).
 
 ## I-checker I7 on large real-part RegionSet dumps (Body28 comp0)
 
-Live `stl2step_regiondump --bare` on Body28 exposes **I7 loop incompleteness** on
+Live `cad_mesh_recovery_regiondump --bare` on Body28 exposes **I7 loop incompleteness** on
 two open regions — not a checker false positive:
 
 | Region | Loop | Chain | Symptom |
@@ -75,7 +75,7 @@ by D1 §M1). The gap 1 → 13 is blocked by planar-plate face validity, not by t
 | copy (`MakeFace(plane,wire)`, `ShapeFix_Face`) | BANNED — **relocates** J2 | S03/S10 shell opens |
 | in-place (`GeomAPI::To2d` + `UpdateEdge` + tol absorb) | **PARKED — propagates J2** | J6 free-edges Body9 8→20, **Body12 49→82 (red-line 81)**, Body18 14→18, Body20 18→22 |
 
-**Open chain, in dependency order** (measured, `.stl2step-wt/ac-platefix-r3`):
+**Open chain, in dependency order** (measured, `.cad_mesh_recovery-wt/ac-platefix-r3`):
 
 1. **Shared-TShape propagation (root).** Plates 0/1 are `DIAG_PLATE valid=1` at ~3 µm residual,
    then `DIAG_CASCADE culprit faceValid=0` at the shell walk. Not an ordering bug — the same
@@ -112,7 +112,7 @@ Clearing (a)+(b) → **28 = 13p + 15c**. **Unpark only when both land.**
 
 **Standing constraints for any v-next lane** (carried, not re-litigated): `GT_REL_TOL=0.003` is not
 loosened; no rid special-casing; no shared-edge tol ≥ the S09 poison threshold; no ladder or gate
-edits; `src/stl2step.cpp:614-652` (D4.5 probe) frozen at
+edits; `src/cad_mesh_recovery.cpp:614-652` (D4.5 probe) frozen at
 `ddf4be5391d662ceabe39c9bac506f9c86e506a345a3762dec31331e96169fd6`; `addPcurvesThenFace` stays
 dead; `hl-ratchet.json` floor stays **1** until a fully green unlock.
 

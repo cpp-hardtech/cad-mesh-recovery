@@ -18,7 +18,7 @@ all revert identically → structural, not gate tuning.
 
 ## The bug-class finding
 
-`stl2step_regiondump` reports **0 regions** for comp0, yet the in-engine
+`cad_mesh_recovery_regiondump` reports **0 regions** for comp0, yet the in-engine
 pass clearly attempted a rebuild reaching J6 with 519 faces. Two
 segmentation entry points disagree on the same mesh — reconcile first;
 whichever is wrong hides the real repair surface. Then: why does the

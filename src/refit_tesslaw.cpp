@@ -20,7 +20,7 @@
 #include <utility>
 #include <vector>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 namespace {
 
@@ -28,7 +28,7 @@ constexpr double kPi = 3.14159265358979323846264338327950288;
 constexpr double kTwoPi = 2.0 * kPi;
 
 bool tesslawDiagOn() {
-    const char* e = std::getenv("STL2STEP_DIAG_TESSLAW");
+    const char* e = std::getenv("CAD_MESH_RECOVERY_DIAG_TESSLAW");
     return e && e[0] != '\0' && e[0] != '0';
 }
 
@@ -1159,4 +1159,4 @@ TessLawDecision tessLawDecide(const std::vector<TessLawSample>& samples, double 
     return d;
 }
 
-}}  // namespace stl2step::refit
+}}  // namespace cad_mesh_recovery::refit

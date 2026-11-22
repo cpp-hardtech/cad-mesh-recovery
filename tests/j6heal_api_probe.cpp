@@ -1,9 +1,9 @@
-// SPEC AC-J6HEAL — exercise stl2step::convert() (the public C++ API).
+// SPEC AC-J6HEAL — exercise cad_mesh_recovery::convert() (the public C++ API).
 // Not registered with ctest (AC requires 27/27 unchanged).
 //
 // SPDX-License-Identifier: MIT
 
-#include <stl2step/stl2step.hpp>
+#include <cad_mesh_recovery/cad_mesh_recovery.hpp>
 
 #include <cstdio>
 #include <cstdlib>
@@ -46,20 +46,20 @@ std::string joinCorpus(const char* root, const char* leaf) {
 }
 
 int runOne(const Case& c, const std::string& outDir, std::string& line) {
-    stl2step::Options opt;
+    cad_mesh_recovery::Options opt;
     opt.input = c.stl;
     opt.output = outDir + "/" + c.name + ".step";
     opt.smooth = true;
     opt.verify = true;
     std::mutex logMu;
     std::vector<std::string> extra;
-    auto log = [&](stl2step::Severity sev, const std::string& msg) {
-        if (sev == stl2step::Severity::Warning || sev == stl2step::Severity::Error) {
+    auto log = [&](cad_mesh_recovery::Severity sev, const std::string& msg) {
+        if (sev == cad_mesh_recovery::Severity::Warning || sev == cad_mesh_recovery::Severity::Error) {
             std::lock_guard<std::mutex> g(logMu);
             extra.push_back(msg);
         }
     };
-    stl2step::Result r = stl2step::convert(opt, log);
+    cad_mesh_recovery::Result r = cad_mesh_recovery::convert(opt, log);
     const int fe = parseFreeEdges(r.warnings);
     char buf[512];
     std::snprintf(buf, sizeof(buf),
@@ -83,9 +83,9 @@ int runOne(const Case& c, const std::string& outDir, std::string& line) {
 }  // namespace
 
 int main() {
-    const char* corpus = std::getenv("STL2STEP_PRIVATE_CORPUS");
+    const char* corpus = std::getenv("CAD_MESH_RECOVERY_PRIVATE_CORPUS");
     if (!corpus || !corpus[0]) {
-        std::fprintf(stderr, "SKIP: STL2STEP_PRIVATE_CORPUS unset\n");
+        std::fprintf(stderr, "SKIP: CAD_MESH_RECOVERY_PRIVATE_CORPUS unset\n");
         return 77;
     }
 
@@ -112,7 +112,7 @@ int main() {
         cases.push_back(c);
     }
     if (cases.empty()) {
-        std::fprintf(stderr, "SKIP: no probe STLs under STL2STEP_PRIVATE_CORPUS\n");
+        std::fprintf(stderr, "SKIP: no probe STLs under CAD_MESH_RECOVERY_PRIVATE_CORPUS\n");
         return 77;
     }
 

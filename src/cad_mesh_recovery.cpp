@@ -1,4 +1,4 @@
-// stl2step engine - mesh (STL) -> B-Rep solid (STEP).
+// cad_mesh_recovery engine - mesh (STL) -> B-Rep solid (STEP).
 //
 // Pipeline:
 //   read STL (RWStl: binary + ASCII) -> weld duplicate vertices -> split the mesh
@@ -17,11 +17,11 @@
 //   the finished shape; in the rare invalid case the shape is ShapeFix'd and the
 //   file rewritten) -> optional verify by re-reading the file.
 //
-// This file is the whole engine. The public interface is include/stl2step.hpp.
+// This file is the whole engine. The public interface is include/cad_mesh_recovery.hpp.
 //
 // SPDX-License-Identifier: MIT
 
-#include "stl2step/stl2step.hpp"
+#include "cad_mesh_recovery/cad_mesh_recovery.hpp"
 #include "mesh_heal.hpp"
 #include "parallel.hpp"
 #include "refit.hpp"
@@ -99,12 +99,12 @@
 #include <gp_XYZ.hxx>
 
 #if defined(__GNUC__) || defined(__clang__)
-#  define STL2STEP_PRINTF(fmtIdx, argIdx) __attribute__((format(printf, fmtIdx, argIdx)))
+#  define CAD_MESH_RECOVERY_PRINTF(fmtIdx, argIdx) __attribute__((format(printf, fmtIdx, argIdx)))
 #else
-#  define STL2STEP_PRINTF(fmtIdx, argIdx)
+#  define CAD_MESH_RECOVERY_PRINTF(fmtIdx, argIdx)
 #endif
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 
 namespace refit {
 void fitAnalyticTolerances(const TopoDS_Shape& shape);
@@ -114,7 +114,7 @@ void prismBindDxfStem(const std::string& s);
 
 namespace detail {
 
-// The faceted builder's existing zero-area test (stl2step.cpp face loop and
+// The faceted builder's existing zero-area test (cad_mesh_recovery.cpp face loop and
 // makeFacet in refit_build.cpp). Same expression, both call sites. Not a new gate.
 bool triangleAreaDegenerate(const gp_XYZ& A, const gp_XYZ& B, const gp_XYZ& C) {
     const gp_XYZ n = (B - A).Crossed(C - A);
@@ -722,7 +722,7 @@ TopoDS_Shape unifySameDomainGuarded(const TopoDS_Shape& shape, double angleDeg,
     }
     TopoDS_Shape chosen = keepIfFreeEdgesNotIncreased(shape, unified);
     histOut = chosen.IsSame(unified) ? unifiedHist : Handle(BRepTools_History)();
-    const char* env = std::getenv("STL2STEP_DIAG_UNIFY");
+    const char* env = std::getenv("CAD_MESH_RECOVERY_DIAG_UNIFY");
     if (env && env[0] == '1' &&
         (!dropped.empty() || !chosen.IsSame(unified))) {
         std::fprintf(stderr,
@@ -873,7 +873,7 @@ std::string jsonEscape(const std::string& s) {
 // Bounded numeric append. Never uses snprintf(nullptr, 0) + string((size_t)n)
 // (MSVC: n == -1 wraps the size to 0 and the subsequent write overflows the
 // 16-byte SSO into whatever follows, including main's /GS cookie).
-void jsonAppendFmt(std::string& o, const char* fmt, ...) STL2STEP_PRINTF(2, 3);
+void jsonAppendFmt(std::string& o, const char* fmt, ...) CAD_MESH_RECOVERY_PRINTF(2, 3);
 void jsonAppendFmt(std::string& o, const char* fmt, ...) {
     char buf[1024];
     va_list ap;
@@ -1010,7 +1010,7 @@ struct Converter {
 
     explicit Converter(const Options& o, LogCallback l) : opt(o), log(std::move(l)) {}
 
-    void note(const char* fmt, ...) STL2STEP_PRINTF(2, 3) {
+    void note(const char* fmt, ...) CAD_MESH_RECOVERY_PRINTF(2, 3) {
         if (!log) return;
         char buf[1400];
         va_list ap; va_start(ap, fmt);
@@ -1085,7 +1085,7 @@ Result Converter::run() {
 
     try {
         // ---- 1. read -----------------------------------------------------------
-        note("stl2step: %s -> %s\n", inPath.c_str(), outPath.c_str());
+        note("cad_mesh_recovery: %s -> %s\n", inPath.c_str(), outPath.c_str());
         Handle(Poly_Triangulation) mesh = RWStl::ReadFile(inPath.c_str());
         if (mesh.IsNull() || mesh->NbTriangles() < 1)
             return fail(r, "unreadable or empty STL");
@@ -1136,7 +1136,7 @@ Result Converter::run() {
         // arrived in), then carried into the same mm the welded points live in.
         const StlQuantFloor qf = stlQuantFloor(inPath);
         const double quantFloor = qf.q * std::fabs(scale);
-        if (const char* e = std::getenv("STL2STEP_LAWBAND_DIAG"); e && e[0] && e[0] != '0')
+        if (const char* e = std::getenv("CAD_MESH_RECOVERY_LAWBAND_DIAG"); e && e[0] && e[0] != '0')
             std::fprintf(stderr,
                          "DIAG_QUANTFLOOR %s maxAbs=%.9g q=%.9g fmt=%s res=%.9g "
                          "sig=%d scale=%.9g ok=%d\n",
@@ -1173,7 +1173,7 @@ Result Converter::run() {
             std::vector<std::array<double, 3>> xyz;
             xyz.reserve(pts.size());
             for (const gp_XYZ& p : pts) xyz.push_back({ p.X(), p.Y(), p.Z() });
-            const char* envAbsorb = std::getenv("STL2STEP_DIAG_ABSORB");
+            const char* envAbsorb = std::getenv("CAD_MESH_RECOVERY_DIAG_ABSORB");
             const bool absorbDiag = envAbsorb && envAbsorb[0] && envAbsorb[0] != '0';
             meshTJunctionsAbsorbed =
                 detail::absorbZeroAreaTJunctions(raw, xyz, quantFloor, absorbDiag);
@@ -1222,7 +1222,7 @@ Result Converter::run() {
                 std::vector<std::array<double, 3>> xyz;
                 xyz.reserve(pts.size());
                 for (const gp_XYZ& p : pts) xyz.push_back({ p.X(), p.Y(), p.Z() });
-                const char* envRel = std::getenv("STL2STEP_DIAG_REL");
+                const char* envRel = std::getenv("CAD_MESH_RECOVERY_DIAG_REL");
                 const bool healDiag = envRel && envRel[0] && envRel[0] != '0';
                 const detail::HealStats hs =
                     detail::healOpenBoundaries(raw, xyz, quantFloor, sewTol, healDiag);
@@ -1409,7 +1409,7 @@ Result Converter::run() {
                 // call and keeps a null sink.
                 refit::segment(mv, segp, rs, [&](const std::string& m) { warn(m); });
                 std::lock_guard<std::mutex> lk(planMu);
-                if (const char* e = std::getenv("STL2STEP_SEGMENT_SUMMARY");
+                if (const char* e = std::getenv("CAD_MESH_RECOVERY_SEGMENT_SUMMARY");
                     e && e[0] && e[0] != '0')
                     segmentSummaryStderr(root, rs);
                 refitPlans.emplace(root, std::move(rs));
@@ -1584,7 +1584,7 @@ Result Converter::run() {
                 // shipped ring-certified rows over τ that classBOwnCertFails spared.
                 auto diagClassBSet = [&](const char* pass, int nQual,
                                          const std::vector<int>& dissolve, double tauD) {
-                    const char* dv = std::getenv("STL2STEP_DIAG_CLASSB");
+                    const char* dv = std::getenv("CAD_MESH_RECOVERY_DIAG_CLASSB");
                     if (!dv || !dv[0] || dv[0] == '0') return;
                     std::string ids, spared;
                     for (int id : dissolve)
@@ -1655,7 +1655,7 @@ Result Converter::run() {
                                 anyShip = true;
                             }
                             if (anyShip) rs.stats.maxVertexDev = shippedDev;
-                            if (const char* dv = std::getenv("STL2STEP_DIAG_CLASSB");
+                            if (const char* dv = std::getenv("CAD_MESH_RECOVERY_DIAG_CLASSB");
                                 dv && dv[0] && dv[0] != '0') {
                                 double dVolSigned = 0.0, dVolAbs = 0.0, areaKept = 0.0;
                                 std::vector<int> kept;
@@ -1814,7 +1814,7 @@ Result Converter::run() {
                         out.refitDVolAbs += std::fabs(reg.dVolPredicted);
                     // D-gid-7.6 ledger (diag only): per shipped curved region, the
                     // prediction against the measured swept volume of buildFaces.
-                    if (const char* dv = std::getenv("STL2STEP_DIAG_CLASSB");
+                    if (const char* dv = std::getenv("CAD_MESH_RECOVERY_DIAG_CLASSB");
                         dv && dv[0] && dv[0] != '0') {
                         static const char* kOrig[] = {"PlaneGrow",  "CylGrow",     "FilletStrip",
                                                       "NgonWall",   "ChamferCone", "TorusBlend",
@@ -2161,7 +2161,7 @@ Result Converter::run() {
         // written shape (written_census.hpp has the definitions). refitTotals
         // keeps the plan's figures for the tolerance and regularity steps.
         int wrPlanes = 0, wrCyls = 0, wrFacet = 0;
-        const char* diagHonestEnv = std::getenv("STL2STEP_DIAG_HONEST");
+        const char* diagHonestEnv = std::getenv("CAD_MESH_RECOVERY_DIAG_HONEST");
         const bool diagHonest = diagHonestEnv && diagHonestEnv[0] == '1';
         if (smooth) {
             size_t pi = 0;
@@ -2445,7 +2445,7 @@ Result Converter::run() {
 
 // ---------------------------------------------------------------- public API
 
-const char* version() { return STL2STEP_VERSION_STRING; }
+const char* version() { return CAD_MESH_RECOVERY_VERSION_STRING; }
 
 const char* schemaName(Schema s) {
     switch (s) {
@@ -2543,4 +2543,4 @@ Result convert(const Options& opt, const LogCallback& log) {
     return c.run();
 }
 
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery

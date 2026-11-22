@@ -6,8 +6,8 @@
 // tau = 2q or a count of parameters.
 // SPDX-License-Identifier: MIT
 
-#ifndef STL2STEP_REFIT_RELATIONAL_RULED_HPP
-#define STL2STEP_REFIT_RELATIONAL_RULED_HPP
+#ifndef CAD_MESH_RECOVERY_REFIT_RELATIONAL_RULED_HPP
+#define CAD_MESH_RECOVERY_REFIT_RELATIONAL_RULED_HPP
 
 #include "refit_relational.hpp"
 
@@ -15,7 +15,7 @@
 #include <array>
 #include <vector>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 
 // D-fc-5.9. The patch is fixed by its rails and cap planes; nothing is fitted
@@ -113,6 +113,6 @@ bool claimRuledQuads(const MeshView& mv, const SegmentParams& p, const DerivedTo
                      SegmentWork& work);
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery
 
-#endif  // STL2STEP_REFIT_RELATIONAL_RULED_HPP
+#endif  // CAD_MESH_RECOVERY_REFIT_RELATIONAL_RULED_HPP

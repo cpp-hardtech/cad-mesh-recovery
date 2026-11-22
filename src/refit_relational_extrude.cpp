@@ -26,7 +26,7 @@
 #include <utility>
 #include <vector>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 namespace {
 
@@ -37,7 +37,7 @@ constexpr double kTwoPi = 2.0 * kPi;
 constexpr double kUlp = 256.0 * std::numeric_limits<double>::epsilon();
 
 bool diagOn() {
-    const char* e = std::getenv("STL2STEP_DIAG_REL");
+    const char* e = std::getenv("CAD_MESH_RECOVERY_DIAG_REL");
     return e && e[0] && e[0] != '0';
 }
 
@@ -6162,4 +6162,4 @@ bool claimSectionFillets(const MeshView& mv, const SegmentParams& p, const Deriv
 }
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery

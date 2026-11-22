@@ -56,7 +56,7 @@
 #include <gp_Pnt.hxx>
 #include <gp_XYZ.hxx>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 namespace {
 
@@ -70,7 +70,7 @@ constexpr int kMinAxialLevels = 2;
 constexpr int kCoverOnVertices = 2;
 
 bool diagOn() {
-    const char* e = std::getenv("STL2STEP_DIAG_REL");
+    const char* e = std::getenv("CAD_MESH_RECOVERY_DIAG_REL");
     return e && e[0] && e[0] != '0';
 }
 
@@ -2641,7 +2641,7 @@ bool reclaimLine(const MeshView& mv, const SegmentParams& p, const DerivedTols& 
 // Torus mode (D-fc-4.6).
 
 bool torusDiagOn() {
-    const char* e = std::getenv("STL2STEP_DIAG_REL");
+    const char* e = std::getenv("CAD_MESH_RECOVERY_DIAG_REL");
     return e && e[0] && e[0] != '0';
 }
 
@@ -3153,7 +3153,7 @@ bool reclaimRelational(const MeshView& mv, const SegmentParams& p, const Derived
 }
 
 // D-gid-8.4. The late ring-frustum closure (closeRingFrustums),
-// run after the torus families and before A3. Silent unless STL2STEP_DIAG_REL.
+// run after the torus families and before A3. Silent unless CAD_MESH_RECOVERY_DIAG_REL.
 bool claimRingFrustums(const MeshView& mv, const SegmentParams& p, const DerivedTols& tol,
                        SegmentWork& work) {
     const double tau = tauOf(mv);
@@ -4528,4 +4528,4 @@ bool claimTorusSameSurface(const MeshView& mv, const SegmentParams& p, SegmentWo
 }
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery

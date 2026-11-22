@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run Body11-class repro STLs on the tree's stl2step. Exit 0 if each
+"""Run Body11-class repro STLs on the tree's cad_mesh_recovery. Exit 0 if each
 mesh still emits its class warn (today's engine). Prints command+output."""
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
-BIN = ROOT / "build" / "stl2step"
+BIN = ROOT / "build" / "cad_mesh_recovery"
 HERE = Path(__file__).resolve().parent
 
 CASES = [

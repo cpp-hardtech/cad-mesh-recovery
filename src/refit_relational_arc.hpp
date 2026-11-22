@@ -3,8 +3,8 @@
 // (section fillets). Every threshold is tau = 2q or a count of parameters.
 // SPDX-License-Identifier: MIT
 
-#ifndef STL2STEP_REFIT_RELATIONAL_ARC_HPP
-#define STL2STEP_REFIT_RELATIONAL_ARC_HPP
+#ifndef CAD_MESH_RECOVERY_REFIT_RELATIONAL_ARC_HPP
+#define CAD_MESH_RECOVERY_REFIT_RELATIONAL_ARC_HPP
 
 #include "refit_relational_torus.hpp"
 
@@ -13,7 +13,7 @@
 #include <array>
 #include <vector>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 
 // D-fc-5.1. The certificate of a band of rings at one rho about a coaxial
@@ -220,6 +220,6 @@ std::vector<std::vector<int>> triSetLoops(const MeshView& mv, const std::vector<
 std::vector<std::vector<int>> triSetOrientedLoops(const MeshView& mv, const std::vector<int>& tris);
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery
 
-#endif  // STL2STEP_REFIT_RELATIONAL_ARC_HPP
+#endif  // CAD_MESH_RECOVERY_REFIT_RELATIONAL_ARC_HPP

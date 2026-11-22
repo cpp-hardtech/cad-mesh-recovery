@@ -41,7 +41,7 @@ reg 55 is a 2-triangle sliver plane grazing the R≈9 mm partial cylinder.
 
 2. **`refit_build.cpp`**: `planeCylSideContact` + `constructedGenerator` fallback
    when IntAna/pickIntAna miss; `constructedPlaneCylCap` for cap plane|cyl when
-   `planePerpCylinder`. Optional `STL2STEP_P2_DIAG=1` stderr on remaining misses.
+   `planePerpCylinder`. Optional `CAD_MESH_RECOVERY_P2_DIAG=1` stderr on remaining misses.
 
 ## Before / after (macOS arm64, this worktree)
 

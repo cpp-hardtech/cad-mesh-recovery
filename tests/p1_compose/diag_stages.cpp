@@ -9,7 +9,7 @@
 #include <cstdlib>
 #include <string>
 
-using namespace stl2step;
+using namespace cad_mesh_recovery;
 
 static void printWork(const char* tag, const refit::SegmentWork& w) {
     int uncl = 0, seedT = 0, consFil = 0, plane = 0;
@@ -37,7 +37,7 @@ static void printWork(const char* tag, const refit::SegmentWork& w) {
 
 int main(int argc, char** argv) {
     if (argc < 2) return 1;
-    setenv("STL2STEP_P1_DIAG", "1", 1);
+    setenv("CAD_MESH_RECOVERY_P1_DIAG", "1", 1);
     harness::HarnessMesh mesh;
     std::string err;
     if (!harness::loadMesh(argv[1], 1.0, 0.0, 0.0, mesh, err)) {

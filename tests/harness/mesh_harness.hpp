@@ -1,11 +1,11 @@
 // Test-side reimplementation of engine stages 2–3 (weld + manifold split).
 // Owns the storage that a later refit::MeshView will view; does not depend on
-// src/refit.hpp. Loops are ported in source order from src/stl2step.cpp.
+// src/refit.hpp. Loops are ported in source order from src/cad_mesh_recovery.cpp.
 //
 // SPDX-License-Identifier: MIT
 
-#ifndef STL2STEP_MESH_HARNESS_HPP
-#define STL2STEP_MESH_HARNESS_HPP
+#ifndef CAD_MESH_RECOVERY_MESH_HARNESS_HPP
+#define CAD_MESH_RECOVERY_MESH_HARNESS_HPP
 
 #include <array>
 #include <cstdint>
@@ -15,7 +15,7 @@
 
 #include <gp_XYZ.hxx>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace harness {
 
 // One manifold component; owns its storage. Local vertex/edge/triangle ids
@@ -48,6 +48,6 @@ bool loadMesh(const std::string& stlPath, double scale, double weldTolArg,
               double sewTolArg, HarnessMesh& out, std::string& err);
 
 }  // namespace harness
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery
 
 #endif

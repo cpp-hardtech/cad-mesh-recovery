@@ -1,6 +1,6 @@
-# AGENTS.md — integrating the stl2step engine
+# AGENTS.md — integrating the cad_mesh_recovery engine
 
-This file is written for coding agents (and developers) wiring the **stl2step**
+This file is written for coding agents (and developers) wiring the **cad_mesh_recovery**
 engine into other software. It is self-contained: read this and you can integrate
 correctly without reading the source. Keep it in the repo root so agents discover
 it.
@@ -9,7 +9,7 @@ it.
 
 ## 1. What this engine does (one paragraph)
 
-stl2step converts a **triangle mesh** (`.stl`, binary or ASCII) into a
+cad_mesh_recovery converts a **triangle mesh** (`.stl`, binary or ASCII) into a
 **parametric B-Rep solid** (`.step`). It welds vertices, splits the mesh into
 manifold bodies, optionally runs **stage 3.5 (TrueForm segment)** when
 `Options::smooth` is true (`refit::segment()` on each clean component; dirty or
@@ -36,7 +36,7 @@ Use it when your software consumes STEP/B-Rep but a user hands you an STL.
 
 | Your host software is… | Use | Section |
 |---|---|---|
-| C++ | Link the library, call `stl2step::convert()` | [4](#4-c-in-process-integration) |
+| C++ | Link the library, call `cad_mesh_recovery::convert()` | [4](#4-c-in-process-integration) |
 | Any other language (Python, Node, Go, Rust, C#, shell) | Spawn the CLI, parse the `RESULT` or `MESH_RESULT` line | [5](#5-subprocess-integration-any-language) |
 | A build that already uses CMake | `FetchContent` / `find_package` + link | [4](#4-c-in-process-integration) |
 
@@ -142,20 +142,20 @@ header is frozen); read it from `toJson()` / the `RESULT` line.
 The whole API is one header. `convert()` **never throws**.
 
 ```cpp
-#include <stl2step/stl2step.hpp>
+#include <cad_mesh_recovery/cad_mesh_recovery.hpp>
 
-stl2step::Options opt;
+cad_mesh_recovery::Options opt;
 opt.input  = inputStlPath;
 opt.output = outputStepPath;   // or leave empty -> "<input>.step"
 opt.verify = false;            // set false when you import the STEP yourself next
 opt.smooth = true;             // opt-in analytic recovery; default false for 1.x
 
 // Optional progress sink (safe to omit / pass nullptr).
-auto log = [](stl2step::Severity sev, const std::string& msg) {
-    if (sev != stl2step::Severity::Info) myLogger.warn(msg);
+auto log = [](cad_mesh_recovery::Severity sev, const std::string& msg) {
+    if (sev != cad_mesh_recovery::Severity::Info) myLogger.warn(msg);
 };
 
-stl2step::Result r = stl2step::convert(opt, log);
+cad_mesh_recovery::Result r = cad_mesh_recovery::convert(opt, log);
 if (!r.ok) {
     reportError(r.error);                 // no file was written
 } else {
@@ -169,19 +169,19 @@ if (!r.ok) {
 
 ```cmake
 include(FetchContent)
-FetchContent_Declare(stl2step
-    GIT_REPOSITORY https://github.com/<owner>/stl2step.git
+FetchContent_Declare(cad_mesh_recovery
+    GIT_REPOSITORY https://github.com/<owner>/cad_mesh_recovery.git
     GIT_TAG        v1.0.0)
-FetchContent_MakeAvailable(stl2step)
-target_link_libraries(your_target PRIVATE stl2step::core)
+FetchContent_MakeAvailable(cad_mesh_recovery)
+target_link_libraries(your_target PRIVATE cad_mesh_recovery::core)
 ```
 
-`stl2step::core` carries its own include path and OCCT link requirements
+`cad_mesh_recovery::core` carries its own include path and OCCT link requirements
 transitively — you do not repeat them. (Your project still needs OCCT installed;
 the same `find_package(OpenCASCADE)` the engine uses will locate it.)
 
 If you only want the geometry engine and not the CLI/tests in your build, set
-`-DSTL2STEP_BUILD_CLI=OFF -DSTL2STEP_BUILD_TESTS=OFF` before
+`-DCAD_MESH_RECOVERY_BUILD_CLI=OFF -DCAD_MESH_RECOVERY_BUILD_TESTS=OFF` before
 `MakeAvailable`/`add_subdirectory`.
 
 ### Threading / reentrancy
@@ -230,7 +230,7 @@ go to stderr; the last line prefix and exit code are the contract.
 import json, subprocess
 
 def stl_to_step(stl_path, step_path, *, inches=False, verify=False, smooth=False):
-    cmd = ["stl2step", stl_path, "-o", step_path, "--quiet"]
+    cmd = ["cad_mesh_recovery", stl_path, "-o", step_path, "--quiet"]
     if inches:      cmd += ["--units", "in"]
     if not verify:  cmd += ["--no-verify"]
     if smooth:      cmd += ["--smooth"]
@@ -238,10 +238,10 @@ def stl_to_step(stl_path, step_path, *, inches=False, verify=False, smooth=False
     line = p.stdout.strip().splitlines()[-1]          # the RESULT line
     result = json.loads(line[len("RESULT "):])
     if not result["ok"]:                              # exit 1
-        raise RuntimeError(f"stl2step failed: {result.get('error')}\n{p.stderr}")
+        raise RuntimeError(f"cad_mesh_recovery failed: {result.get('error')}\n{p.stderr}")
     if result["warnings"]:                            # exit 2, file still written
         for w in result["warnings"]:
-            log.warning("stl2step: %s", w)
+            log.warning("cad_mesh_recovery: %s", w)
     return step_path, result
 ```
 
@@ -255,10 +255,10 @@ function stlToStep(stl, step, { inches = false, verify = false, smooth = false }
   if (!verify) args.push("--no-verify");
   if (smooth) args.push("--smooth");
   return new Promise((resolve, reject) => {
-    execFile("stl2step", args, (err, stdout) => {
+    execFile("cad_mesh_recovery", args, (err, stdout) => {
       const line = stdout.trim().split("\n").at(-1);
       const r = JSON.parse(line.replace(/^RESULT /, ""));
-      if (!r.ok) return reject(new Error(r.error || "stl2step failed"));
+      if (!r.ok) return reject(new Error(r.error || "cad_mesh_recovery failed"));
       resolve({ step, result: r });        // r.warnings may be non-empty (exit 2)
     });
   });
@@ -268,7 +268,7 @@ function stlToStep(stl, step, { inches = false, verify = false, smooth = false }
 ### Shell
 
 ```sh
-if stl2step "$in" -o "$out" --quiet --no-verify >/tmp/r 2>/dev/null; then
+if cad_mesh_recovery "$in" -o "$out" --quiet --no-verify >/tmp/r 2>/dev/null; then
     :   # exit 0 or 2 -> file written; inspect "$(cat /tmp/r)" for warnings
 else
     echo "conversion failed: $(sed 's/^RESULT //' /tmp/r)" >&2
@@ -359,7 +359,7 @@ Because each invocation is independent, batch with `xargs -P` /
 
 ## 9. Versioning
 
-`stl2step::version()` / `stl2step --version` returns the semantic version
+`cad_mesh_recovery::version()` / `cad_mesh_recovery --version` returns the semantic version
 (`1.1.0-pre`). The `Options` field set, the `Result`/`RESULT` field set, and the
 exit codes are the compatibility surface — additive changes only within a major
 version. Pin a tag (`GIT_TAG v1.0.0`) when embedding.

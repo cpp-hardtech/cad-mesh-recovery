@@ -46,7 +46,7 @@ distinctRadii=10: 0.50, 3.79×2, 5×2, 5.75, 5.99, 9.02, 10×3, 11.70, 13.87, 16
 **After:**
 
 ```
-$ ./build/stl2step_regiondump tests/diag/handle-lock/handle-lock.stl --diag
+$ ./build/cad_mesh_recovery_regiondump tests/diag/handle-lock/handle-lock.stl --diag
 segment comp0 ok regions=26 rejected=2 planes=13 cylinders=13 …
   cylinder radii: 0.501, 3.787×2, 5×2, 5.75, 5.994, 9.020, 10×3, 11.703, 16.012
 ```

@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.16)
 
 # Ad-hoc codesign built executables on macOS: a freshly built unsigned binary
 # doing heavy test I/O trips SentinelOne behavioral remediation (2026-08-25).
-function(stl2step_adhoc_sign tgt)
+function(cad_mesh_recovery_adhoc_sign tgt)
   if(APPLE)
     add_custom_command(TARGET ${tgt} POST_BUILD
       COMMAND codesign --force --sign - $<TARGET_FILE:${tgt}>
@@ -11,7 +11,7 @@ function(stl2step_adhoc_sign tgt)
 endfunction()
 
 
-project(stl2step
+project(cad_mesh_recovery
     VERSION 1.11.0
     DESCRIPTION "Universal STL (mesh) -> STEP (B-Rep solid) conversion engine"
     LANGUAGES CXX)
@@ -19,11 +19,11 @@ project(stl2step
 # ---------------------------------------------------------------------------
 # Options
 # ---------------------------------------------------------------------------
-option(STL2STEP_BUILD_CLI      "Build the stl2step command-line tool" ON)
-option(STL2STEP_BUILD_EXAMPLES "Build the integration examples"       OFF)
-option(STL2STEP_BUILD_TESTS    "Register the smoke test with CTest"
+option(CAD_MESH_RECOVERY_BUILD_CLI      "Build the cad_mesh_recovery command-line tool" ON)
+option(CAD_MESH_RECOVERY_BUILD_EXAMPLES "Build the integration examples"       OFF)
+option(CAD_MESH_RECOVERY_BUILD_TESTS    "Register the smoke test with CTest"
        ${PROJECT_IS_TOP_LEVEL})
-option(STL2STEP_INSTALL        "Generate install + package-config rules"
+option(CAD_MESH_RECOVERY_INSTALL        "Generate install + package-config rules"
        ${PROJECT_IS_TOP_LEVEL})
 
 # Default to an optimised build when the caller did not pick one.
@@ -38,22 +38,22 @@ find_package(OpenCASCADE REQUIRED)
 
 # D-I-5 / #8 — expose OCCT version to calibrated tests (one range: >= 7.9.x).
 include("${CMAKE_CURRENT_SOURCE_DIR}/tests/support/occt_calibrated.cmake")
-set(STL2STEP_OCCT_GENERATED_DIR "${CMAKE_BINARY_DIR}/generated")
-file(MAKE_DIRECTORY "${STL2STEP_OCCT_GENERATED_DIR}")
+set(CAD_MESH_RECOVERY_OCCT_GENERATED_DIR "${CMAKE_BINARY_DIR}/generated")
+file(MAKE_DIRECTORY "${CAD_MESH_RECOVERY_OCCT_GENERATED_DIR}")
 configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/tests/support/occt_calibrated.hpp.in"
-    "${STL2STEP_OCCT_GENERATED_DIR}/occt_calibrated.hpp"
+    "${CAD_MESH_RECOVERY_OCCT_GENERATED_DIR}/occt_calibrated.hpp"
     @ONLY)
 configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/tests/support/occt_calibrated.py.in"
-    "${STL2STEP_OCCT_GENERATED_DIR}/occt_calibrated.py"
+    "${CAD_MESH_RECOVERY_OCCT_GENERATED_DIR}/occt_calibrated.py"
     @ONLY)
 
 # ---------------------------------------------------------------------------
 # Engine library
 # ---------------------------------------------------------------------------
-add_library(stl2step_core
-    src/stl2step.cpp
+add_library(cad_mesh_recovery_core
+    src/cad_mesh_recovery.cpp
     src/parallel.cpp
     src/stl_quant.cpp
     src/mesh.cpp
@@ -88,28 +88,28 @@ add_library(stl2step_core
     src/refit_profile.cpp
     src/refit_prism_build.cpp
     src/dxf_export.cpp)
-add_library(stl2step::core ALIAS stl2step_core)
+add_library(cad_mesh_recovery::core ALIAS cad_mesh_recovery_core)
 
-target_compile_features(stl2step_core PUBLIC cxx_std_17)
-set_target_properties(stl2step_core PROPERTIES
+target_compile_features(cad_mesh_recovery_core PUBLIC cxx_std_17)
+set_target_properties(cad_mesh_recovery_core PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     POSITION_INDEPENDENT_CODE ON)
 
-# On Windows an executable named `stl2step` also emits an import `stl2step.lib`,
-# which collides with the static library's `stl2step.lib` (LNK1149). Keep the
-# tidy `libstl2step.{a,so,dylib}` name on Unix; fall back to the target name
-# (`stl2step_core.lib`) on Windows. CMake consumers link the `stl2step::core`
+# On Windows an executable named `cad_mesh_recovery` also emits an import `cad_mesh_recovery.lib`,
+# which collides with the static library's `cad_mesh_recovery.lib` (LNK1149). Keep the
+# tidy `libcad_mesh_recovery.{a,so,dylib}` name on Unix; fall back to the target name
+# (`cad_mesh_recovery_core.lib`) on Windows. CMake consumers link the `cad_mesh_recovery::core`
 # target, so the on-disk name is transparent to them either way.
 if(NOT WIN32)
-    set_target_properties(stl2step_core PROPERTIES OUTPUT_NAME stl2step)
+    set_target_properties(cad_mesh_recovery_core PROPERTIES OUTPUT_NAME cad_mesh_recovery)
 endif()
 
-target_include_directories(stl2step_core PUBLIC
+target_include_directories(cad_mesh_recovery_core PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>)
 
-target_link_libraries(stl2step_core
+target_link_libraries(cad_mesh_recovery_core
     PUBLIC  OpenCASCADE::OpenCASCADE
     PRIVATE Threads::Threads)
 
@@ -127,7 +127,7 @@ target_link_libraries(stl2step_core
 # missing DSO: `BRepAlgoAPI_Fuse` -> TKBO and `BRepPrimAPI_MakePrism` -> TKPrim were
 # both reached only transitively before, which is what github issue #1 reported.
 #
-# The list is the measured minimal cover of libstl2step.a's undefined symbols over
+# The list is the measured minimal cover of libcad_mesh_recovery.a's undefined symbols over
 # all 51 OCCT toolkits -- nothing missing, no spares. Ordered most-dependent-first so
 # a static OCCT resolves in one pass. OCCT >= 7.8 renamed the data-exchange toolkits
 # (TKSTL -> TKDESTL; TKSTEP/TKSTEPBase/TKSTEPAttr/TKSTEP209 -> TKDESTEP); the old
@@ -158,7 +158,7 @@ foreach(_tk IN LISTS _occt_toolkits)
     set(_occt_found FALSE)
     foreach(_name IN LISTS _occt_names)
         if(TARGET ${_name})
-            target_link_libraries(stl2step_core PUBLIC ${_name})
+            target_link_libraries(cad_mesh_recovery_core PUBLIC ${_name})
             set(_occt_found TRUE)
         endif()
     endforeach()
@@ -166,7 +166,7 @@ foreach(_tk IN LISTS _occt_toolkits)
         # No imported target: OCCT was found without its config package. Resolve
         # by library name against the finder's own hints -- never a hard-coded path.
         foreach(_name IN LISTS _occt_names)
-            find_library(STL2STEP_OCCT_${_name} NAMES ${_name}
+            find_library(CAD_MESH_RECOVERY_OCCT_${_name} NAMES ${_name}
                 HINTS
                     "${OpenCASCADE_LIBRARY_DIR}"
                     "${OpenCASCADE_BINARY_DIR}"
@@ -175,9 +175,9 @@ foreach(_tk IN LISTS _occt_toolkits)
                 PATHS
                     /usr/lib /usr/local/lib /usr/lib/x86_64-linux-gnu
                     /opt/homebrew/lib /opt/local/lib)
-            mark_as_advanced(STL2STEP_OCCT_${_name})
-            if(STL2STEP_OCCT_${_name})
-                target_link_libraries(stl2step_core PUBLIC "${STL2STEP_OCCT_${_name}}")
+            mark_as_advanced(CAD_MESH_RECOVERY_OCCT_${_name})
+            if(CAD_MESH_RECOVERY_OCCT_${_name})
+                target_link_libraries(cad_mesh_recovery_core PUBLIC "${CAD_MESH_RECOVERY_OCCT_${_name}}")
             endif()
         endforeach()
     endif()
@@ -189,40 +189,40 @@ unset(_occt_names)
 unset(_occt_found)
 
 if(MSVC)
-    target_compile_definitions(stl2step_core PRIVATE _USE_MATH_DEFINES NOMINMAX)
-    target_compile_options(stl2step_core PRIVATE /EHsc)
+    target_compile_definitions(cad_mesh_recovery_core PRIVATE _USE_MATH_DEFINES NOMINMAX)
+    target_compile_options(cad_mesh_recovery_core PRIVATE /EHsc)
 endif()
 
 # Optional sanitizer instrumentation for the engine + anything that links it
 # (CLI smoke, unit tests). Clang: ASan+UBSan. MSVC: /fsanitize=address.
 # OCCT stays uninstrumented (we only add flags to our targets).
-option(STL2STEP_SANITIZE "Build with AddressSanitizer (and UBSan on Clang)" OFF)
-if(STL2STEP_SANITIZE)
+option(CAD_MESH_RECOVERY_SANITIZE "Build with AddressSanitizer (and UBSan on Clang)" OFF)
+if(CAD_MESH_RECOVERY_SANITIZE)
     if(MSVC)
-        target_compile_options(stl2step_core PUBLIC /fsanitize=address /Zi)
-        target_link_options(stl2step_core PUBLIC /INCREMENTAL:NO)
+        target_compile_options(cad_mesh_recovery_core PUBLIC /fsanitize=address /Zi)
+        target_link_options(cad_mesh_recovery_core PUBLIC /INCREMENTAL:NO)
     else()
-        target_compile_options(stl2step_core PUBLIC
+        target_compile_options(cad_mesh_recovery_core PUBLIC
             -fsanitize=address,undefined -fno-omit-frame-pointer)
-        target_link_options(stl2step_core PUBLIC -fsanitize=address,undefined)
+        target_link_options(cad_mesh_recovery_core PUBLIC -fsanitize=address,undefined)
     endif()
 endif()
 
 # ---------------------------------------------------------------------------
 # Command-line tool
 # ---------------------------------------------------------------------------
-if(STL2STEP_BUILD_CLI)
-    add_executable(stl2step src/main.cpp)
-    target_link_libraries(stl2step PRIVATE stl2step::core)
-    set_target_properties(stl2step PROPERTIES OUTPUT_NAME stl2step)
-    if(STL2STEP_SANITIZE)
+if(CAD_MESH_RECOVERY_BUILD_CLI)
+    add_executable(cad_mesh_recovery src/main.cpp)
+    target_link_libraries(cad_mesh_recovery PRIVATE cad_mesh_recovery::core)
+    set_target_properties(cad_mesh_recovery PROPERTIES OUTPUT_NAME cad_mesh_recovery)
+    if(CAD_MESH_RECOVERY_SANITIZE)
         if(MSVC)
-            target_compile_options(stl2step PRIVATE /fsanitize=address /Zi)
-            target_link_options(stl2step PRIVATE /INCREMENTAL:NO)
+            target_compile_options(cad_mesh_recovery PRIVATE /fsanitize=address /Zi)
+            target_link_options(cad_mesh_recovery PRIVATE /INCREMENTAL:NO)
         else()
-            target_compile_options(stl2step PRIVATE
+            target_compile_options(cad_mesh_recovery PRIVATE
                 -fsanitize=address,undefined -fno-omit-frame-pointer)
-            target_link_options(stl2step PRIVATE -fsanitize=address,undefined)
+            target_link_options(cad_mesh_recovery PRIVATE -fsanitize=address,undefined)
         endif()
     endif()
 endif()
@@ -230,21 +230,21 @@ endif()
 # ---------------------------------------------------------------------------
 # Smoke test (converts the committed cube and expects a clean exit 0)
 # ---------------------------------------------------------------------------
-if(STL2STEP_BUILD_TESTS AND STL2STEP_BUILD_CLI)
+if(CAD_MESH_RECOVERY_BUILD_TESTS AND CAD_MESH_RECOVERY_BUILD_CLI)
     enable_testing()
     add_test(NAME convert_cube
-        COMMAND stl2step "${CMAKE_CURRENT_SOURCE_DIR}/tests/cube.stl"
+        COMMAND cad_mesh_recovery "${CMAKE_CURRENT_SOURCE_DIR}/tests/cube.stl"
                          "${CMAKE_CURRENT_BINARY_DIR}/cube.step")
     set_tests_properties(convert_cube PROPERTIES
         PASS_REGULAR_EXPRESSION "\"ok\":true.*\"solids\":1.*\"volumeDeltaPct\":0")
     # Guard: CLI --version must equal the CMake project version (catches
-    # STL2STEP_VERSION_* macros drifting from project(VERSION ...)).
+    # CAD_MESH_RECOVERY_VERSION_* macros drifting from project(VERSION ...)).
     add_test(NAME version_matches_project
-        COMMAND stl2step --version)
-    string(REPLACE "." "\\." _stl2step_version_re "${PROJECT_VERSION}")
+        COMMAND cad_mesh_recovery --version)
+    string(REPLACE "." "\\." _cad_mesh_recovery_version_re "${PROJECT_VERSION}")
     set_tests_properties(version_matches_project PROPERTIES
-        PASS_REGULAR_EXPRESSION "^stl2step ${_stl2step_version_re}[\r\n]*$")
-    unset(_stl2step_version_re)
+        PASS_REGULAR_EXPRESSION "^cad_mesh_recovery ${_cad_mesh_recovery_version_re}[\r\n]*$")
+    unset(_cad_mesh_recovery_version_re)
 endif()
 
 # ---------------------------------------------------------------------------
@@ -252,66 +252,66 @@ endif()
 # Each tool owns its own CMakeLists so the lanes that add them never collide
 # in this file.
 # ---------------------------------------------------------------------------
-if(STL2STEP_BUILD_TESTS)
+if(CAD_MESH_RECOVERY_BUILD_TESTS)
     add_subdirectory(tests)
 endif()
 
 # ---------------------------------------------------------------------------
 # Examples
 # ---------------------------------------------------------------------------
-if(STL2STEP_BUILD_EXAMPLES)
+if(CAD_MESH_RECOVERY_BUILD_EXAMPLES)
     add_executable(convert_min examples/convert_min.cpp)
-    target_link_libraries(convert_min PRIVATE stl2step::core)
+    target_link_libraries(convert_min PRIVATE cad_mesh_recovery::core)
 endif()
 
 # ---------------------------------------------------------------------------
-# Install + package config  (lets downstream projects find_package(stl2step))
+# Install + package config  (lets downstream projects find_package(cad_mesh_recovery))
 # ---------------------------------------------------------------------------
-if(STL2STEP_INSTALL)
+if(CAD_MESH_RECOVERY_INSTALL)
     include(GNUInstallDirs)
     include(CMakePackageConfigHelpers)
 
-    set(_targets stl2step_core)
-    if(STL2STEP_BUILD_CLI)
-        list(APPEND _targets stl2step)
+    set(_targets cad_mesh_recovery_core)
+    if(CAD_MESH_RECOVERY_BUILD_CLI)
+        list(APPEND _targets cad_mesh_recovery)
     endif()
 
     install(TARGETS ${_targets}
-        EXPORT stl2stepTargets
+        EXPORT cad_mesh_recoveryTargets
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
     install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
-    install(EXPORT stl2stepTargets
-        NAMESPACE stl2step::
-        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/stl2step)
+    install(EXPORT cad_mesh_recoveryTargets
+        NAMESPACE cad_mesh_recovery::
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/cad_mesh_recovery)
 
-    # Ship the OCCT finder so downstream find_package(stl2step) can locate OCCT.
+    # Ship the OCCT finder so downstream find_package(cad_mesh_recovery) can locate OCCT.
     install(FILES cmake/FindOpenCASCADE.cmake
-        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/stl2step)
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/cad_mesh_recovery)
 
     configure_package_config_file(
-        cmake/stl2stepConfig.cmake.in
-        "${CMAKE_CURRENT_BINARY_DIR}/stl2stepConfig.cmake"
-        INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/stl2step)
+        cmake/cad_mesh_recoveryConfig.cmake.in
+        "${CMAKE_CURRENT_BINARY_DIR}/cad_mesh_recoveryConfig.cmake"
+        INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/cad_mesh_recovery)
 
     write_basic_package_version_file(
-        "${CMAKE_CURRENT_BINARY_DIR}/stl2stepConfigVersion.cmake"
+        "${CMAKE_CURRENT_BINARY_DIR}/cad_mesh_recoveryConfigVersion.cmake"
         VERSION ${PROJECT_VERSION}
         COMPATIBILITY SameMajorVersion)
 
     install(FILES
-        "${CMAKE_CURRENT_BINARY_DIR}/stl2stepConfig.cmake"
-        "${CMAKE_CURRENT_BINARY_DIR}/stl2stepConfigVersion.cmake"
-        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/stl2step)
+        "${CMAKE_CURRENT_BINARY_DIR}/cad_mesh_recoveryConfig.cmake"
+        "${CMAKE_CURRENT_BINARY_DIR}/cad_mesh_recoveryConfigVersion.cmake"
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/cad_mesh_recovery)
 endif()
 
 # ad-hoc signing (see root helper)
-if(TARGET stl2step)
-  stl2step_adhoc_sign(stl2step)
+if(TARGET cad_mesh_recovery)
+  cad_mesh_recovery_adhoc_sign(cad_mesh_recovery)
 endif()
 if(TARGET convert_min)
-  stl2step_adhoc_sign(convert_min)
+  cad_mesh_recovery_adhoc_sign(convert_min)
 endif()

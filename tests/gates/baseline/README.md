@@ -4,8 +4,8 @@ The off-path promise: `--smooth` absent is **byte-identical to shipped
 1.0.0**. This directory is the machine that proves it. It is not a drawer
 of golden `.step` files.
 
-**Why `187ead0`.** That commit is released stl2step 1.0.0 (`stl2step
---version` → `stl2step 1.0.0`), the last engine before any smooth work.
+**Why `187ead0`.** That commit is released cad_mesh_recovery 1.0.0 (`cad_mesh_recovery
+--version` → `cad_mesh_recovery 1.0.0`), the last engine before any smooth work.
 G0.1 compares live output of a P0-built binary of that commit against the
 current CLI. Never commit the binary or the STEP bytes; rebuild it.
 

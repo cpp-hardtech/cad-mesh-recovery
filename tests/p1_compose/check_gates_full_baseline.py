@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """AC2-A1 guard: ctest -R '^gates_full$' failure list must match the inherited baseline.
 
-Baseline (audit-p1-compose-fix / faceted 1.0.0 engine in src/stl2step.cpp):
+Baseline (audit-p1-compose-fix / faceted 1.0.0 engine in src/cad_mesh_recovery.cpp):
   G1 FAIL on S09 (ShapeFix rewrite), S15 (open), S16-R1-round-2 (open).
 Any G1 FAIL outside that set is this lane's and is blocking.
 """

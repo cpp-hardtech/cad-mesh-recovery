@@ -1,22 +1,22 @@
 # tests/tools/profile_dump — Profile JSON dump (AC3-P2).
 cmake_minimum_required(VERSION 3.16)
 
-get_filename_component(_stl2step_root "${CMAKE_CURRENT_SOURCE_DIR}/../../.." ABSOLUTE)
+get_filename_component(_cad_mesh_recovery_root "${CMAKE_CURRENT_SOURCE_DIR}/../../.." ABSOLUTE)
 
-if(NOT TARGET stl2step::core)
+if(NOT TARGET cad_mesh_recovery::core)
     project(profile_dump LANGUAGES CXX)
-    if(EXISTS "${_stl2step_root}/CMakeLists.txt")
-        set(STL2STEP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-        set(STL2STEP_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-        set(STL2STEP_INSTALL OFF CACHE BOOL "" FORCE)
-        add_subdirectory("${_stl2step_root}" "${CMAKE_CURRENT_BINARY_DIR}/_engine")
+    if(EXISTS "${_cad_mesh_recovery_root}/CMakeLists.txt")
+        set(CAD_MESH_RECOVERY_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+        set(CAD_MESH_RECOVERY_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+        set(CAD_MESH_RECOVERY_INSTALL OFF CACHE BOOL "" FORCE)
+        add_subdirectory("${_cad_mesh_recovery_root}" "${CMAKE_CURRENT_BINARY_DIR}/_engine")
     else()
-        find_package(stl2step REQUIRED)
+        find_package(cad_mesh_recovery REQUIRED)
     endif()
 endif()
 
-if(NOT TARGET stl2step::harness)
-    add_subdirectory("${_stl2step_root}/tests/harness"
+if(NOT TARGET cad_mesh_recovery::harness)
+    add_subdirectory("${_cad_mesh_recovery_root}/tests/harness"
                      "${CMAKE_CURRENT_BINARY_DIR}/_harness")
 endif()
 
@@ -26,14 +26,14 @@ set_target_properties(profile_dump PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-target_link_libraries(profile_dump PRIVATE stl2step::harness)
+target_link_libraries(profile_dump PRIVATE cad_mesh_recovery::harness)
 target_include_directories(profile_dump PRIVATE
-    "${_stl2step_root}/src"
-    "${_stl2step_root}/tests/harness")
+    "${_cad_mesh_recovery_root}/src"
+    "${_cad_mesh_recovery_root}/tests/harness")
 if(MSVC)
     target_compile_definitions(profile_dump PRIVATE _USE_MATH_DEFINES NOMINMAX)
 endif()
-if(COMMAND stl2step_adhoc_sign)
-    stl2step_adhoc_sign(profile_dump)
+if(COMMAND cad_mesh_recovery_adhoc_sign)
+    cad_mesh_recovery_adhoc_sign(profile_dump)
 endif()
-unset(_stl2step_root)
+unset(_cad_mesh_recovery_root)

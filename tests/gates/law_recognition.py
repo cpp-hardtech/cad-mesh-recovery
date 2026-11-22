@@ -479,7 +479,7 @@ def _self_test() -> int:
     tri_info, cyl_faces = load_labels(DEFAULT_LABELS)
     check(len(cyl_faces) == 15, f"15 true cylinder faces (got {len(cyl_faces)})")
 
-    dump_bin = REPO / "build" / "stl2step_regiondump"
+    dump_bin = REPO / "build" / "cad_mesh_recovery_regiondump"
     if dump_bin.is_file() and DEFAULT_STL.is_file():
         with tempfile.TemporaryDirectory(prefix="glaw_self_") as td:
             base = run_regiondump(dump_bin, DEFAULT_STL, Path(td) / "base.json")
@@ -532,7 +532,7 @@ def _self_test() -> int:
             failures_tight = check_against_ratchet(imp_metrics, doc)
             check(not failures_tight, f"improvement PASS on ratchet-up floors ({failures_tight})")
     else:
-        print("SELFTEST SKIP: build/stl2step_regiondump or handle-lock.stl missing", file=sys.stderr)
+        print("SELFTEST SKIP: build/cad_mesh_recovery_regiondump or handle-lock.stl missing", file=sys.stderr)
 
     # RULE 4.2a API
     with tempfile.TemporaryDirectory(prefix="glaw_42a_") as td:
@@ -575,7 +575,7 @@ def run_gate(args: argparse.Namespace) -> int:
         dump = load_json(dump_path)
     else:
         if dump_bin is None or not dump_bin.is_file():
-            raise GateError("stl2step_regiondump missing (pass --dump)")
+            raise GateError("cad_mesh_recovery_regiondump missing (pass --dump)")
         if not stl.is_file():
             raise GateError(f"handle-lock STL missing: {stl}")
         with tempfile.TemporaryDirectory(prefix="glaw_gate_") as td:
@@ -630,7 +630,7 @@ def run_gate(args: argparse.Namespace) -> int:
 
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--dump", type=Path, help="stl2step_regiondump binary")
+    p.add_argument("--dump", type=Path, help="cad_mesh_recovery_regiondump binary")
     p.add_argument("--regiondump", type=Path, help="precomputed bare regionset JSON")
     p.add_argument("--stl", type=Path, default=DEFAULT_STL)
     p.add_argument("--labels", type=Path, default=DEFAULT_LABELS)

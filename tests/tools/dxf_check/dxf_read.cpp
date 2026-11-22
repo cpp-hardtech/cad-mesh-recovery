@@ -11,7 +11,7 @@
 #include <string>
 #include <vector>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace dxfcheck {
 namespace {
 
@@ -225,4 +225,4 @@ bool loopsClosed(const DxfFile& f, double closeTol, std::string& err) {
 }
 
 }  // namespace dxfcheck
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery

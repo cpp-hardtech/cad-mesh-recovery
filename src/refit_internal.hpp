@@ -1,4 +1,4 @@
-// stl2step P1 internal cross-TU contract (five translation units).
+// cad_mesh_recovery P1 internal cross-TU contract (five translation units).
 // Declarations only — FROZEN on landing. Not installed; not public API.
 //
 // Pipeline (DECISION-p1-math D1 §1.2):
@@ -32,8 +32,8 @@
 //
 // SPDX-License-Identifier: MIT
 
-#ifndef STL2STEP_REFIT_INTERNAL_HPP
-#define STL2STEP_REFIT_INTERNAL_HPP
+#ifndef CAD_MESH_RECOVERY_REFIT_INTERNAL_HPP
+#define CAD_MESH_RECOVERY_REFIT_INTERNAL_HPP
 
 #include <array>
 #include <cmath>
@@ -49,7 +49,7 @@
 
 #include "refit.hpp"
 
-namespace stl2step { namespace refit {
+namespace cad_mesh_recovery { namespace refit {
 
 // --- A2 currency; internal only — no Region id, never dumped -----------------
 
@@ -461,6 +461,6 @@ bool planeLoopCircleOf(int regionId, int loopIndex, gp_Ax2& ax, double& R);
 // shares one (ax,R); each chain is an arc of that circle, not a full circle.
 bool planeLoopCircleForChain(int chainIndex, gp_Ax2& ax, double& R);
 
-}}  // namespace stl2step::refit
+}}  // namespace cad_mesh_recovery::refit
 
-#endif  // STL2STEP_REFIT_INTERNAL_HPP
+#endif  // CAD_MESH_RECOVERY_REFIT_INTERNAL_HPP

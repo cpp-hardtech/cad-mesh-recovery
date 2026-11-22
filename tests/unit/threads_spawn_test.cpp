@@ -2,7 +2,7 @@
 // produces identical canonical STEP DATA (HEADER discarded).
 // SPDX-License-Identifier: MIT
 
-#include "stl2step/stl2step.hpp"
+#include "cad_mesh_recovery/cad_mesh_recovery.hpp"
 
 #include <cstdint>
 #include <cstdio>
@@ -14,10 +14,10 @@
 #include <vector>
 
 namespace fs = std::filesystem;
-using stl2step::MeshOptions;
-using stl2step::Options;
-using stl2step::detail::resetThreadsSpawnedForTest;
-using stl2step::detail::threadsSpawnedForTest;
+using cad_mesh_recovery::MeshOptions;
+using cad_mesh_recovery::Options;
+using cad_mesh_recovery::detail::resetThreadsSpawnedForTest;
+using cad_mesh_recovery::detail::threadsSpawnedForTest;
 
 static int gFail = 0;
 
@@ -48,7 +48,7 @@ static bool convertSmooth(const fs::path& stl, const fs::path& out, int threads)
     opt.verify = false;
     opt.productName = "part";  // output stem is not geometry; keep PRODUCT identical
     resetThreadsSpawnedForTest();
-    auto r = stl2step::convert(opt, nullptr);
+    auto r = cad_mesh_recovery::convert(opt, nullptr);
     if (!r.ok) {
         std::fprintf(stderr, "convert failed %s: %s\n", stl.c_str(), r.error.c_str());
         return false;
@@ -82,7 +82,7 @@ static int runNoSpawn(const fs::path& corpus, const fs::path& meshStep, const fs
     mopt.output = (scratch / "mesh.t1.stl").string();
     mopt.threads = 1;
     resetThreadsSpawnedForTest();
-    auto mr = stl2step::meshFromStep(mopt, nullptr);
+    auto mr = cad_mesh_recovery::meshFromStep(mopt, nullptr);
     if (!mr.ok) {
         std::fprintf(stderr, "meshFromStep failed: %s\n", mr.error.c_str());
         return 1;

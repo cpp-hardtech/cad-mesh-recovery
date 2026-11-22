@@ -13,23 +13,23 @@
 
 cmake_minimum_required(VERSION 3.16)
 
-get_filename_component(_stl2step_root "${CMAKE_CURRENT_SOURCE_DIR}/../../.." ABSOLUTE)
+get_filename_component(_cad_mesh_recovery_root "${CMAKE_CURRENT_SOURCE_DIR}/../../.." ABSOLUTE)
 
-if(NOT TARGET stl2step::core)
-    project(stl2step_regiondump LANGUAGES CXX)
-    if(EXISTS "${_stl2step_root}/CMakeLists.txt")
-        set(STL2STEP_BUILD_TESTS OFF CACHE BOOL
+if(NOT TARGET cad_mesh_recovery::core)
+    project(cad_mesh_recovery_regiondump LANGUAGES CXX)
+    if(EXISTS "${_cad_mesh_recovery_root}/CMakeLists.txt")
+        set(CAD_MESH_RECOVERY_BUILD_TESTS OFF CACHE BOOL
             "regiondump standalone: do not recurse into tests/" FORCE)
-        set(STL2STEP_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-        set(STL2STEP_INSTALL OFF CACHE BOOL "" FORCE)
-        add_subdirectory("${_stl2step_root}" "${CMAKE_CURRENT_BINARY_DIR}/_engine")
+        set(CAD_MESH_RECOVERY_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+        set(CAD_MESH_RECOVERY_INSTALL OFF CACHE BOOL "" FORCE)
+        add_subdirectory("${_cad_mesh_recovery_root}" "${CMAKE_CURRENT_BINARY_DIR}/_engine")
     else()
-        find_package(stl2step REQUIRED)
+        find_package(cad_mesh_recovery REQUIRED)
     endif()
 endif()
 
-if(NOT TARGET stl2step::harness)
-    add_subdirectory("${_stl2step_root}/tests/harness"
+if(NOT TARGET cad_mesh_recovery::harness)
+    add_subdirectory("${_cad_mesh_recovery_root}/tests/harness"
                      "${CMAKE_CURRENT_BINARY_DIR}/_harness")
 endif()
 
@@ -43,14 +43,14 @@ set(_p1_tus
     refit_segment.cpp)
 foreach(_tu IN LISTS _p1_tus)
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
-        "${_stl2step_root}/src/${_tu}")
+        "${_cad_mesh_recovery_root}/src/${_tu}")
 endforeach()
 
 set(_regiondump_sources dump_regionset.cpp)
 set(_p1_all_present TRUE)
 set(_p1_sources "")
 foreach(_tu IN LISTS _p1_tus)
-    set(_path "${_stl2step_root}/src/${_tu}")
+    set(_path "${_cad_mesh_recovery_root}/src/${_tu}")
     if(EXISTS "${_path}")
         list(APPEND _p1_sources "${_path}")
     else()
@@ -58,46 +58,46 @@ foreach(_tu IN LISTS _p1_tus)
     endif()
 endforeach()
 
-# refit::segment lives in stl2step::core; stl2step::harness links it PUBLIC.
+# refit::segment lives in cad_mesh_recovery::core; cad_mesh_recovery::harness links it PUBLIC.
 # Recompiling 1–4 P1 TUs into this executable while also linking core is the
 # half-link defect (FINDINGS-0 D1): duplicate segment() symbols, stub winning
 # at link, or silent divergence from the in-engine path.
 set(_regiondump_use_core_refit FALSE)
-if(TARGET stl2step::core AND EXISTS "${_stl2step_root}/src/refit_segment.cpp")
+if(TARGET cad_mesh_recovery::core AND EXISTS "${_cad_mesh_recovery_root}/src/refit_segment.cpp")
     set(_regiondump_use_core_refit TRUE)
     message(STATUS
-        "stl2step_regiondump: refit from stl2step::core (no duplicate P1 compile)")
+        "cad_mesh_recovery_regiondump: refit from cad_mesh_recovery::core (no duplicate P1 compile)")
 elseif(_p1_all_present)
     list(APPEND _regiondump_sources ${_p1_sources})
     message(STATUS
-        "stl2step_regiondump: compiling 5/5 P1 TUs (no stl2step::core)")
+        "cad_mesh_recovery_regiondump: compiling 5/5 P1 TUs (no cad_mesh_recovery::core)")
 else()
     list(APPEND _regiondump_sources stub_segment.cpp)
     message(WARNING
-        "stl2step_regiondump: not all five P1 TUs present; compiling stub_segment.cpp")
+        "cad_mesh_recovery_regiondump: not all five P1 TUs present; compiling stub_segment.cpp")
 endif()
 
-add_executable(stl2step_regiondump ${_regiondump_sources})
-target_compile_features(stl2step_regiondump PRIVATE cxx_std_17)
-set_target_properties(stl2step_regiondump PROPERTIES
+add_executable(cad_mesh_recovery_regiondump ${_regiondump_sources})
+target_compile_features(cad_mesh_recovery_regiondump PRIVATE cxx_std_17)
+set_target_properties(cad_mesh_recovery_regiondump PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-target_link_libraries(stl2step_regiondump PRIVATE stl2step::harness)
-target_include_directories(stl2step_regiondump PRIVATE
-    "${_stl2step_root}/src")
+target_link_libraries(cad_mesh_recovery_regiondump PRIVATE cad_mesh_recovery::harness)
+target_include_directories(cad_mesh_recovery_regiondump PRIVATE
+    "${_cad_mesh_recovery_root}/src")
 
 if(NOT _regiondump_use_core_refit AND NOT _p1_all_present)
-    target_compile_definitions(stl2step_regiondump PRIVATE STL2STEP_REGIONDUMP_STUB=1)
+    target_compile_definitions(cad_mesh_recovery_regiondump PRIVATE CAD_MESH_RECOVERY_REGIONDUMP_STUB=1)
 endif()
 
 if(MSVC)
-    target_compile_definitions(stl2step_regiondump PRIVATE _USE_MATH_DEFINES NOMINMAX)
+    target_compile_definitions(cad_mesh_recovery_regiondump PRIVATE _USE_MATH_DEFINES NOMINMAX)
 endif()
 
 # CTest hook lives here (this file is owned). Do not edit tests/CMakeLists.txt.
-if(EXISTS "${_stl2step_root}/tests/p1_compose/CMakeLists.txt")
-    add_subdirectory("${_stl2step_root}/tests/p1_compose"
+if(EXISTS "${_cad_mesh_recovery_root}/tests/p1_compose/CMakeLists.txt")
+    add_subdirectory("${_cad_mesh_recovery_root}/tests/p1_compose"
                      "${CMAKE_CURRENT_BINARY_DIR}/_p1_compose")
 endif()
 
@@ -108,9 +108,9 @@ unset(_p1_all_present)
 unset(_regiondump_use_core_refit)
 unset(_tu)
 unset(_path)
-unset(_stl2step_root)
+unset(_cad_mesh_recovery_root)
 
 # ad-hoc signing (see root helper)
-if(TARGET stl2step_regiondump)
-  stl2step_adhoc_sign(stl2step_regiondump)
+if(TARGET cad_mesh_recovery_regiondump)
+  cad_mesh_recovery_adhoc_sign(cad_mesh_recovery_regiondump)
 endif()

@@ -1,4 +1,4 @@
-// stl2step P1 stage C — chamfer-cone claim (1.3.0 detector C).
+// cad_mesh_recovery P1 stage C — chamfer-cone claim (1.3.0 detector C).
 // After B1 / NgonWall, before C1. gp_ / stdlib only. Never throws.
 // Always returns true (stage ok). Silent on every skip.
 //
@@ -64,7 +64,7 @@
 #include <gp_Pnt.hxx>
 #include <gp_XYZ.hxx>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 namespace {
 
@@ -259,10 +259,10 @@ bool claimChamferConesC(const MeshView& mv, const SegmentParams& /*p*/,
         for (int i = 0; i < (int)work.accepted.size(); ++i) {
             if (isSeedCyl(work.accepted[(std::size_t)i])) cylIds.push_back(i);
         }
-        // Diag only (STL2STEP_DIAG_130): NAME the predicate that refuses each
+        // Diag only (CAD_MESH_RECOVERY_DIAG_130): NAME the predicate that refuses each
         // candidate ring. Prints nothing and decides nothing when off; no
         // threshold, window or predicate is changed by any of it.
-        const char* d130 = std::getenv("STL2STEP_DIAG_130");
+        const char* d130 = std::getenv("CAD_MESH_RECOVERY_DIAG_130");
         const bool cDiag = d130 && d130[0] && d130[0] != '0';
         if (cDiag) {
             int nSeed = 0, nClosed = 0;
@@ -930,4 +930,4 @@ bool claimChamferConesC(const MeshView& mv, const SegmentParams& /*p*/,
 }
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery

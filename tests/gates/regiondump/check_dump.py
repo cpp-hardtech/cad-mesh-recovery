@@ -10,7 +10,7 @@ Stdlib only. Usage:
 
   python3 check_dump.py [dump.json|-] [--schema PATH] [--examples-dir DIR]
   python3 check_dump.py --invoke-ichecker ICHECKER [--sidecar PATH] dump.json
-  ./stl2step_regiondump tests/corpus/S06.stl --component 0 --bare --threads 1 \\
+  ./cad_mesh_recovery_regiondump tests/corpus/S06.stl --component 0 --bare --threads 1 \\
     | python3 tests/gates/check_regionset.py - --sidecar tests/corpus/S06.expected.json
 """
 

@@ -54,8 +54,8 @@
 
 #include "occt_calibrated.hpp"
 
-#ifndef STL2STEP_EXPECTED_RED_JSON
-#define STL2STEP_EXPECTED_RED_JSON ""
+#ifndef CAD_MESH_RECOVERY_EXPECTED_RED_JSON
+#define CAD_MESH_RECOVERY_EXPECTED_RED_JSON ""
 #endif
 
 namespace {
@@ -285,7 +285,7 @@ int coreTests(const std::string& corpus) {
             join(corpus, "S20_cross_bore_union.exact.step"), cfg);
 
     unsigned nJobs = std::thread::hardware_concurrency();
-    if (const char* e = std::getenv("STL2STEP_GRADE_SELFTEST_JOBS")) {
+    if (const char* e = std::getenv("CAD_MESH_RECOVERY_GRADE_SELFTEST_JOBS")) {
         if (e[0]) {
             const int v = std::atoi(e);
             nJobs = v > 0 ? static_cast<unsigned>(v) : 1u;
@@ -527,7 +527,7 @@ int coreTests(const std::string& corpus) {
         const double expectQ[] = {8.2591e-07, 6.6072e-06, 0};
         for (int i = 0; i < 3; ++i) {
             const std::string p = join(corpus, files[i]);
-            const auto qf = stl2step::stlQuantFloor(p);
+            const auto qf = cad_mesh_recovery::stlQuantFloor(p);
             grade::Mesh mesh;
             std::string err;
             check(grade::loadStl(p, mesh, err), (std::string("load ") + files[i]).c_str());
@@ -855,7 +855,7 @@ std::string engineBeside(const std::string& argv0) {
     if (sl == std::string::npos) d = ".";
     else
         d = d.substr(0, sl);
-    return join(d, "stl2step");
+    return join(d, "cad_mesh_recovery");
 }
 
 void unifyCoplanarFaces(const grade::Mesh& mesh, BRepBuilderAPI_Sewing& sew) {
@@ -929,7 +929,7 @@ int syntheticTests(const std::string& corpus, const std::string& argv0) {
     grade::GradeConfig cfg;
     cfg.skipVolume = true;
     cfg.quiet = true;
-    const std::string tmp = join(tmpRoot(), "stl2step_grade_selftest");
+    const std::string tmp = join(tmpRoot(), "cad_mesh_recovery_grade_selftest");
 #ifdef _WIN32
     _mkdir(tmp.c_str());
 #else
@@ -1239,7 +1239,7 @@ int syntheticTests(const std::string& corpus, const std::string& argv0) {
 
 int asciiTest(const std::string& corpus) {
     std::setlocale(LC_ALL, "C");
-    const std::string asciiDir = join(tmpRoot(), "stl2step_grade_selftest");
+    const std::string asciiDir = join(tmpRoot(), "cad_mesh_recovery_grade_selftest");
     ensureDir(asciiDir);
     const std::string ascii = join(asciiDir, "s01_ascii.stl");
     grade::Mesh mesh;
@@ -1264,7 +1264,7 @@ int asciiTest(const std::string& corpus) {
     }
     std::fputs("endsolid s01\n", f);
     std::fclose(f);
-    const auto qf = stl2step::stlQuantFloor(ascii);
+    const auto qf = cad_mesh_recovery::stlQuantFloor(ascii);
     check(qf.ok && qf.ascii, "ascii: classified ascii");
     check(qf.q > 0.0, "ascii: q from printed decimals");
     grade::GradeConfig cfg;
@@ -1288,19 +1288,19 @@ int asciiTest(const std::string& corpus) {
 int main(int argc, char** argv) {
     std::setlocale(LC_ALL, "C");
     if (argc < 3) {
-        std::fprintf(stderr, "usage: stl2step_grade_selftest core|synthetic|ascii <corpusDir>\n");
+        std::fprintf(stderr, "usage: cad_mesh_recovery_grade_selftest core|synthetic|ascii <corpusDir>\n");
         return 1;
     }
     const std::string mode = argv[1];
     if (mode == "core") {
-        const int skipRc = stl2step::test::skipExitIfUncalibrated();
+        const int skipRc = cad_mesh_recovery::test::skipExitIfUncalibrated();
         if (skipRc >= 0) {
             return skipRc;
         }
     }
     const std::string corpus = argv[2];
     if (argc >= 4) gPlateStep = argv[3];
-    gExpectedRed = loadExpectedRedGrader(STL2STEP_EXPECTED_RED_JSON);
+    gExpectedRed = loadExpectedRedGrader(CAD_MESH_RECOVERY_EXPECTED_RED_JSON);
     int rc = 0;
     if (mode == "core") rc = coreTests(corpus);
     else if (mode == "synthetic") rc = syntheticTests(corpus, argv[0]);

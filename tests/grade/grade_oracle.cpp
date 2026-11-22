@@ -16,12 +16,12 @@ namespace {
 
 constexpr int kMaxIters = 50;
 
-// Measurement instrument, default OFF (STL2STEP_GRADE_DIAG). It reads the
+// Measurement instrument, default OFF (CAD_MESH_RECOVERY_GRADE_DIAG). It reads the
 // oracle state and prints; it never changes a partition, a tolerance or a
 // certificate. Every graded artefact in this report was produced with it off.
 bool gdiag() {
     static const bool on = [] {
-        const char* e = std::getenv("STL2STEP_GRADE_DIAG");
+        const char* e = std::getenv("CAD_MESH_RECOVERY_GRADE_DIAG");
         return e && e[0] && std::strcmp(e, "0") != 0;
     }();
     return on;
@@ -3223,7 +3223,7 @@ void buildOracle(const Mesh& m, OracleSet& out, bool reverseSeeds, int seedOrder
         fillOracleStats(m, out.oracles[static_cast<size_t>(i)]);
     }
 
-    if (const char* op = std::getenv("STL2STEP_GRADE_OWNERS")) {
+    if (const char* op = std::getenv("CAD_MESH_RECOVERY_GRADE_OWNERS")) {
         if (op[0]) {
             if (FILE* f = std::fopen(op, "w")) {
                 for (int t = 0; t < static_cast<int>(m.tris.size()); ++t) {

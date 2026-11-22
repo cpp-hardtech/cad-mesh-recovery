@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 get_filename_component(_root "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
 
-if(NOT TARGET stl2step::harness)
+if(NOT TARGET cad_mesh_recovery::harness)
     add_subdirectory("${_root}/tests/harness" "${CMAKE_CURRENT_BINARY_DIR}/_harness")
 endif()
 
@@ -16,7 +16,7 @@ add_executable(p1_compose_diag diag_stages.cpp ${_p1_sources})
 target_compile_features(p1_compose_diag PRIVATE cxx_std_17)
 set_target_properties(p1_compose_diag PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-target_link_libraries(p1_compose_diag PRIVATE stl2step::harness)
+target_link_libraries(p1_compose_diag PRIVATE cad_mesh_recovery::harness)
 target_include_directories(p1_compose_diag PRIVATE "${_root}/src")
 if(MSVC)
     target_compile_definitions(p1_compose_diag PRIVATE _USE_MATH_DEFINES NOMINMAX)
@@ -28,7 +28,7 @@ add_test(NAME p1_compose_gate
     COMMAND ${Python3_EXECUTABLE} ${_compose_script}
             --repo ${_root}
             --build-dir ${CMAKE_BINARY_DIR}
-            --dump $<TARGET_FILE:stl2step_regiondump>
+            --dump $<TARGET_FILE:cad_mesh_recovery_regiondump>
             --ichecker ${_root}/tests/gates/check_regionset.py
             --corpus ${_root}/tests/corpus
             --cube ${_root}/tests/cube.stl)
@@ -73,5 +73,5 @@ unset(_compose_script)
 
 # ad-hoc signing (see root helper)
 if(TARGET p1_compose_diag)
-  stl2step_adhoc_sign(p1_compose_diag)
+  cad_mesh_recovery_adhoc_sign(p1_compose_diag)
 endif()

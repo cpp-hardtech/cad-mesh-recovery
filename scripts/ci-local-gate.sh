@@ -125,10 +125,10 @@ marker_ok() {
 }
 
 win_cmd() {
-  if [ -n "${STL2STEP_WIN_HOST:-}" ]; then
-    echo "scripts/ci-windows-preflight.sh ${STL2STEP_WIN_HOST}"
+  if [ -n "${CAD_MESH_RECOVERY_WIN_HOST:-}" ]; then
+    echo "scripts/ci-windows-preflight.sh ${CAD_MESH_RECOVERY_WIN_HOST}"
   else
-    echo "scripts/ci-windows-preflight.sh <user@host>   # or STL2STEP_WIN_HOST=<user@host> scripts/ci-windows-preflight.sh"
+    echo "scripts/ci-windows-preflight.sh <user@host>   # or CAD_MESH_RECOVERY_WIN_HOST=<user@host> scripts/ci-windows-preflight.sh"
   fi
 }
 
@@ -160,13 +160,13 @@ refuse_missing() {
 # --- fresh-clone (catches the git add -u / untracked-header class) ---------
 
 # Reuse a fresh-clone macOS marker for THIS HEAD when it is younger than
-# STL2STEP_FRESH_MARKER_MAX_MIN minutes (default 120): the marker is only ever
+# CAD_MESH_RECOVERY_FRESH_MARKER_MAX_MIN minutes (default 120): the marker is only ever
 # written by a completed fresh clone of the identical commit, so re-cloning
 # minutes later proves nothing new and costs ~15 min per push. Older, missing
 # or malformed markers fall through to a real fresh clone. `--fresh-clone`
 # itself always clones.
 fresh_clone_or_reuse() {
-  local f="${MARKER_DIR}/${SHA}.macos.green" max="${STL2STEP_FRESH_MARKER_MAX_MIN:-120}" stamp now then age
+  local f="${MARKER_DIR}/${SHA}.macos.green" max="${CAD_MESH_RECOVERY_FRESH_MARKER_MAX_MIN:-120}" stamp now then age
   if marker_ok "$f"; then
     stamp="$(grep -Eo '[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}[+-][0-9]{4}' "$f" | tail -n1)"
     if [ -n "$stamp" ]; then
@@ -186,7 +186,7 @@ fresh_clone_or_reuse() {
 
 fresh_clone() {
   local tmp dest build log summary
-  tmp="$(mktemp -d "${TMPDIR:-/tmp}/stl2step-fresh-XXXXXX")"
+  tmp="$(mktemp -d "${TMPDIR:-/tmp}/cad_mesh_recovery-fresh-XXXXXX")"
   dest="$tmp/repo"
   build="$tmp/build"
   log="$tmp/ctest.log"
@@ -198,7 +198,7 @@ fresh_clone() {
 
   echo "== ci-local-gate: cmake + build + ctest (Release, examples+tests)"
   cmake -S "$dest" -B "$build" -DCMAKE_BUILD_TYPE=Release \
-    -DSTL2STEP_BUILD_EXAMPLES=ON -DSTL2STEP_BUILD_TESTS=ON
+    -DCAD_MESH_RECOVERY_BUILD_EXAMPLES=ON -DCAD_MESH_RECOVERY_BUILD_TESTS=ON
   cmake --build "$build" -j
   # pipefail: ctest failure aborts; summary line is captured from the log.
   ctest --test-dir "$build" --output-on-failure | tee "$log"

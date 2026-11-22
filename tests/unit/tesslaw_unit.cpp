@@ -19,16 +19,16 @@
 #include <gp_Pnt.hxx>
 #include <gp_XYZ.hxx>
 
-using stl2step::refit::DerivedTols;
-using stl2step::refit::MeshView;
-using stl2step::refit::Origin;
-using stl2step::refit::ProvClaim;
-using stl2step::refit::Provisional;
-using stl2step::refit::Region;
-using stl2step::refit::SegmentParams;
-using stl2step::refit::SegmentWork;
-using stl2step::refit::SurfType;
-using stl2step::refit::refuteNgonByLaw;
+using cad_mesh_recovery::refit::DerivedTols;
+using cad_mesh_recovery::refit::MeshView;
+using cad_mesh_recovery::refit::Origin;
+using cad_mesh_recovery::refit::ProvClaim;
+using cad_mesh_recovery::refit::Provisional;
+using cad_mesh_recovery::refit::Region;
+using cad_mesh_recovery::refit::SegmentParams;
+using cad_mesh_recovery::refit::SegmentWork;
+using cad_mesh_recovery::refit::SurfType;
+using cad_mesh_recovery::refit::refuteNgonByLaw;
 
 static const double kPi = 3.14159265358979323846264338327950288;
 static const double kTwoPi = 2.0 * kPi;
@@ -555,7 +555,7 @@ static void testStripThreadsAgree() {
 }
 
 int main() {
-    setenv("STL2STEP_DIAG_TESSLAW", "1", 1);
+    setenv("CAD_MESH_RECOVERY_DIAG_TESSLAW", "1", 1);
     testHexRefutedByFineRound();
     testOctagonNoSmallerCurve();
     testHexRefutedBy64();

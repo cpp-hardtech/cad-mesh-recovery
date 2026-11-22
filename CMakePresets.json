@@ -16,8 +16,8 @@
       "inherits": "default",
       "binaryDir": "${sourceDir}/build-dev",
       "cacheVariables": {
-        "STL2STEP_BUILD_EXAMPLES": "ON",
-        "STL2STEP_BUILD_TESTS": "ON"
+        "CAD_MESH_RECOVERY_BUILD_EXAMPLES": "ON",
+        "CAD_MESH_RECOVERY_BUILD_TESTS": "ON"
       }
     }
   ],

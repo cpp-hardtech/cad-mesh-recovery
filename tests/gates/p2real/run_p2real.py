@@ -186,7 +186,7 @@ def main() -> int:
     compose_dump = args.compose_dump
     if compose_dump is None:
         cand = (
-            args.repo.parent / "p1-compose-fix-rw1" / "build" / "stl2step_regiondump"
+            args.repo.parent / "p1-compose-fix-rw1" / "build" / "cad_mesh_recovery_regiondump"
         )
         if cand.is_file():
             compose_dump = cand

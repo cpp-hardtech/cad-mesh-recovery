@@ -1,4 +1,4 @@
-# stl2step test tree.
+# cad_mesh_recovery test tree.
 #
 # Deliberately near-empty: tools arrive one subdirectory at a time (corpus
 # generator, STEP census, RegionSet dump, build-fixture harness, mesh harness).
@@ -8,24 +8,24 @@
 #
 # Conventions for tools added here (binding on later lanes):
 #   * one directory per tool, e.g. tests/harness/, tests/corpus/, tests/gates/
-#   * link stl2step::core (never the raw stl2step_core name)
+#   * link cad_mesh_recovery::core (never the raw cad_mesh_recovery_core name)
 #   * C++17, no new third-party dependencies
 #   * EXCLUDE_FROM_ALL is NOT used: a tool that does not build is a red build
 
 # GitHub #7: RESULT / MESH_RESULT must appear as the last stdout line when
 # the CLI's stdout is a file or a pipe (not a TTY). Python stdlib subprocess.
-if(TARGET stl2step)
+if(TARGET cad_mesh_recovery)
     find_package(Python3 COMPONENTS Interpreter REQUIRED)
     set(_redir_py "${CMAKE_CURRENT_SOURCE_DIR}/result_line_redirected.py")
     set(_redir_stl "${CMAKE_CURRENT_SOURCE_DIR}/corpus/shelf_bracket.stl")
     add_test(NAME result_line_redirected
         COMMAND ${Python3_EXECUTABLE} "${_redir_py}"
-            --binary "$<TARGET_FILE:stl2step>"
+            --binary "$<TARGET_FILE:cad_mesh_recovery>"
             --stl "${_redir_stl}")
     set_tests_properties(result_line_redirected PROPERTIES
         LABELS "cli;stdout"
         TIMEOUT 180
-        REQUIRED_FILES "$<TARGET_FILE:stl2step>;${_redir_py};${_redir_stl}")
+        REQUIRED_FILES "$<TARGET_FILE:cad_mesh_recovery>;${_redir_py};${_redir_stl}")
     unset(_redir_py)
     unset(_redir_stl)
 
@@ -35,22 +35,22 @@ if(TARGET stl2step)
     set(_vc_stl "${CMAKE_CURRENT_SOURCE_DIR}/cube.stl")
     add_test(NAME result_validity_check
         COMMAND ${Python3_EXECUTABLE} "${_vc_py}"
-            --binary "$<TARGET_FILE:stl2step>"
+            --binary "$<TARGET_FILE:cad_mesh_recovery>"
             --small-stl "${_vc_stl}")
     set_tests_properties(result_validity_check PROPERTIES
         LABELS "cli;result"
         TIMEOUT 600
-        REQUIRED_FILES "$<TARGET_FILE:stl2step>;${_vc_py};${_vc_stl}")
+        REQUIRED_FILES "$<TARGET_FILE:cad_mesh_recovery>;${_vc_py};${_vc_stl}")
     unset(_vc_py)
     unset(_vc_stl)
 endif()
 
-foreach(_stl2step_test_dir harness corpus gates unit mesh grade)
-    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${_stl2step_test_dir}/CMakeLists.txt")
-        add_subdirectory(${_stl2step_test_dir})
+foreach(_cad_mesh_recovery_test_dir harness corpus gates unit mesh grade)
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${_cad_mesh_recovery_test_dir}/CMakeLists.txt")
+        add_subdirectory(${_cad_mesh_recovery_test_dir})
     endif()
 endforeach()
-unset(_stl2step_test_dir)
+unset(_cad_mesh_recovery_test_dir)
 
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tools/lawband_dump/CMakeLists.txt")
     add_subdirectory(tools/lawband_dump)
@@ -68,35 +68,35 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tools/dxf_check/CMakeLists.txt")
     add_subdirectory(tools/dxf_check)
 endif()
 
-# SPEC AC-J6HEAL API probe — calls stl2step::convert() directly. Not a ctest
+# SPEC AC-J6HEAL API probe — calls cad_mesh_recovery::convert() directly. Not a ctest
 # (lane AC pins 27/27). Built whenever the core library is.
-if(TARGET stl2step::core)
+if(TARGET cad_mesh_recovery::core)
     add_executable(j6heal_api_probe j6heal_api_probe.cpp)
     target_compile_features(j6heal_api_probe PRIVATE cxx_std_17)
-    target_link_libraries(j6heal_api_probe PRIVATE stl2step::core)
-    if(COMMAND stl2step_adhoc_sign)
-        stl2step_adhoc_sign(j6heal_api_probe)
+    target_link_libraries(j6heal_api_probe PRIVATE cad_mesh_recovery::core)
+    if(COMMAND cad_mesh_recovery_adhoc_sign)
+        cad_mesh_recovery_adhoc_sign(j6heal_api_probe)
     endif()
 endif()
 
-# SPEC AC-CASCADE API probe — calls stl2step::convert() directly. Not a ctest
+# SPEC AC-CASCADE API probe — calls cad_mesh_recovery::convert() directly. Not a ctest
 # (lane pins 27/27 + hl_census_ratchet + cascade_no_waiver).
-if(TARGET stl2step::core)
+if(TARGET cad_mesh_recovery::core)
     add_executable(cascade_api_probe cascade_api_probe.cpp)
     target_compile_features(cascade_api_probe PRIVATE cxx_std_17)
-    target_link_libraries(cascade_api_probe PRIVATE stl2step::core)
-    if(COMMAND stl2step_adhoc_sign)
-        stl2step_adhoc_sign(cascade_api_probe)
+    target_link_libraries(cascade_api_probe PRIVATE cad_mesh_recovery::core)
+    if(COMMAND cad_mesh_recovery_adhoc_sign)
+        cad_mesh_recovery_adhoc_sign(cascade_api_probe)
     endif()
 endif()
 
 # SPEC AC2-L3 RULE 2.2 scoped-adoption probe — convert() + C4/C5/C6. Not a ctest
 # (C8 pins the clean count).
-if(TARGET stl2step::core)
+if(TARGET cad_mesh_recovery::core)
     add_executable(rule22_adopt_api rule22_adopt_api.cpp)
     target_compile_features(rule22_adopt_api PRIVATE cxx_std_17)
-    target_link_libraries(rule22_adopt_api PRIVATE stl2step::core)
-    if(COMMAND stl2step_adhoc_sign)
-        stl2step_adhoc_sign(rule22_adopt_api)
+    target_link_libraries(rule22_adopt_api PRIVATE cad_mesh_recovery::core)
+    if(COMMAND cad_mesh_recovery_adhoc_sign)
+        cad_mesh_recovery_adhoc_sign(rule22_adopt_api)
     endif()
 endif()

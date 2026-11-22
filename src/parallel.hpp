@@ -1,11 +1,11 @@
-// stl2step internal thread helper (D-142-1). Owns every std::thread the engine
+// cad_mesh_recovery internal thread helper (D-142-1). Owns every std::thread the engine
 // constructs. requestedThreads <= 1 => inline, zero std::thread.
 // Not installed; not part of the public API.
 //
 // SPDX-License-Identifier: MIT
 
-#ifndef STL2STEP_PARALLEL_HPP
-#define STL2STEP_PARALLEL_HPP
+#ifndef CAD_MESH_RECOVERY_PARALLEL_HPP
+#define CAD_MESH_RECOVERY_PARALLEL_HPP
 
 #include <cstddef>
 #include <cstdint>
@@ -13,10 +13,10 @@
 #include <utility>
 #include <vector>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace detail {
 
-// Today's fallback when hardware_concurrency() returns 0 (stl2step.cpp:316,
+// Today's fallback when hardware_concurrency() returns 0 (cad_mesh_recovery.cpp:316,
 // mesh.cpp:199). Kept in ONE place.
 constexpr unsigned kHwFallback = 4;
 
@@ -83,6 +83,6 @@ void overlap(int requested, Bg&& bg, Fg&& fg) {
 }
 
 }  // namespace detail
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery
 
-#endif  // STL2STEP_PARALLEL_HPP
+#endif  // CAD_MESH_RECOVERY_PARALLEL_HPP

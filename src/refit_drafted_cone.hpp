@@ -3,8 +3,8 @@
 // parameters (D-fc-1.6).
 // SPDX-License-Identifier: MIT
 
-#ifndef STL2STEP_REFIT_DRAFTED_CONE_HPP
-#define STL2STEP_REFIT_DRAFTED_CONE_HPP
+#ifndef CAD_MESH_RECOVERY_REFIT_DRAFTED_CONE_HPP
+#define CAD_MESH_RECOVERY_REFIT_DRAFTED_CONE_HPP
 
 #include "refit_profile_cert.hpp"
 
@@ -13,7 +13,7 @@
 #include <cstddef>
 #include <vector>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 
 // D-gid-8.18. A drafted wall whose axis direction is a certified plane's
@@ -74,6 +74,6 @@ DraftedConeFit certifyDraftedCone(const std::vector<gp_XYZ>& pts, const gp_XYZ& 
                                   const gp_XYZ& p0, double tau);
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery
 
-#endif  // STL2STEP_REFIT_DRAFTED_CONE_HPP
+#endif  // CAD_MESH_RECOVERY_REFIT_DRAFTED_CONE_HPP

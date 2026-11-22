@@ -1,4 +1,4 @@
-// stl2step internal thread helper (D-142-1).
+// cad_mesh_recovery internal thread helper (D-142-1).
 // SPDX-License-Identifier: MIT
 
 #include "parallel.hpp"
@@ -7,7 +7,7 @@
 #include <atomic>
 #include <thread>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace detail {
 namespace {
 
@@ -43,4 +43,4 @@ int currentRequestedThreads() { return tRequested; }
 void setCurrentRequestedThreads(int requested) { tRequested = requested; }
 
 }  // namespace detail
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery

@@ -1,5 +1,5 @@
-#ifndef STL2STEP_REFIT_PRISM_HPP
-#define STL2STEP_REFIT_PRISM_HPP
+#ifndef CAD_MESH_RECOVERY_REFIT_PRISM_HPP
+#define CAD_MESH_RECOVERY_REFIT_PRISM_HPP
 
 #include "refit.hpp"
 
@@ -10,7 +10,7 @@
 #include <string>
 #include <vector>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 
 // src/refit_prism.hpp — Stage P (prism reconstruction), D7 §1-3.
@@ -60,6 +60,6 @@ bool buildPrismSolid(const std::vector<Profile>& profs, const PrismLevels& lv,
 bool writeProfileDxf(const Profile& p, const PrismLevels& lv, const std::string& path);
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery
 
 #endif

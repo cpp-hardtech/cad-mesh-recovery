@@ -4,14 +4,14 @@
 // fits; this certificate is the anchored mode beside it.
 // SPDX-License-Identifier: MIT
 
-#ifndef STL2STEP_REFIT_ANCHORED_ROUND_HPP
-#define STL2STEP_REFIT_ANCHORED_ROUND_HPP
+#ifndef CAD_MESH_RECOVERY_REFIT_ANCHORED_ROUND_HPP
+#define CAD_MESH_RECOVERY_REFIT_ANCHORED_ROUND_HPP
 
 #include "refit_profile_cert.hpp"
 
 #include <vector>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 
 // A certified anchor seen in the (rho, z) profile half-plane of the round's
@@ -52,6 +52,6 @@ AnchoredRoundCert certifyAnchoredRound(const std::vector<ProfPt>& P,
                                        const std::vector<ProfileAnchor>& anchors, double tau);
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery
 
-#endif  // STL2STEP_REFIT_ANCHORED_ROUND_HPP
+#endif  // CAD_MESH_RECOVERY_REFIT_ANCHORED_ROUND_HPP

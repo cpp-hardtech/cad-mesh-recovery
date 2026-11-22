@@ -6,7 +6,7 @@ Body9=34, Body12=81, Body18=18, Body20=32 (never worse). Lane-I stretch
 targets 14/26/14/8 are PARKED unless `--unpark j6-lane-i` (same register
 convention as run_gates.py).
 
-Private meshes resolve via env `STL2STEP_PRIVATE_CORPUS` (or
+Private meshes resolve via env `CAD_MESH_RECOVERY_PRIVATE_CORPUS` (or
 `--private-corpus`). Unset/empty env, missing corpus, or missing STLs →
 exit 77 (ctest SKIP_RETURN_CODE), never FAIL. Paths are never required
 inputs in committed fixtures.
@@ -31,7 +31,7 @@ from typing import Any, Dict, List, Optional, Sequence, Set
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_BASELINE = Path(__file__).resolve().parent / "j6-watch.json"
-ENV_PRIVATE_CORPUS = "STL2STEP_PRIVATE_CORPUS"
+ENV_PRIVATE_CORPUS = "CAD_MESH_RECOVERY_PRIVATE_CORPUS"
 SKIP_EXIT = 77
 FREE_EDGES_RE = re.compile(r"freeEdges=(\d+)")
 J6_MARK = "J6:"
@@ -77,7 +77,7 @@ def resolve_corpus(
 ) -> Path:
     """Resolve the private STL directory.
 
-    Precedence: --private-corpus, then STL2STEP_PRIVATE_CORPUS.
+    Precedence: --private-corpus, then CAD_MESH_RECOVERY_PRIVATE_CORPUS.
     Unset or empty env is treated as absent (caller SKIPs). No home-path default.
     """
     if cli_path is not None:
@@ -134,7 +134,7 @@ def parse_result_line(stdout: str) -> Dict[str, Any]:
             return json.loads(line[len("RESULT ") :])
         if line.startswith("RESULT{"):
             return json.loads(line[len("RESULT") :])
-    raise RuntimeError("no RESULT line in stl2step stdout")
+    raise RuntimeError("no RESULT line in cad_mesh_recovery stdout")
 
 
 def parse_j6_free_edges(
@@ -369,7 +369,7 @@ def self_test() -> int:
 
     missing = resolve_corpus(env={ENV_PRIVATE_CORPUS: ""})
     check(corpus_is_absent(missing), "empty env => absent corpus")
-    missing_dir = resolve_corpus(env={ENV_PRIVATE_CORPUS: "/no/such/stl2step-private-corpus"})
+    missing_dir = resolve_corpus(env={ENV_PRIVATE_CORPUS: "/no/such/cad_mesh_recovery-private-corpus"})
     check(corpus_is_absent(missing_dir), "missing dir => absent")
     check(SKIP_EXIT == 77, "SKIP exit is 77")
 
@@ -391,7 +391,7 @@ def self_test() -> int:
 
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    p.add_argument("--binary", type=Path, help="Path to stl2step CLI (required unless --self-test)")
+    p.add_argument("--binary", type=Path, help="Path to cad_mesh_recovery CLI (required unless --self-test)")
     p.add_argument(
         "--private-corpus",
         type=Path,

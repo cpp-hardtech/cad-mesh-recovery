@@ -10,15 +10,15 @@
 #include <gp_XYZ.hxx>
 
 #if defined(__GNUC__) || defined(__clang__)
-#define STL2STEP_WEAK __attribute__((weak))
+#define CAD_MESH_RECOVERY_WEAK __attribute__((weak))
 #else
-#define STL2STEP_WEAK
+#define CAD_MESH_RECOVERY_WEAK
 #endif
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 
-STL2STEP_WEAK PrismTols makePrismTols(const MeshView& mv, const RegionSet& rs) {
+CAD_MESH_RECOVERY_WEAK PrismTols makePrismTols(const MeshView& mv, const RegionSet& rs) {
     PrismTols t;
     t.tauSurf = std::max({5e-5, 4.0 * mv.weldTol, 1e-6 * mv.diag});
     t.tauLvl = t.tauSurf;
@@ -33,7 +33,7 @@ STL2STEP_WEAK PrismTols makePrismTols(const MeshView& mv, const RegionSet& rs) {
     return t;
 }
 
-STL2STEP_WEAK PrismLevels detectPrismatic(const MeshView& mv, const RegionSet& rs,
+CAD_MESH_RECOVERY_WEAK PrismLevels detectPrismatic(const MeshView& mv, const RegionSet& rs,
                                           const PrismTols& t) {
     (void)mv;
     PrismLevels lv;
@@ -115,4 +115,4 @@ STL2STEP_WEAK PrismLevels detectPrismatic(const MeshView& mv, const RegionSet& r
 }
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery

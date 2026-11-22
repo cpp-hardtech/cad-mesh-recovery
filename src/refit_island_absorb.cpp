@@ -9,7 +9,7 @@
 #include <utility>
 #include <vector>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 namespace {
 
@@ -138,4 +138,4 @@ bool uniqueF1Host(const MeshView& mv, const std::vector<Region>& regions,
 }
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery

@@ -1,4 +1,4 @@
-// stl2step cone BIND site — see refit_cone_bind.hpp for the certificates.
+// cad_mesh_recovery cone BIND site — see refit_cone_bind.hpp for the certificates.
 //
 // SPDX-License-Identifier: MIT
 
@@ -23,7 +23,7 @@
 
 #include "refit_cone_math.hpp"
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 namespace {
 
@@ -192,4 +192,4 @@ double coneBindSup(const Handle(Geom_Curve)& c3, double f, double l,
 }
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery

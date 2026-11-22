@@ -32,7 +32,7 @@
 
 #include <gp.hxx>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 
 namespace {
@@ -58,7 +58,7 @@ double angleBetween(double ax, double az, double bx, double bz) {
 
 bool diagOn() {
     static const bool on = [] {
-        const char* e = std::getenv("STL2STEP_DIAG_REL");
+        const char* e = std::getenv("CAD_MESH_RECOVERY_DIAG_REL");
         return e && e[0] && e[0] != '0';
     }();
     return on;
@@ -1289,4 +1289,4 @@ bool claimAnchoredRounds(const MeshView& mv, const SegmentParams& p, const Deriv
 }
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery

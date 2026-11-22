@@ -1,4 +1,4 @@
-// stl2step_regiondump — weld/split via the mesh harness, run refit::segment(),
+// cad_mesh_recovery_regiondump — weld/split via the mesh harness, run refit::segment(),
 // dump each clean component's RegionSet as JSON (frozen regionset.schema.json).
 //
 // SPDX-License-Identifier: MIT
@@ -6,8 +6,8 @@
 #include "mesh_harness.hpp"
 #include "mesh_harness_refit.hpp"
 
-#ifndef STL2STEP_HARNESS_HAVE_REFIT
-#error "STL2STEP_HARNESS_HAVE_REFIT is not defined; src/refit.hpp must be visible"
+#ifndef CAD_MESH_RECOVERY_HARNESS_HAVE_REFIT
+#error "CAD_MESH_RECOVERY_HARNESS_HAVE_REFIT is not defined; src/refit.hpp must be visible"
 #endif
 
 #include <cmath>
@@ -18,22 +18,22 @@
 #include <string>
 #include <vector>
 
-using stl2step::harness::HarnessComponent;
-using stl2step::harness::HarnessMesh;
-using stl2step::harness::loadMesh;
-using stl2step::harness::toMeshView;
-using stl2step::refit::BoundaryChain;
-using stl2step::refit::BuiltAs;
-using stl2step::refit::Loop;
-using stl2step::refit::LoopRole;
-using stl2step::refit::MeshView;
-using stl2step::refit::Origin;
-using stl2step::refit::RefitStats;
-using stl2step::refit::Region;
-using stl2step::refit::RegionSet;
-using stl2step::refit::Reject;
-using stl2step::refit::SegmentParams;
-using stl2step::refit::SurfType;
+using cad_mesh_recovery::harness::HarnessComponent;
+using cad_mesh_recovery::harness::HarnessMesh;
+using cad_mesh_recovery::harness::loadMesh;
+using cad_mesh_recovery::harness::toMeshView;
+using cad_mesh_recovery::refit::BoundaryChain;
+using cad_mesh_recovery::refit::BuiltAs;
+using cad_mesh_recovery::refit::Loop;
+using cad_mesh_recovery::refit::LoopRole;
+using cad_mesh_recovery::refit::MeshView;
+using cad_mesh_recovery::refit::Origin;
+using cad_mesh_recovery::refit::RefitStats;
+using cad_mesh_recovery::refit::Region;
+using cad_mesh_recovery::refit::RegionSet;
+using cad_mesh_recovery::refit::Reject;
+using cad_mesh_recovery::refit::SegmentParams;
+using cad_mesh_recovery::refit::SurfType;
 
 // ---------------------------------------------------------------------------
 // JSON primitives. Fixed key order, %.17g floats, no wall-clock.
@@ -427,7 +427,7 @@ int main(int argc, char** argv) {
     for (int i = 1; i < argc; i++) {
         auto needArg = [&](const char* flag) -> const char* {
             if (i + 1 >= argc) {
-                std::fprintf(stderr, "stl2step_regiondump: %s needs a value\n", flag);
+                std::fprintf(stderr, "cad_mesh_recovery_regiondump: %s needs a value\n", flag);
                 usage(argv[0]);
                 std::exit(1);
             }
@@ -475,20 +475,20 @@ int main(int argc, char** argv) {
     }
     if (bare && componentFilter < 0) {
         std::fprintf(stderr,
-                     "stl2step_regiondump: --bare requires --component N\n");
+                     "cad_mesh_recovery_regiondump: --bare requires --component N\n");
         return 1;
     }
 
     HarnessMesh mesh;
     std::string err;
     if (!loadMesh(path, scale, weldTol, sewTol, mesh, err)) {
-        std::fprintf(stderr, "stl2step_regiondump: %s\n", err.c_str());
+        std::fprintf(stderr, "cad_mesh_recovery_regiondump: %s\n", err.c_str());
         return 1;
     }
 
     if (componentFilter >= 0 && componentFilter >= (int)mesh.comps.size()) {
         std::fprintf(stderr,
-                     "stl2step_regiondump: --component %d out of range (0..%d)\n",
+                     "cad_mesh_recovery_regiondump: --component %d out of range (0..%d)\n",
                      componentFilter, (int)mesh.comps.size() - 1);
         return 1;
     }
@@ -524,7 +524,7 @@ int main(int argc, char** argv) {
         }
         MeshView mv{};
         toMeshView(mesh, c, mv);
-        d.segmentOk = stl2step::refit::segment(mv, params, d.rs, nullptr);
+        d.segmentOk = cad_mesh_recovery::refit::segment(mv, params, d.rs, nullptr);
         d.rs.compRoot = c.root;  // harness root is the component key
         if (diag) diagRegionSummary(stderr, i, c.root, d.rs);
         dumped.push_back(std::move(d));
@@ -534,7 +534,7 @@ int main(int argc, char** argv) {
     if (!outPath.empty()) {
         out = std::fopen(outPath.c_str(), "wb");
         if (!out) {
-            std::fprintf(stderr, "stl2step_regiondump: cannot write %s\n",
+            std::fprintf(stderr, "cad_mesh_recovery_regiondump: cannot write %s\n",
                          outPath.c_str());
             return 1;
         }
@@ -543,7 +543,7 @@ int main(int argc, char** argv) {
     if (bare) {
         if (dumped.size() != 1) {
             std::fprintf(stderr,
-                         "stl2step_regiondump: --bare requires one component row "
+                         "cad_mesh_recovery_regiondump: --bare requires one component row "
                          "(got %zu dumps, %d dirty skipped without segment)\n",
                          dumped.size(), dirtySkipped);
             if (out != stdout) std::fclose(out);
@@ -551,7 +551,7 @@ int main(int argc, char** argv) {
         }
         if (dumped[0].segmentSkip) {
             std::fprintf(stderr,
-                         "stl2step_regiondump: --bare component skipped (%s); "
+                         "cad_mesh_recovery_regiondump: --bare component skipped (%s); "
                          "pass --include-dirty to segment\n",
                          dumped[0].segmentSkip);
             if (out != stdout) std::fclose(out);
@@ -564,7 +564,7 @@ int main(int argc, char** argv) {
     }
 
     Obj top(out, 0);
-#ifdef STL2STEP_REGIONDUMP_STUB
+#ifdef CAD_MESH_RECOVERY_REGIONDUMP_STUB
     // Marker is wrapper-only (not inside RegionSet) so additionalProperties:
     // false still holds. Easy to strip; never emitted on the real path.
     top.key("stub");

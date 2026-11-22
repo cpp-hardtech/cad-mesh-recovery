@@ -4,8 +4,8 @@
 //
 // SPDX-License-Identifier: MIT
 
-#ifndef STL2STEP_DXF_EXPORT_HPP
-#define STL2STEP_DXF_EXPORT_HPP
+#ifndef CAD_MESH_RECOVERY_DXF_EXPORT_HPP
+#define CAD_MESH_RECOVERY_DXF_EXPORT_HPP
 
 #if __has_include("refit_prism.hpp")
 #include "refit_prism.hpp"
@@ -19,7 +19,7 @@
 
 #include "refit.hpp"
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 
 struct PrismTols {
@@ -49,14 +49,14 @@ struct ProfLoop { std::vector<ProfSeg> segs; bool outer = false; double area = 0
 struct Profile  { int slab = -1; std::vector<ProfLoop> loops; };  // loops[0] outer, rest holes
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery
 
 #endif
 
 #include <string>
 #include <vector>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 
 // P4. Pure serializer; never consulted by the engine.
@@ -76,6 +76,6 @@ bool consumeEmitDxfFlag(const std::string& flag, const std::string& val,
                         std::string& dirOut);
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery
 
-#endif  // STL2STEP_DXF_EXPORT_HPP
+#endif  // CAD_MESH_RECOVERY_DXF_EXPORT_HPP

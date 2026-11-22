@@ -1,4 +1,4 @@
-# How stl2step Reconstructs Analytic Geometry from Triangle Meshes
+# How cad_mesh_recovery Reconstructs Analytic Geometry from Triangle Meshes
 
 ![An STL mesh (left) converts to a faceted B-Rep solid (center), and then to a
 fully analytic solid (right).](assets/conversion-stages.png)
@@ -137,10 +137,10 @@ suite:
   kernel's boundary-representation checks; a closed-but-invalid shell is
   treated as failure regardless of how good its census looks.
 - **Determinism.** Stage 1 output is byte-reproducible, and every optional
-  feature (including DXF emission) is inert when unset. `STL2STEP_VOLID`
+  feature (including DXF emission) is inert when unset. `CAD_MESH_RECOVERY_VOLID`
   (unset or `0`) is a default-off stderr instrument for the volume-attribution
   identity: `1` prints `DIAG_VOLID_CLASS` + `DIAG_VOLID_SUM`, `2` adds per-bucket
-  `DIAG_VOLID row`; it does not change STEP bytes. `STL2STEP_DIAG_CAPOWN`
+  `DIAG_VOLID row`; it does not change STEP bytes. `CAD_MESH_RECOVERY_DIAG_CAPOWN`
   (unset or `0`) is a default-off stderr census of the shipped cylinders:
   `1` prints one `DIAG_CAPOWN` line per cylinder that owns a triangle with an
   axial facet normal or borders unowned triangles lying within τ of it, plus

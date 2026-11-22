@@ -55,20 +55,20 @@
 
 #include "refit_cone_math.hpp"
 
-using stl2step::refit::ConeDevClass;
-using stl2step::refit::circleOnConeMax;
-using stl2step::refit::coneBindSup;
-using stl2step::refit::coneCircleBindSup;
-using stl2step::refit::coneFromRims;
-using stl2step::refit::coneFrustumChordVolume;
-using stl2step::refit::coneFrustumDVolDensity;
-using stl2step::refit::coneFrustumVRangeFromRadii;
-using stl2step::refit::coneLineBindSup;
-using stl2step::refit::conePCurveForCircle;
-using stl2step::refit::conePCurveForLine;
-using stl2step::refit::coneRadiusAt;
-using stl2step::refit::coneVAtRadius;
-using stl2step::refit::coneVAtZ;
+using cad_mesh_recovery::refit::ConeDevClass;
+using cad_mesh_recovery::refit::circleOnConeMax;
+using cad_mesh_recovery::refit::coneBindSup;
+using cad_mesh_recovery::refit::coneCircleBindSup;
+using cad_mesh_recovery::refit::coneFromRims;
+using cad_mesh_recovery::refit::coneFrustumChordVolume;
+using cad_mesh_recovery::refit::coneFrustumDVolDensity;
+using cad_mesh_recovery::refit::coneFrustumVRangeFromRadii;
+using cad_mesh_recovery::refit::coneLineBindSup;
+using cad_mesh_recovery::refit::conePCurveForCircle;
+using cad_mesh_recovery::refit::conePCurveForLine;
+using cad_mesh_recovery::refit::coneRadiusAt;
+using cad_mesh_recovery::refit::coneVAtRadius;
+using cad_mesh_recovery::refit::coneVAtZ;
 
 static const double kPi = 3.14159265358979323846264338327950288;
 

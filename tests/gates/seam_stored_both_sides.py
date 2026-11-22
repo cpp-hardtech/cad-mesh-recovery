@@ -2,7 +2,7 @@
 """seam_stored_both_sides — D3-2: every seam stored on both adjacent surfaces.
 
 Expected-red at dc49e45: DIAG_SEAM / DIAG_G7 / DIAG_CYLG7 are emitted by
-h1-seams behind STL2STEP_P2_DIAG=1 and do not exist at this tree. Zero
+h1-seams behind CAD_MESH_RECOVERY_P2_DIAG=1 and do not exist at this tree. Zero
 DIAG_SEAM lines is **not measured**, never a silent pass.
 
 CMake EXPECTED-RED (copy of partial_recovery_gate protocol):
@@ -19,7 +19,7 @@ FLIP PROTOCOL (the day DIAG_SEAM lands with storedOwner=storedConsumer=1):
 Usage:
   seam_stored_both_sides.py --self-test
   seam_stored_both_sides.py --synthetic-pass
-  seam_stored_both_sides.py --binary ./build/stl2step [--jobs 2]
+  seam_stored_both_sides.py --binary ./build/cad_mesh_recovery [--jobs 2]
 """
 
 from __future__ import annotations
@@ -114,7 +114,7 @@ def parse_result_line(stdout: str) -> Dict[str, Any]:
             return json.loads(line[len("RESULT ") :])
         if line.startswith("RESULT{"):
             return json.loads(line[len("RESULT") :])
-    raise GateError("no RESULT line in stl2step stdout")
+    raise GateError("no RESULT line in cad_mesh_recovery stdout")
 
 
 def parse_diag_kv(line: str) -> Optional[Tuple[str, Dict[str, str]]]:
@@ -465,7 +465,7 @@ def run_trueform(
     environ = os.environ.copy()
     if env:
         environ.update(env)
-    environ["STL2STEP_P2_DIAG"] = "1"
+    environ["CAD_MESH_RECOVERY_P2_DIAG"] = "1"
     proc = subprocess.run(cmd, capture_output=True, text=True, env=environ)
     result = parse_result_line(proc.stdout)
     return result, proc.stderr, proc.returncode
@@ -480,7 +480,7 @@ def run_live(
     strict: Optional[bool] = None,
 ) -> int:
     if not binary.is_file():
-        raise GateError(f"stl2step binary missing: {binary}")
+        raise GateError(f"cad_mesh_recovery binary missing: {binary}")
     if not pickup_stl.is_file():
         raise GateError(f"handle-pickup STL missing: {pickup_stl}")
     if not hl_stl.is_file():
@@ -696,7 +696,7 @@ def _self_test() -> int:
 
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    p.add_argument("--binary", type=Path, help="stl2step CLI")
+    p.add_argument("--binary", type=Path, help="cad_mesh_recovery CLI")
     p.add_argument("--pickup-stl", type=Path, default=PICKUP_STL)
     p.add_argument("--handle-lock-stl", type=Path, default=HL_STL)
     p.add_argument("--jobs", type=int, default=2)

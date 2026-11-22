@@ -2,8 +2,8 @@
 // Pure OCCT geometry and BRepCheck statuses, no thresholds.
 // SPDX-License-Identifier: MIT
 
-#ifndef STL2STEP_REFIT_CAP_ARC_HPP
-#define STL2STEP_REFIT_CAP_ARC_HPP
+#ifndef CAD_MESH_RECOVERY_REFIT_CAP_ARC_HPP
+#define CAD_MESH_RECOVERY_REFIT_CAP_ARC_HPP
 
 #include <BRepCheck_Analyzer.hxx>
 #include <BRepCheck_ListOfStatus.hxx>
@@ -19,7 +19,7 @@
 
 #include <cmath>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 
 constexpr double kCapArcPi = 3.14159265358979323846264338327950288;
@@ -106,6 +106,6 @@ inline bool partialTorusWireRetry(int orientStatusesOnFace, int otherStatuses) {
 }
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery
 
-#endif  // STL2STEP_REFIT_CAP_ARC_HPP
+#endif  // CAD_MESH_RECOVERY_REFIT_CAP_ARC_HPP

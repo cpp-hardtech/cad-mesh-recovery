@@ -7,8 +7,8 @@
 // a cone's two rims stagger (coneRimsStagger). Every threshold is tau = 2q.
 // SPDX-License-Identifier: MIT
 
-#ifndef STL2STEP_REFIT_AXIS_SEAM_HPP
-#define STL2STEP_REFIT_AXIS_SEAM_HPP
+#ifndef CAD_MESH_RECOVERY_REFIT_AXIS_SEAM_HPP
+#define CAD_MESH_RECOVERY_REFIT_AXIS_SEAM_HPP
 
 #include <BRepAdaptor_Curve.hxx>
 #include <BRepBuilderAPI_MakeEdge.hxx>
@@ -55,7 +55,7 @@
 #include <cstddef>
 #include <vector>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 
 // An axis is on the family axis within tau when its line passes within tau of
@@ -709,6 +709,6 @@ inline bool partialCylSeamFrameApplies(double uLo, double uHi, int nSeamEdges) {
 bool healPartialCylSeamFrame(TopoDS_Face& face, double cap);
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery
 
-#endif  // STL2STEP_REFIT_AXIS_SEAM_HPP
+#endif  // CAD_MESH_RECOVERY_REFIT_AXIS_SEAM_HPP

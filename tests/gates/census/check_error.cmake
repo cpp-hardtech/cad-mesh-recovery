@@ -1,4 +1,4 @@
-# AC5: stl2step_census /nonexistent.step exits 1 with JSON {"error":...} on stdout.
+# AC5: cad_mesh_recovery_census /nonexistent.step exits 1 with JSON {"error":...} on stdout.
 if(NOT CENSUS)
     message(FATAL_ERROR "CENSUS must be set")
 endif()

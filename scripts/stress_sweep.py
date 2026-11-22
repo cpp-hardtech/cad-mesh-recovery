@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """TrueForm 11-file stress-sweep harness (stdlib only).
 
-Replaces hand-rolled STRESS-SWEEP tables. One stl2step process per file;
-files run in parallel up to ``-j``. Private STLs are skip-if-missing via ``STL2STEP_PRIVATE_CORPUS``.
+Replaces hand-rolled STRESS-SWEEP tables. One cad_mesh_recovery process per file;
+files run in parallel up to ``-j``. Private STLs are skip-if-missing via ``CAD_MESH_RECOVERY_PRIVATE_CORPUS``.
 Unset/empty env or a missing corpus directory → exit 77.
 
 Exit codes:
@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PRIVATE_ENV = "STL2STEP_PRIVATE_CORPUS"
+PRIVATE_ENV = "CAD_MESH_RECOVERY_PRIVATE_CORPUS"
 PRIVATE_BODY_IDS: Tuple[int, ...] = (1, 2, 9, 10, 11, 12, 13, 18, 20, 28)
 SKIP_RC = 77
 
@@ -254,7 +254,7 @@ def parse_result_line(stdout: str) -> Dict[str, Any]:
         m = _RESULT_RE.match(line)
         if m:
             return json.loads(m.group(1))
-    raise RuntimeError("no RESULT line in stl2step stdout")
+    raise RuntimeError("no RESULT line in cad_mesh_recovery stdout")
 
 
 def digest_warnings(stderr: str, result_warnings: Optional[Sequence[str]] = None) -> WarningDigest:
@@ -512,13 +512,13 @@ def find_binary(explicit: Optional[Path] = None, repo: Path = REPO_ROOT) -> Path
     if explicit is not None:
         return Path(explicit)
     for cand in (
-        repo / "build" / "stl2step",
-        repo / "build" / "stl2step.exe",
-        repo / "build" / "Release" / "stl2step.exe",
+        repo / "build" / "cad_mesh_recovery",
+        repo / "build" / "cad_mesh_recovery.exe",
+        repo / "build" / "Release" / "cad_mesh_recovery.exe",
     ):
         if cand.is_file():
             return cand
-    return Path("stl2step")
+    return Path("cad_mesh_recovery")
 
 
 def _self_test() -> int:
@@ -558,7 +558,7 @@ def _self_test() -> int:
     if d.format() != want_txt:
         errors.append(f"digest format: {d.format()!r}")
 
-    empty = Path("/no/such/stl2step-private-corpus")
+    empty = Path("/no/such/cad_mesh_recovery-private-corpus")
     if private_corpus_present(empty):
         errors.append("empty corpus reported present")
     unset = resolve_private_corpus(env={}, override=None)
@@ -673,7 +673,7 @@ def _self_test() -> int:
 
 def _parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--binary", type=Path, help="stl2step executable")
+    p.add_argument("--binary", type=Path, help="cad_mesh_recovery executable")
     p.add_argument("-j", "--jobs", type=int, default=4, help="parallel files (default 4)")
     p.add_argument("--threads", type=int, default=1, help="engine threads per file")
     p.add_argument("--private-corpus", type=Path, help=f"override ${PRIVATE_ENV}")
@@ -711,7 +711,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     binary = find_binary(args.binary)
     if not Path(binary).is_file():
-        print(f"error: stl2step binary not found: {binary}", file=sys.stderr)
+        print(f"error: cad_mesh_recovery binary not found: {binary}", file=sys.stderr)
         return 1
 
     out_dir = args.out_dir or Path(tempfile.mkdtemp(prefix="stress-sweep-"))

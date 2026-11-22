@@ -9,58 +9,58 @@
 
 cmake_minimum_required(VERSION 3.16)
 
-if(NOT TARGET stl2step::core)
-    project(stl2step_gates LANGUAGES CXX)
-    get_filename_component(_stl2step_root "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
-    if(EXISTS "${_stl2step_root}/CMakeLists.txt")
-        set(STL2STEP_BUILD_TESTS OFF CACHE BOOL
+if(NOT TARGET cad_mesh_recovery::core)
+    project(cad_mesh_recovery_gates LANGUAGES CXX)
+    get_filename_component(_cad_mesh_recovery_root "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
+    if(EXISTS "${_cad_mesh_recovery_root}/CMakeLists.txt")
+        set(CAD_MESH_RECOVERY_BUILD_TESTS OFF CACHE BOOL
             "Gates standalone: do not recurse into tests/" FORCE)
-        set(STL2STEP_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-        set(STL2STEP_INSTALL OFF CACHE BOOL "" FORCE)
-        add_subdirectory("${_stl2step_root}" "${CMAKE_CURRENT_BINARY_DIR}/_engine")
+        set(CAD_MESH_RECOVERY_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+        set(CAD_MESH_RECOVERY_INSTALL OFF CACHE BOOL "" FORCE)
+        add_subdirectory("${_cad_mesh_recovery_root}" "${CMAKE_CURRENT_BINARY_DIR}/_engine")
     else()
-        find_package(stl2step REQUIRED)
+        find_package(cad_mesh_recovery REQUIRED)
     endif()
-    unset(_stl2step_root)
+    unset(_cad_mesh_recovery_root)
 endif()
 
-foreach(_stl2step_gate_dir census regiondump buildtest p2buildtest hybrid_validity)
-    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${_stl2step_gate_dir}/CMakeLists.txt")
-        add_subdirectory(${_stl2step_gate_dir})
+foreach(_cad_mesh_recovery_gate_dir census regiondump buildtest p2buildtest hybrid_validity)
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${_cad_mesh_recovery_gate_dir}/CMakeLists.txt")
+        add_subdirectory(${_cad_mesh_recovery_gate_dir})
     endif()
 endforeach()
-unset(_stl2step_gate_dir)
+unset(_cad_mesh_recovery_gate_dir)
 
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
-set(_stl2step_gates_runner "${CMAKE_CURRENT_SOURCE_DIR}/run_gates.py")
-set(_stl2step_gates_cube "${CMAKE_CURRENT_SOURCE_DIR}/../cube.stl")
-set(_stl2step_gates_corpus "${CMAKE_CURRENT_SOURCE_DIR}/../corpus")
+set(_cad_mesh_recovery_gates_runner "${CMAKE_CURRENT_SOURCE_DIR}/run_gates.py")
+set(_cad_mesh_recovery_gates_cube "${CMAKE_CURRENT_SOURCE_DIR}/../cube.stl")
+set(_cad_mesh_recovery_gates_corpus "${CMAKE_CURRENT_SOURCE_DIR}/../corpus")
 
 # CTest default path: pass --census when the witness is in this build so G1
 # uses BRepCheck, not the watertight proxy. DEPENDS corpus_generate so the
 # STLs exist even if they were absent at configure time.
-if(TARGET stl2step AND EXISTS "${_stl2step_gates_runner}")
+if(TARGET cad_mesh_recovery AND EXISTS "${_cad_mesh_recovery_gates_runner}")
     set(_gates_full_cmd
-        "${Python3_EXECUTABLE}" "${_stl2step_gates_runner}"
-        --binary "$<TARGET_FILE:stl2step>"
-        --corpus "${_stl2step_gates_corpus}"
+        "${Python3_EXECUTABLE}" "${_cad_mesh_recovery_gates_runner}"
+        --binary "$<TARGET_FILE:cad_mesh_recovery>"
+        --corpus "${_cad_mesh_recovery_gates_corpus}"
         --no-verify
         --jobs 4)
     set(_gates_full_depends "")
-    set(_gates_full_required "$<TARGET_FILE:stl2step>")
-    if(TARGET stl2step_census)
-        list(APPEND _gates_full_cmd --census "$<TARGET_FILE:stl2step_census>")
-        set(_gates_full_required "${_gates_full_required};$<TARGET_FILE:stl2step_census>")
+    set(_gates_full_required "$<TARGET_FILE:cad_mesh_recovery>")
+    if(TARGET cad_mesh_recovery_census)
+        list(APPEND _gates_full_cmd --census "$<TARGET_FILE:cad_mesh_recovery_census>")
+        set(_gates_full_required "${_gates_full_required};$<TARGET_FILE:cad_mesh_recovery_census>")
     endif()
-    if(TARGET stl2step_regiondump)
-        list(APPEND _gates_full_cmd --dump "$<TARGET_FILE:stl2step_regiondump>")
-        set(_gates_full_required "${_gates_full_required};$<TARGET_FILE:stl2step_regiondump>")
+    if(TARGET cad_mesh_recovery_regiondump)
+        list(APPEND _gates_full_cmd --dump "$<TARGET_FILE:cad_mesh_recovery_regiondump>")
+        set(_gates_full_required "${_gates_full_required};$<TARGET_FILE:cad_mesh_recovery_regiondump>")
     endif()
     add_test(NAME gates_full COMMAND ${_gates_full_cmd})
     # corpus_generate lives in the sibling tests/corpus/ dir; if(TEST) is not
     # visible here, but CTest resolves DEPENDS by name at run time.
-    if(TARGET stl2step_corpus_gen)
+    if(TARGET cad_mesh_recovery_corpus_gen)
         list(APPEND _gates_full_depends corpus_generate)
     endif()
     set_tests_properties(gates_full PROPERTIES
@@ -74,7 +74,7 @@ if(TARGET stl2step AND EXISTS "${_stl2step_gates_runner}")
         TIMEOUT 6000
         REQUIRED_FILES "${_gates_full_required}"
         ENVIRONMENT
-            "PYTHONPATH=${CMAKE_BINARY_DIR}/generated;STL2STEP_OCCT_GENERATED_DIR=${CMAKE_BINARY_DIR}/generated")
+            "PYTHONPATH=${CMAKE_BINARY_DIR}/generated;CAD_MESH_RECOVERY_OCCT_GENERATED_DIR=${CMAKE_BINARY_DIR}/generated")
     if(_gates_full_depends)
         set_tests_properties(gates_full PROPERTIES DEPENDS "${_gates_full_depends}")
     endif()
@@ -83,16 +83,16 @@ if(TARGET stl2step AND EXISTS "${_stl2step_gates_runner}")
     unset(_gates_full_required)
 endif()
 
-if(TARGET stl2step AND EXISTS "${_stl2step_gates_runner}" AND EXISTS "${_stl2step_gates_cube}")
+if(TARGET cad_mesh_recovery AND EXISTS "${_cad_mesh_recovery_gates_runner}" AND EXISTS "${_cad_mesh_recovery_gates_cube}")
     set(_gates_smoke_cmd
-        "${Python3_EXECUTABLE}" "${_stl2step_gates_runner}"
+        "${Python3_EXECUTABLE}" "${_cad_mesh_recovery_gates_runner}"
         --smoke
-        --binary "$<TARGET_FILE:stl2step>"
+        --binary "$<TARGET_FILE:cad_mesh_recovery>"
         --no-verify)
-    set(_gates_smoke_required "$<TARGET_FILE:stl2step>")
-    if(TARGET stl2step_census)
-        list(APPEND _gates_smoke_cmd --census "$<TARGET_FILE:stl2step_census>")
-        set(_gates_smoke_required "${_gates_smoke_required};$<TARGET_FILE:stl2step_census>")
+    set(_gates_smoke_required "$<TARGET_FILE:cad_mesh_recovery>")
+    if(TARGET cad_mesh_recovery_census)
+        list(APPEND _gates_smoke_cmd --census "$<TARGET_FILE:cad_mesh_recovery_census>")
+        set(_gates_smoke_required "${_gates_smoke_required};$<TARGET_FILE:cad_mesh_recovery_census>")
     endif()
     add_test(NAME gates_smoke COMMAND ${_gates_smoke_cmd})
     set_tests_properties(gates_smoke PROPERTIES
@@ -100,15 +100,15 @@ if(TARGET stl2step AND EXISTS "${_stl2step_gates_runner}" AND EXISTS "${_stl2ste
         TIMEOUT 600
         REQUIRED_FILES "${_gates_smoke_required}"
         ENVIRONMENT
-            "PYTHONPATH=${CMAKE_BINARY_DIR}/generated;STL2STEP_OCCT_GENERATED_DIR=${CMAKE_BINARY_DIR}/generated")
+            "PYTHONPATH=${CMAKE_BINARY_DIR}/generated;CAD_MESH_RECOVERY_OCCT_GENERATED_DIR=${CMAKE_BINARY_DIR}/generated")
     unset(_gates_smoke_cmd)
     unset(_gates_smoke_required)
 endif()
 
-# P2 standing gate: stl2step_p2buildtest over the canonical hand-fixture tree.
+# P2 standing gate: cad_mesh_recovery_p2buildtest over the canonical hand-fixture tree.
 # Directory is p2buildtest (not buildtest) to dodge the historical unanchored
 # build*/ ignore rule. Driver CLI: <regionset.json> <stl> [<expected.json>]
-if(TARGET stl2step_p2buildtest)
+if(TARGET cad_mesh_recovery_p2buildtest)
     set(_p2_fixtures_root "${CMAKE_CURRENT_SOURCE_DIR}/build_fixtures")
     set(_p2_canonical_fixtures
         counterbore
@@ -129,10 +129,10 @@ if(TARGET stl2step_p2buildtest)
         if(EXISTS "${_p2_rs}" AND EXISTS "${_p2_stl}")
             if(EXISTS "${_p2_exp}")
                 add_test(NAME p2buildtest_${_p2_fx}
-                    COMMAND stl2step_p2buildtest "${_p2_rs}" "${_p2_stl}" "${_p2_exp}")
+                    COMMAND cad_mesh_recovery_p2buildtest "${_p2_rs}" "${_p2_stl}" "${_p2_exp}")
             else()
                 add_test(NAME p2buildtest_${_p2_fx}
-                    COMMAND stl2step_p2buildtest "${_p2_rs}" "${_p2_stl}")
+                    COMMAND cad_mesh_recovery_p2buildtest "${_p2_rs}" "${_p2_stl}")
             endif()
             set_tests_properties(p2buildtest_${_p2_fx} PROPERTIES
                 LABELS "gates;p2buildtest"
@@ -147,27 +147,27 @@ if(TARGET stl2step_p2buildtest)
     unset(_p2_fixtures_root)
 endif()
 
-unset(_stl2step_gates_runner)
-unset(_stl2step_gates_cube)
-unset(_stl2step_gates_corpus)
+unset(_cad_mesh_recovery_gates_runner)
+unset(_cad_mesh_recovery_gates_cube)
+unset(_cad_mesh_recovery_gates_corpus)
 
 # --- gates-ratchet ---
 # Census-growth ratchet + waiver_audit (lane gates-ratchet). Additive only.
-if(TARGET stl2step AND TARGET stl2step_census)
+if(TARGET cad_mesh_recovery AND TARGET cad_mesh_recovery_census)
     set(_gr_hl_script "${CMAKE_CURRENT_SOURCE_DIR}/hl_census_ratchet.py")
     set(_gr_hl_stl "${CMAKE_CURRENT_SOURCE_DIR}/../corpus/handle-lock.stl")
     set(_gr_hl_ratchet "${CMAKE_CURRENT_SOURCE_DIR}/baseline/hl-ratchet.json")
     if(EXISTS "${_gr_hl_script}" AND EXISTS "${_gr_hl_stl}" AND EXISTS "${_gr_hl_ratchet}")
         add_test(NAME hl_census_ratchet
             COMMAND ${Python3_EXECUTABLE} "${_gr_hl_script}"
-                --binary "$<TARGET_FILE:stl2step>"
-                --census "$<TARGET_FILE:stl2step_census>"
+                --binary "$<TARGET_FILE:cad_mesh_recovery>"
+                --census "$<TARGET_FILE:cad_mesh_recovery_census>"
                 --stl "${_gr_hl_stl}"
                 --ratchet "${_gr_hl_ratchet}")
         set_tests_properties(hl_census_ratchet PROPERTIES
             LABELS "gates"
             TIMEOUT 180
-            REQUIRED_FILES "$<TARGET_FILE:stl2step>;$<TARGET_FILE:stl2step_census>;${_gr_hl_stl};${_gr_hl_ratchet}")
+            REQUIRED_FILES "$<TARGET_FILE:cad_mesh_recovery>;$<TARGET_FILE:cad_mesh_recovery_census>;${_gr_hl_stl};${_gr_hl_ratchet}")
         add_test(NAME hl_census_ratchet_selftest
             COMMAND ${Python3_EXECUTABLE} "${_gr_hl_script}" --self-test)
         set_tests_properties(hl_census_ratchet_selftest PROPERTIES
@@ -178,7 +178,7 @@ if(TARGET stl2step AND TARGET stl2step_census)
     unset(_gr_hl_stl)
     unset(_gr_hl_ratchet)
 endif()
-if(TARGET stl2step AND TARGET stl2step_census AND TARGET stl2step_regiondump)
+if(TARGET cad_mesh_recovery AND TARGET cad_mesh_recovery_census AND TARGET cad_mesh_recovery_regiondump)
     set(_gr_waiver "${CMAKE_CURRENT_SOURCE_DIR}/../diag/handle-lock/waiver_audit.py")
     set(_gr_hl_script "${CMAKE_CURRENT_SOURCE_DIR}/hl_census_ratchet.py")
     if(EXISTS "${_gr_waiver}" AND EXISTS "${_gr_hl_script}")
@@ -186,13 +186,13 @@ if(TARGET stl2step AND TARGET stl2step_census AND TARGET stl2step_regiondump)
             COMMAND ${Python3_EXECUTABLE} "${_gr_hl_script}"
                 --waiver-audit
                 --waiver "${_gr_waiver}"
-                --binary "$<TARGET_FILE:stl2step>"
-                --census "$<TARGET_FILE:stl2step_census>"
-                --dump "$<TARGET_FILE:stl2step_regiondump>")
+                --binary "$<TARGET_FILE:cad_mesh_recovery>"
+                --census "$<TARGET_FILE:cad_mesh_recovery_census>"
+                --dump "$<TARGET_FILE:cad_mesh_recovery_regiondump>")
         set_tests_properties(waiver_audit PROPERTIES
             LABELS "gates"
             TIMEOUT 180
-            REQUIRED_FILES "$<TARGET_FILE:stl2step>;$<TARGET_FILE:stl2step_census>;$<TARGET_FILE:stl2step_regiondump>;${_gr_waiver}")
+            REQUIRED_FILES "$<TARGET_FILE:cad_mesh_recovery>;$<TARGET_FILE:cad_mesh_recovery_census>;$<TARGET_FILE:cad_mesh_recovery_regiondump>;${_gr_waiver}")
     endif()
     unset(_gr_waiver)
     unset(_gr_hl_script)
@@ -200,7 +200,7 @@ endif()
 
 # --- gates-j6watch ---
 # J6 freeEdges watch on private Body9/12/18/20. Always registered so CI
-# sees the label; SKIP (77) when STL2STEP_PRIVATE_CORPUS is unset or absent.
+# sees the label; SKIP (77) when CAD_MESH_RECOVERY_PRIVATE_CORPUS is unset or absent.
 # Do not bake a private path into this file. API self-test needs no meshes.
 set(_j6watch_script "${CMAKE_CURRENT_SOURCE_DIR}/j6_freeedges_watch.py")
 if(EXISTS "${_j6watch_script}")
@@ -209,10 +209,10 @@ if(EXISTS "${_j6watch_script}")
     set_tests_properties(j6_freeedges_watch_api PROPERTIES
         LABELS "gates"
         TIMEOUT 30)
-    if(TARGET stl2step)
+    if(TARGET cad_mesh_recovery)
         add_test(NAME j6_freeedges_watch
             COMMAND "${Python3_EXECUTABLE}" "${_j6watch_script}"
-                    --binary "$<TARGET_FILE:stl2step>"
+                    --binary "$<TARGET_FILE:cad_mesh_recovery>"
                     --jobs 4)
         set_tests_properties(j6_freeedges_watch PROPERTIES
             LABELS "gates;private-corpus"
@@ -243,14 +243,14 @@ unset(_cascade_nowaiver)
 # Standalone 11-file TrueForm sweep (scripts/stress_sweep.py). Not part of
 # gates_full and not sharded. SKIPs (exit 77) when the private STL corpus
 # is absent so CI stays green.
-if(TARGET stl2step)
-    get_filename_component(_stl2step_sweep_root
+if(TARGET cad_mesh_recovery)
+    get_filename_component(_cad_mesh_recovery_sweep_root
         "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
-    set(_stl2step_sweep_py "${_stl2step_sweep_root}/scripts/stress_sweep.py")
-    if(EXISTS "${_stl2step_sweep_py}")
+    set(_cad_mesh_recovery_sweep_py "${_cad_mesh_recovery_sweep_root}/scripts/stress_sweep.py")
+    if(EXISTS "${_cad_mesh_recovery_sweep_py}")
         add_test(NAME stress_sweep
-            COMMAND "${Python3_EXECUTABLE}" "${_stl2step_sweep_py}"
-                --binary "$<TARGET_FILE:stl2step>"
+            COMMAND "${Python3_EXECUTABLE}" "${_cad_mesh_recovery_sweep_py}"
+                --binary "$<TARGET_FILE:cad_mesh_recovery>"
                 --jobs 4
                 --json "${CMAKE_CURRENT_BINARY_DIR}/stress_sweep.json"
                 --markdown "${CMAKE_CURRENT_BINARY_DIR}/stress_sweep.md")
@@ -258,10 +258,10 @@ if(TARGET stl2step)
             LABELS "stress-sweep;private-corpus"
             TIMEOUT 600
             SKIP_RETURN_CODE 77
-            REQUIRED_FILES "$<TARGET_FILE:stl2step>")
+            REQUIRED_FILES "$<TARGET_FILE:cad_mesh_recovery>")
     endif()
-    unset(_stl2step_sweep_py)
-    unset(_stl2step_sweep_root)
+    unset(_cad_mesh_recovery_sweep_py)
+    unset(_cad_mesh_recovery_sweep_root)
 endif()
 
 # --- gates-partial ---
@@ -290,17 +290,17 @@ if(EXISTS "${_prg_script}")
     set_tests_properties(partial_recovery_gate_synthetic PROPERTIES
         LABELS "gates"
         TIMEOUT 30)
-    if(TARGET stl2step AND EXISTS "${_prg_ratchet}")
+    if(TARGET cad_mesh_recovery AND EXISTS "${_prg_ratchet}")
         add_test(NAME partial_recovery_gate
             COMMAND "${Python3_EXECUTABLE}" "${_prg_script}"
-                    --binary "$<TARGET_FILE:stl2step>"
+                    --binary "$<TARGET_FILE:cad_mesh_recovery>"
                     --ratchet "${_prg_ratchet}"
                     --jobs 4)
         set_tests_properties(partial_recovery_gate PROPERTIES
             LABELS "gates"
             TIMEOUT 300
             ENVIRONMENT "PARTIAL_RECOVERY_STRICT=1"
-            REQUIRED_FILES "$<TARGET_FILE:stl2step>;${_prg_ratchet}")
+            REQUIRED_FILES "$<TARGET_FILE:cad_mesh_recovery>;${_prg_ratchet}")
     endif()
 endif()
 unset(_prg_script)
@@ -325,17 +325,17 @@ if(EXISTS "${_g01_seam}")
     set_tests_properties(seam_stored_both_sides_synthetic PROPERTIES
         LABELS "gates"
         TIMEOUT 30)
-    if(TARGET stl2step)
+    if(TARGET cad_mesh_recovery)
         add_test(NAME seam_stored_both_sides
             COMMAND "${Python3_EXECUTABLE}" "${_g01_seam}"
-                    --binary "$<TARGET_FILE:stl2step>"
+                    --binary "$<TARGET_FILE:cad_mesh_recovery>"
                     --jobs 2)
         set_tests_properties(seam_stored_both_sides PROPERTIES
             LABELS "gates;expected-red"
             TIMEOUT 180
             ENVIRONMENT "SEAM_STORED_BOTH_SIDES_STRICT=1"
             PASS_REGULAR_EXPRESSION "SEAM_STORED_BOTH_SIDES_EXPECTED_RED"
-            REQUIRED_FILES "$<TARGET_FILE:stl2step>")
+            REQUIRED_FILES "$<TARGET_FILE:cad_mesh_recovery>")
     endif()
 endif()
 unset(_g01_seam)
@@ -353,16 +353,16 @@ if(EXISTS "${_g01_coll}")
     set_tests_properties(collapse_fail_ratchet_synthetic PROPERTIES
         LABELS "gates"
         TIMEOUT 30)
-    if(TARGET stl2step AND EXISTS "${_g01_coll_ratchet}")
+    if(TARGET cad_mesh_recovery AND EXISTS "${_g01_coll_ratchet}")
         add_test(NAME collapse_fail_ratchet
             COMMAND "${Python3_EXECUTABLE}" "${_g01_coll}"
-                    --binary "$<TARGET_FILE:stl2step>"
+                    --binary "$<TARGET_FILE:cad_mesh_recovery>"
                     --ratchet "${_g01_coll_ratchet}"
                     --jobs 2)
         set_tests_properties(collapse_fail_ratchet PROPERTIES
             LABELS "gates"
             TIMEOUT 180
-            REQUIRED_FILES "$<TARGET_FILE:stl2step>;${_g01_coll_ratchet}")
+            REQUIRED_FILES "$<TARGET_FILE:cad_mesh_recovery>;${_g01_coll_ratchet}")
     endif()
 endif()
 unset(_g01_coll)
@@ -381,11 +381,11 @@ if(EXISTS "${_g01_e0}")
     set_tests_properties(fillet_exclusion_e0_synthetic PROPERTIES
         LABELS "gates"
         TIMEOUT 30)
-    if(TARGET stl2step AND TARGET stl2step_regiondump AND EXISTS "${_g01_e0_ratchet}")
+    if(TARGET cad_mesh_recovery AND TARGET cad_mesh_recovery_regiondump AND EXISTS "${_g01_e0_ratchet}")
         add_test(NAME fillet_exclusion_e0
             COMMAND "${Python3_EXECUTABLE}" "${_g01_e0}"
-                    --binary "$<TARGET_FILE:stl2step>"
-                    --dump "$<TARGET_FILE:stl2step_regiondump>"
+                    --binary "$<TARGET_FILE:cad_mesh_recovery>"
+                    --dump "$<TARGET_FILE:cad_mesh_recovery_regiondump>"
                     --ratchet "${_g01_e0_ratchet}"
                     --jobs 4)
         set_tests_properties(fillet_exclusion_e0 PROPERTIES
@@ -393,7 +393,7 @@ if(EXISTS "${_g01_e0}")
             TIMEOUT 180
             ENVIRONMENT "FILLET_EXCLUSION_E0_STRICT=1"
             PASS_REGULAR_EXPRESSION "FILLET_EXCLUSION_E0_EXPECTED_RED"
-            REQUIRED_FILES "$<TARGET_FILE:stl2step>;$<TARGET_FILE:stl2step_regiondump>;${_g01_e0_ratchet}"
+            REQUIRED_FILES "$<TARGET_FILE:cad_mesh_recovery>;$<TARGET_FILE:cad_mesh_recovery_regiondump>;${_g01_e0_ratchet}"
             DEPENDS corpus_generate)
     endif()
 endif()
@@ -423,14 +423,14 @@ if(EXISTS "${_g01_plane}")
     set_tests_properties(plane_census_gate_selftest PROPERTIES
         LABELS "gates"
         TIMEOUT 30)
-    if(TARGET stl2step AND EXISTS "${_g01_plane_ratchet}")
+    if(TARGET cad_mesh_recovery AND EXISTS "${_g01_plane_ratchet}")
         add_test(NAME plane_census_gate
             COMMAND "${Python3_EXECUTABLE}" "${_g01_plane}"
-                    --binary "$<TARGET_FILE:stl2step>")
+                    --binary "$<TARGET_FILE:cad_mesh_recovery>")
         set_tests_properties(plane_census_gate PROPERTIES
             LABELS "gates"
             TIMEOUT 180
-            REQUIRED_FILES "$<TARGET_FILE:stl2step>;${_g01_plane_ratchet}")
+            REQUIRED_FILES "$<TARGET_FILE:cad_mesh_recovery>;${_g01_plane_ratchet}")
     endif()
 endif()
 unset(_g01_plane)
@@ -453,17 +453,17 @@ if(EXISTS "${_edge_class}")
     set_tests_properties(edge_class_gate_synthetic PROPERTIES
         LABELS "gates"
         TIMEOUT 30)
-    if(TARGET stl2step AND EXISTS "${_edge_class_ratchet}")
+    if(TARGET cad_mesh_recovery AND EXISTS "${_edge_class_ratchet}")
         add_test(NAME edge_class_gate
             COMMAND "${Python3_EXECUTABLE}" "${_edge_class}"
-                    --binary "$<TARGET_FILE:stl2step>"
+                    --binary "$<TARGET_FILE:cad_mesh_recovery>"
                     --ratchet "${_edge_class_ratchet}"
                     --jobs 4)
         set_tests_properties(edge_class_gate PROPERTIES
             LABELS "gates"
             TIMEOUT 900
-            REQUIRED_FILES "$<TARGET_FILE:stl2step>;${_edge_class_ratchet}")
-        if(TARGET stl2step_corpus_gen)
+            REQUIRED_FILES "$<TARGET_FILE:cad_mesh_recovery>;${_edge_class_ratchet}")
+        if(TARGET cad_mesh_recovery_corpus_gen)
             set_tests_properties(edge_class_gate PROPERTIES DEPENDS corpus_generate)
         endif()
     endif()
@@ -480,21 +480,21 @@ if(EXISTS "${_nwcyl_script}")
     set_tests_properties(nwcyl_gate_selftest PROPERTIES
         LABELS "gates"
         TIMEOUT 30)
-    if(TARGET stl2step AND TARGET stl2step_census AND TARGET stl2step_regiondump
+    if(TARGET cad_mesh_recovery AND TARGET cad_mesh_recovery_census AND TARGET cad_mesh_recovery_regiondump
             AND EXISTS "${_nwcyl_baseline}")
         add_test(NAME nwcyl_gate
             COMMAND "${Python3_EXECUTABLE}" "${_nwcyl_script}"
-                    --binary "$<TARGET_FILE:stl2step>"
-                    --census "$<TARGET_FILE:stl2step_census>"
-                    --dump "$<TARGET_FILE:stl2step_regiondump>"
+                    --binary "$<TARGET_FILE:cad_mesh_recovery>"
+                    --census "$<TARGET_FILE:cad_mesh_recovery_census>"
+                    --dump "$<TARGET_FILE:cad_mesh_recovery_regiondump>"
                     --baseline "${_nwcyl_baseline}"
                     --jobs 4)
         set_tests_properties(nwcyl_gate PROPERTIES
             LABELS "gates"
             TIMEOUT 600
             REQUIRED_FILES
-                "$<TARGET_FILE:stl2step>;$<TARGET_FILE:stl2step_census>;$<TARGET_FILE:stl2step_regiondump>;${_nwcyl_baseline}")
-        if(TARGET stl2step_corpus_gen)
+                "$<TARGET_FILE:cad_mesh_recovery>;$<TARGET_FILE:cad_mesh_recovery_census>;$<TARGET_FILE:cad_mesh_recovery_regiondump>;${_nwcyl_baseline}")
+        if(TARGET cad_mesh_recovery_corpus_gen)
             set_tests_properties(nwcyl_gate PROPERTIES DEPENDS corpus_generate)
         endif()
     endif()
@@ -509,15 +509,15 @@ unset(_nwcyl_baseline)
 # Keep GATE_130_STRICT=1. An unlisted FAIL is a hard fail.
 set(_g130 "${CMAKE_CURRENT_SOURCE_DIR}/gate_130.py")
 if(EXISTS "${_g130}")
-    if(TARGET stl2step)
+    if(TARGET cad_mesh_recovery)
         set(_g130_cmd
             "${Python3_EXECUTABLE}" "${_g130}"
-            --binary "$<TARGET_FILE:stl2step>"
+            --binary "$<TARGET_FILE:cad_mesh_recovery>"
             --corpus "${CMAKE_CURRENT_SOURCE_DIR}/../corpus")
-        set(_g130_req "$<TARGET_FILE:stl2step>")
-        if(TARGET stl2step_census)
-            list(APPEND _g130_cmd --census "$<TARGET_FILE:stl2step_census>")
-            set(_g130_req "${_g130_req};$<TARGET_FILE:stl2step_census>")
+        set(_g130_req "$<TARGET_FILE:cad_mesh_recovery>")
+        if(TARGET cad_mesh_recovery_census)
+            list(APPEND _g130_cmd --census "$<TARGET_FILE:cad_mesh_recovery_census>")
+            set(_g130_req "${_g130_req};$<TARGET_FILE:cad_mesh_recovery_census>")
         endif()
         add_test(NAME gate_130 COMMAND ${_g130_cmd})
         set_tests_properties(gate_130 PROPERTIES
@@ -525,7 +525,7 @@ if(EXISTS "${_g130}")
             TIMEOUT 600
             ENVIRONMENT "GATE_130_STRICT=1"
             REQUIRED_FILES "${_g130_req}")
-        if(TARGET stl2step_corpus_gen)
+        if(TARGET cad_mesh_recovery_corpus_gen)
             set_tests_properties(gate_130 PROPERTIES DEPENDS corpus_generate)
         endif()
         unset(_g130_cmd)

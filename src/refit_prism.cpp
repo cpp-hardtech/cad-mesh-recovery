@@ -16,7 +16,7 @@
 
 #include <gp_XYZ.hxx>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 
 void derivePrismTols(const MeshView& mv, const RegionSet& rs, PrismTols& t) {
@@ -42,7 +42,7 @@ void derivePrismTols(const MeshView& mv, const RegionSet& rs, PrismTols& t) {
 namespace {
 
 bool prismDiagOn() {
-    const char* e = std::getenv("STL2STEP_PRISM_DIAG");
+    const char* e = std::getenv("CAD_MESH_RECOVERY_PRISM_DIAG");
     return e && e[0] && e[0] != '0';
 }
 
@@ -370,4 +370,4 @@ PrismLevels detectPrismatic(const MeshView& mv, const RegionSet& rs, const Prism
 }
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery

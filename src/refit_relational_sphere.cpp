@@ -38,7 +38,7 @@
 #include <utility>
 #include <vector>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 
 namespace {
@@ -414,7 +414,7 @@ double sphereCapVolume(const gp_XYZ& centre, double r, const gp_XYZ& p, const gp
 namespace {
 
 bool diagOn() {
-    const char* e = std::getenv("STL2STEP_DIAG_REL");
+    const char* e = std::getenv("CAD_MESH_RECOVERY_DIAG_REL");
     return e && e[0] && e[0] != '0';
 }
 
@@ -512,7 +512,7 @@ struct Round {
     RoundCert cert;
 };
 
-// Print-only (STL2STEP_DIAG_REL). Algebraic sphere of an unclaimed component:
+// Print-only (CAD_MESH_RECOVERY_DIAG_REL). Algebraic sphere of an unclaimed component:
 // |p-c|^2 = r^2 written 2 c·p + g = p·p, g = r^2 - |c|^2. Not a certificate.
 bool diagAlgebraicSphere(const std::vector<gp_XYZ>& pts, gp_XYZ& c, double& r) {
     if (pts.size() < 4) return false;
@@ -1642,7 +1642,7 @@ bool claimSphereCorners(const MeshView& mv, const SegmentParams& p, const Derive
                 // Print-only. The signed cap is the same quantity stored on the
                 // region. Each triangle line is that cap for one mesh triangle
                 // (sector minus the centre tetrahedron), so the sum is the
-                // region's prediction. STL2STEP_DIAG_REL already gates this.
+                // region's prediction. CAD_MESH_RECOVERY_DIAG_REL already gates this.
                 const double signedDvol = (outward ? 1.0 : -1.0) * dvol;
                 diagPrintf("DIAG_SPHERE_DVOL seed=%d nTri=%zu area=%.9g "
                            "dVolPredicted=%.9g accounted=%.9g outward=%d\n",
@@ -1775,4 +1775,4 @@ bool claimSphereCorners(const MeshView& mv, const SegmentParams& p, const Derive
 }
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery

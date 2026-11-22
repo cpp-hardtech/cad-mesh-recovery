@@ -6,7 +6,7 @@
 #include "posix_compat.hpp"
 #include "refit_partial_cyl.hpp"
 #include "refit_relational.hpp"
-#include "stl2step/stl2step.hpp"
+#include "cad_mesh_recovery/cad_mesh_recovery.hpp"
 
 #include <algorithm>
 #include <array>
@@ -40,7 +40,7 @@ int close(int);
 #define rc_close close
 #endif
 
-using namespace stl2step::refit;
+using namespace cad_mesh_recovery::refit;
 
 static int gFail = 0;
 
@@ -209,7 +209,7 @@ struct Grab {
     int saved = -1;
     bool on = false;
     Grab() {
-        ::setenv("STL2STEP_DIAG_REL", "1", 1);
+        ::setenv("CAD_MESH_RECOVERY_DIAG_REL", "1", 1);
         saved = rc_dup(rc_fileno(stderr));
         FILE* f = std::fopen("rel-reclaim-diag.txt", "w");
         if (!f) return;
@@ -222,7 +222,7 @@ struct Grab {
         if (on && saved >= 0) rc_dup2(saved, rc_fileno(stderr));
         if (saved >= 0) rc_close(saved);
         saved = -1;
-        ::unsetenv("STL2STEP_DIAG_REL");
+        ::unsetenv("CAD_MESH_RECOVERY_DIAG_REL");
         std::ifstream in("rel-reclaim-diag.txt");
         std::stringstream ss;
         ss << in.rdbuf();
@@ -1039,13 +1039,13 @@ static void casePartialCylPeriodShift() {
 // repair, dropped at face build. It must ship as one cylindrical surface.
 static void caseQuarterCylinderShips(const char* stlPath) {
     const std::string step = "partial-cyl-quarter.step";
-    stl2step::Options opt;
+    cad_mesh_recovery::Options opt;
     opt.input = stlPath;
     opt.output = step;
     opt.smooth = true;
     opt.verify = false;
     opt.threads = 1;
-    const stl2step::Result r = stl2step::convert(opt);
+    const cad_mesh_recovery::Result r = cad_mesh_recovery::convert(opt);
     expect(r.ok && r.solids >= 1 && r.smoothRevertedComponents == 0, "quarter_cyl_convert");
     std::ifstream in(step);
     std::stringstream ss;

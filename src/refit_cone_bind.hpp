@@ -1,4 +1,4 @@
-// stl2step cone BIND site — the certified `circle-on-cone` edge class and the
+// cad_mesh_recovery cone BIND site — the certified `circle-on-cone` edge class and the
 // cone pcurves it certifies.  Lane 130-CONE-BUILD, D-130-3 lane 2 of 2.
 //
 // 130-CONE-MATH (`refit_cone_math.hpp`) publishes `circleOnConeMax`, the
@@ -22,8 +22,8 @@
 //
 // SPDX-License-Identifier: MIT
 
-#ifndef STL2STEP_REFIT_CONE_BIND_HPP
-#define STL2STEP_REFIT_CONE_BIND_HPP
+#ifndef CAD_MESH_RECOVERY_REFIT_CONE_BIND_HPP
+#define CAD_MESH_RECOVERY_REFIT_CONE_BIND_HPP
 
 #include <Geom2d_Curve.hxx>
 #include <Geom_ConicalSurface.hxx>
@@ -35,7 +35,7 @@
 #include <gp_Cone.hxx>
 #include <gp_Lin.hxx>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 
 // The conical surface under `srf`, seeing through a Geom_RectangularTrimmedSurface.
@@ -105,6 +105,6 @@ double coneBindSup(const Handle(Geom_Curve)& c3, double f, double l,
                    const TopLoc_Location& loc, const char** clsOut);
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery
 
-#endif  // STL2STEP_REFIT_CONE_BIND_HPP
+#endif  // CAD_MESH_RECOVERY_REFIT_CONE_BIND_HPP

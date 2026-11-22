@@ -36,8 +36,8 @@ RATChet procedure (landing lane updates baseline when a part improves):
 
 Usage:
   nwcyl_gate.py --self-test
-  nwcyl_gate.py --measure --binary ./build/stl2step
-  nwcyl_gate.py --binary ./build/stl2step [--baseline PATH] [--jobs N]
+  nwcyl_gate.py --measure --binary ./build/cad_mesh_recovery
+  nwcyl_gate.py --binary ./build/cad_mesh_recovery [--baseline PATH] [--jobs N]
 """
 
 from __future__ import annotations
@@ -180,7 +180,7 @@ def region_shipped_as_cylinder(
 
 
 def occt_census_cylinder_faces(cen: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Full cylinder face rows from stl2step_census (radius + axis + UV bounds)."""
+    """Full cylinder face rows from cad_mesh_recovery_census (radius + axis + UV bounds)."""
     out: List[Dict[str, Any]] = []
     for row in cen.get("cylinders") or []:
         if isinstance(row, dict) and "radius" in row:
@@ -205,12 +205,12 @@ def run_occt_census(census_bin: Path, step: Path) -> Dict[str, Any]:
     )
     if proc.returncode != 0:
         raise GateError(
-            f"stl2step_census failed rc={proc.returncode}: {proc.stderr or proc.stdout}"
+            f"cad_mesh_recovery_census failed rc={proc.returncode}: {proc.stderr or proc.stdout}"
         )
     try:
         return json.loads(proc.stdout)
     except json.JSONDecodeError as exc:
-        raise GateError(f"stl2step_census output is not JSON: {exc}") from exc
+        raise GateError(f"cad_mesh_recovery_census output is not JSON: {exc}") from exc
 
 
 def collect_cylinder_regions_from_dump(doc: Mapping[str, Any]) -> List[Dict[str, Any]]:
@@ -635,13 +635,13 @@ def run_measure(args: argparse.Namespace) -> int:
     prg = _load_prg()
     binary = args.binary.resolve()
     if not binary.is_file():
-        raise GateError(f"stl2step binary missing: {binary}")
+        raise GateError(f"cad_mesh_recovery binary missing: {binary}")
     census_bin = args.census.resolve()
     dump_bin = args.dump.resolve()
     if not census_bin.is_file():
-        raise GateError(f"stl2step_census missing: {census_bin}")
+        raise GateError(f"cad_mesh_recovery_census missing: {census_bin}")
     if not dump_bin.is_file():
-        raise GateError(f"stl2step_regiondump missing: {dump_bin}")
+        raise GateError(f"cad_mesh_recovery_regiondump missing: {dump_bin}")
     corpus = args.corpus.resolve()
     parts = discover_gated_parts(corpus)
     if not parts:
@@ -696,13 +696,13 @@ def run_gate(args: argparse.Namespace) -> int:
     prg = _load_prg()
     binary = args.binary.resolve()
     if not binary.is_file():
-        raise GateError(f"stl2step binary missing: {binary}")
+        raise GateError(f"cad_mesh_recovery binary missing: {binary}")
     census_bin = args.census.resolve()
     dump_bin = args.dump.resolve()
     if not census_bin.is_file():
-        raise GateError(f"stl2step_census missing: {census_bin}")
+        raise GateError(f"cad_mesh_recovery_census missing: {census_bin}")
     if not dump_bin.is_file():
-        raise GateError(f"stl2step_regiondump missing: {dump_bin}")
+        raise GateError(f"cad_mesh_recovery_regiondump missing: {dump_bin}")
     baseline = load_baseline(args.baseline.resolve())
     corpus = args.corpus.resolve()
     part_ids = sorted(baseline["parts"].keys())
@@ -950,19 +950,19 @@ def _self_test() -> int:
 
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    p.add_argument("--binary", type=Path, help="stl2step CLI")
+    p.add_argument("--binary", type=Path, help="cad_mesh_recovery CLI")
     p.add_argument("--baseline", type=Path, default=DEFAULT_BASELINE)
     p.add_argument("--corpus", type=Path, default=CORPUS)
     p.add_argument("--jobs", type=int, default=4)
     p.add_argument(
         "--census",
         type=Path,
-        help="stl2step_census witness (default: beside --binary)",
+        help="cad_mesh_recovery_census witness (default: beside --binary)",
     )
     p.add_argument(
         "--dump",
         type=Path,
-        help="stl2step_regiondump (default: beside --binary)",
+        help="cad_mesh_recovery_regiondump (default: beside --binary)",
     )
     p.add_argument(
         "--engine-ref",
@@ -979,9 +979,9 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     if args.binary is not None:
         binary = args.binary.resolve()
         if args.census is None:
-            args.census = sibling_bin(binary, "stl2step_census")
+            args.census = sibling_bin(binary, "cad_mesh_recovery_census")
         if args.dump is None:
-            args.dump = sibling_bin(binary, "stl2step_regiondump")
+            args.dump = sibling_bin(binary, "cad_mesh_recovery_regiondump")
     return args
 
 

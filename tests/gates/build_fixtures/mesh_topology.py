@@ -183,7 +183,7 @@ class Component:
 
 def write_binary_stl(path: str, pts: Sequence[Vec3], tris: Sequence[Tri]) -> None:
     with open(path, "wb") as f:
-        header = b"stl2step build_fixtures" + b"\0" * (80 - 23)
+        header = b"cad_mesh_recovery build_fixtures" + b"\0" * (80 - 23)
         f.write(header[:80])
         f.write(struct.pack("<I", len(tris)))
         for tri in tris:

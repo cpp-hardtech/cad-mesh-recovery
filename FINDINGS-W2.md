@@ -56,7 +56,7 @@ to faceted rims inside a closed shell.
 
 ## Body10 / Body12 intel (Lane I repros, no fixes)
 
-Path: `$STL2STEP_PRIVATE_CORPUS`.
+Path: `$CAD_MESH_RECOVERY_PRIVATE_CORPUS`.
 
 | Part | mode | facesAfterUnify | facesAfterSmooth | built | revert | watertight | volΔ% |
 |------|------|-----------------|------------------|-------|--------|------------|-------|

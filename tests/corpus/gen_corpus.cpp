@@ -1,4 +1,4 @@
-// Synthetic STL corpus generator for stl2step smooth-feature acceptance gates.
+// Synthetic STL corpus generator for cad_mesh_recovery smooth-feature acceptance gates.
 // SPDX-License-Identifier: MIT
 
 #include "corpus_util.hpp"
@@ -479,7 +479,7 @@ bool writeFixture(const fs::path& dir, const FixtureResult& fx) {
     if (isPinnedCorpusFixture(fx.sidecar.id) && fs::exists(stlPath) && fs::exists(jsonPath)) {
         return true;
     }
-    const std::string label = ("stl2step corpus " + fx.sidecar.id).substr(0, 79);
+    const std::string label = ("cad_mesh_recovery corpus " + fx.sidecar.id).substr(0, 79);
     if (!writeBinaryStl(stlPath.string(), fx.mesh, label.c_str())) return false;
     if (!writeTextFile(jsonPath.string(), writeSidecarJson(fx.sidecar))) return false;
     // D-140-1(7): exact STEP when fixture carries a non-null exact BRep. Generated,
@@ -1965,7 +1965,7 @@ FixtureResult buildS21RimOffplane() {
     const double bboxDiag =
         std::sqrt((xmax - xmin) * (xmax - xmin) + (ymax - ymin) * (ymax - ymin) +
                   (zmax - zmin) * (zmax - zmin));
-    // stl2step.cpp sewTol = min(max(1e-6, diag * 1e-5), 0.5). Same expression.
+    // cad_mesh_recovery.cpp sewTol = min(max(1e-6, diag * 1e-5), 0.5). Same expression.
     const double sewTol = std::min(std::max(1e-6, bboxDiag * 1e-5), 0.5);
     std::vector<int> top;
     for (int i = 0; i < (int)out.mesh.verts.size(); i++) {

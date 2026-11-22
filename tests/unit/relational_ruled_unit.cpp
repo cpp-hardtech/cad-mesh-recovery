@@ -6,7 +6,7 @@
 
 #include "posix_compat.hpp"
 #include "refit_relational_ruled.hpp"
-#include "stl2step/stl2step.hpp"
+#include "cad_mesh_recovery/cad_mesh_recovery.hpp"
 
 #include <algorithm>
 #include <array>
@@ -21,7 +21,7 @@
 #include <utility>
 #include <vector>
 
-using namespace stl2step::refit;
+using namespace cad_mesh_recovery::refit;
 
 static int gFail = 0;
 
@@ -461,13 +461,13 @@ static void endToEnd(const std::string& dir) {
             f.write(reinterpret_cast<const char*>(&attr), 2);
         }
     }
-    stl2step::Options opt;
+    cad_mesh_recovery::Options opt;
     opt.input = stl;
     opt.output = step;
     opt.smooth = true;
     opt.verify = true;
     opt.threads = 1;
-    const stl2step::Result r = stl2step::convert(opt);
+    const cad_mesh_recovery::Result r = cad_mesh_recovery::convert(opt);
     std::fprintf(stderr,
                  "e2e ok=%d solids=%d reverted=%d mesh=%.9f step=%.9f pred=%.9f dPct=%.6g "
                  "faces=%d\n",
@@ -522,13 +522,13 @@ static void endToEndBump(const std::string& dir) {
             f.write(reinterpret_cast<const char*>(&attr), 2);
         }
     }
-    stl2step::Options opt;
+    cad_mesh_recovery::Options opt;
     opt.input = stl;
     opt.output = step;
     opt.smooth = true;
     opt.verify = true;
     opt.threads = 1;
-    const stl2step::Result r = stl2step::convert(opt);
+    const cad_mesh_recovery::Result r = cad_mesh_recovery::convert(opt);
     std::fprintf(stderr,
                  "e2e-bump ok=%d solids=%d reverted=%d faces=%d maxDev=%.6g mesh=%.6f step=%.6f "
                  "pred=%.6f\n",

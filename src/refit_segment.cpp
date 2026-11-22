@@ -14,7 +14,7 @@
 #include "refit_internal.hpp"
 #include "parallel.hpp"
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 
 // Landed by sibling agents; declared here so runStages can wire them without
@@ -199,7 +199,7 @@ bool runTorusStages(const MeshView& mv, const SegmentParams& p, const DerivedTol
     // actually reached the RegionSet, so the stage-L number (taken from the A2
     // provisionals, which is where the absorb needs it) can be compared with the
     // set the decision names rather than assumed equal to it.
-    if (const char* lb = std::getenv("STL2STEP_LAWBAND_DIAG"); lb && lb[0] && lb[0] != '0') {
+    if (const char* lb = std::getenv("CAD_MESH_RECOVERY_LAWBAND_DIAG"); lb && lb[0] && lb[0] != '0') {
         std::vector<double> devs;
         for (const Region& r : out.regions)
             if (r.type == SurfType::Plane && std::isfinite(r.maxVertexDev))
@@ -211,7 +211,7 @@ bool runTorusStages(const MeshView& mv, const SegmentParams& p, const DerivedTol
                      devs.empty() ? 0.0 : devs[devs.size() / 2]);
     }
 
-    if (const char* d130 = std::getenv("STL2STEP_DIAG_130"); d130 && d130[0] && d130[0] != '0') {
+    if (const char* d130 = std::getenv("CAD_MESH_RECOVERY_DIAG_130"); d130 && d130[0] && d130[0] != '0') {
         int nNgon = 0, nCone = 0, nCyl = 0, nPl = 0, nFil = 0, nTorus = 0, nTorBlend = 0;
         for (const Region& r : out.regions) {
             if (r.origin == Origin::NgonWall) nNgon++;
@@ -362,4 +362,4 @@ bool resegmentTorus(const MeshView& mv, const SegmentParams& p, const RegionSet&
 }
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery

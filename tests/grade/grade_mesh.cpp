@@ -285,7 +285,7 @@ int Mesh::nearestVert(const Vec3& p, double maxDist) const {
 bool loadStl(const std::string& path, Mesh& mesh, std::string& err) {
     mesh = Mesh{};
     mesh.path = path;
-    mesh.qf = stl2step::stlQuantFloor(path);
+    mesh.qf = cad_mesh_recovery::stlQuantFloor(path);
     if (!mesh.qf.ok || !(mesh.qf.q > 0.0)) {
         err = "q is 0 (unreadable STL or no coordinates)";
         return false;

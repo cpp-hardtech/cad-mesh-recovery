@@ -38,7 +38,7 @@ validity and trigger R1 uncollapse of every shared partial.
 3. **`partialFaceTolCap`** — face tolerance from measured `chordSagitta` when `nSides>0`.
 4. **UV-trimmed sheet** — `Geom_RectangularTrimmedSurface` + `makeFaceBound` retry with
    `rebindCirclePCurvesOnWire`; try reversed outer wire.
-5. **`STL2STEP_COLLAPSE_DIAG`** — `DIAG_PARTIAL rid=N maxCylDev cap valid st=…` inventory.
+5. **`CAD_MESH_RECOVERY_COLLAPSE_DIAG`** — `DIAG_PARTIAL rid=N maxCylDev cap valid st=…` inventory.
 
 ## Per-rid partial-cylinder inventory (handle-lock, 16 recognized)
 
@@ -67,7 +67,7 @@ among rid **14 / 19 / 20 / 23** — census stays at 1 cylinder until those four 
 ## Proof (macOS arm64, this worktree)
 
 ```sh
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DSTL2STEP_BUILD_TESTS=ON
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCAD_MESH_RECOVERY_BUILD_TESTS=ON
 cmake --build build -j 8
 ctest --test-dir build                    # 27/27 pass (2026-08-27)
 ```
@@ -75,8 +75,8 @@ ctest --test-dir build                    # 27/27 pass (2026-08-27)
 ### Handle-lock RESULT + census
 
 ```sh
-export STL2STEP_COLLAPSE_DIAG=1
-./build/stl2step tests/diag/handle-lock/handle-lock.stl \
+export CAD_MESH_RECOVERY_COLLAPSE_DIAG=1
+./build/cad_mesh_recovery tests/diag/handle-lock/handle-lock.stl \
   -o /tmp/hl-pf.step --engine trueform --quiet
 python3 tests/tools/step_census.py /tmp/hl-pf.step
 ```
@@ -101,7 +101,7 @@ Census: surfaces.cylinder=1  radii=[5.750001]   (GT: 15 cyl, 13 planes)
 ### Body12 digest (unchanged vs CYLEDGES scope)
 
 ```sh
-./build/stl2step "$STL2STEP_PRIVATE_CORPUS/Body12.stl" \
+./build/cad_mesh_recovery "$CAD_MESH_RECOVERY_PRIVATE_CORPUS/Body12.stl" \
   -o /tmp/b12-pf.step --engine trueform --quiet
 shasum -a 256 /tmp/b12-pf.step
 # 70c721d503f2af723d1397b2e6e001dd748da43b6e4dae747e5a25b1c8af68d1

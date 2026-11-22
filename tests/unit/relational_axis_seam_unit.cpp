@@ -64,7 +64,7 @@
 #include <TColgp_HArray1OfPnt2d.hxx>
 #include <gp_Cylinder.hxx>
 
-using namespace stl2step::refit;
+using namespace cad_mesh_recovery::refit;
 
 static int gFail = 0;
 

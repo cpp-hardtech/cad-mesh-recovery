@@ -2,8 +2,8 @@
 // Every threshold is tau = 2q or a count of parameters (D-fc-1.6).
 // SPDX-License-Identifier: MIT
 
-#ifndef STL2STEP_REFIT_RELATIONAL_SPHERE_HPP
-#define STL2STEP_REFIT_RELATIONAL_SPHERE_HPP
+#ifndef CAD_MESH_RECOVERY_REFIT_RELATIONAL_SPHERE_HPP
+#define CAD_MESH_RECOVERY_REFIT_RELATIONAL_SPHERE_HPP
 
 #include <gp_Ax3.hxx>
 #include <gp_XYZ.hxx>
@@ -12,7 +12,7 @@
 #include <cmath>
 #include <vector>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 
 // D-fc-5.11 F8. A sphere has four parameters (centre and radius). At a corner
@@ -190,6 +190,6 @@ SphereIsoLine sphereIsoLineOf(const gp_XYZ& centre, double r, const gp_XYZ& sx, 
                               const gp_XYZ& yc, double tMid);
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery
 
-#endif  // STL2STEP_REFIT_RELATIONAL_SPHERE_HPP
+#endif  // CAD_MESH_RECOVERY_REFIT_RELATIONAL_SPHERE_HPP

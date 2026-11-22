@@ -19,7 +19,7 @@
 #include <gp_Pnt.hxx>
 #include <gp_XYZ.hxx>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 namespace {
 
@@ -55,15 +55,15 @@ double linTol(const MeshView& mv, const DerivedTols& tol) {
 }
 
 bool diagOn() {
-    const char* e = std::getenv("STL2STEP_LAWBAND_DIAG");
+    const char* e = std::getenv("CAD_MESH_RECOVERY_LAWBAND_DIAG");
     return e && e[0] == '1' && e[1] == '\0';
 }
 
 // Every virtual-generator ATTEMPT and the named reason it was refused. Its own
 // switch: the seed sweep tries thousands of triples, so this is a probe, not
-// part of STL2STEP_LAWBAND_DIAG's per-band census.
+// part of CAD_MESH_RECOVERY_LAWBAND_DIAG's per-band census.
 bool vgenDiagOn() {
-    const char* e = std::getenv("STL2STEP_LAWVGEN_DIAG");
+    const char* e = std::getenv("CAD_MESH_RECOVERY_LAWVGEN_DIAG");
     return e && e[0] == '1' && e[1] == '\0';
 }
 
@@ -1413,4 +1413,4 @@ shared:
 }
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery

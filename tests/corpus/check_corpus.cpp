@@ -269,7 +269,7 @@ int parseSidecarComponentDegens(const std::string& text, int index) {
 
 int main(int argc, char** argv) {
     if (argc < 2) {
-        std::cerr << "usage: stl2step_corpus_check <corpus-dir>\n";
+        std::cerr << "usage: cad_mesh_recovery_corpus_check <corpus-dir>\n";
         return 2;
     }
     const fs::path dir(argv[1]);

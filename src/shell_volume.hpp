@@ -7,17 +7,17 @@
 // by the same makeSolids step as the off-path (Verbatim) solid.
 // SPDX-License-Identifier: MIT
 
-#ifndef STL2STEP_SHELL_VOLUME_HPP
-#define STL2STEP_SHELL_VOLUME_HPP
+#ifndef CAD_MESH_RECOVERY_SHELL_VOLUME_HPP
+#define CAD_MESH_RECOVERY_SHELL_VOLUME_HPP
 
 #include <cmath>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 
 inline bool shellMagnitudesAgree(double shellVol, double meshAbs, double budget) {
     return !(std::fabs(std::fabs(shellVol) - std::fabs(meshAbs)) > budget);
 }
 
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery
 
 #endif

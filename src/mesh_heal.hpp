@@ -1,17 +1,17 @@
-// stl2step — mesh-level stitch of open boundaries (D-fc-5.10).
+// cad_mesh_recovery — mesh-level stitch of open boundaries (D-fc-5.10).
 //
-// Defined in stl2step.cpp next to absorbZeroAreaTJunctions; declared here so
+// Defined in cad_mesh_recovery.cpp next to absorbZeroAreaTJunctions; declared here so
 // tests/unit/heal_open_boundaries_unit.cpp can drive it on synthetic meshes.
 //
 // SPDX-License-Identifier: MIT
 
-#ifndef STL2STEP_MESH_HEAL_HPP
-#define STL2STEP_MESH_HEAL_HPP
+#ifndef CAD_MESH_RECOVERY_MESH_HEAL_HPP
+#define CAD_MESH_RECOVERY_MESH_HEAL_HPP
 
 #include <array>
 #include <vector>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace detail {
 
 struct HealStats {
@@ -37,6 +37,6 @@ HealStats healOpenBoundaries(std::vector<std::array<int, 3>>& tris,
                              double quantFloor, double sewTol, bool diag);
 
 }  // namespace detail
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery
 
 #endif

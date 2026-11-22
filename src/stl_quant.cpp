@@ -33,7 +33,7 @@
 #include <string>
 #include <vector>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace {
 
 // sqrt(3)/2 — three independent half-ulp axis roundings, as a radius.
@@ -178,4 +178,4 @@ StlQuantFloor stlQuantFloor(const std::string& path) {
     return out;
 }
 
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery

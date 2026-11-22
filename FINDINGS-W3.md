@@ -25,10 +25,10 @@ Clean merges (no conflict resolution needed):
 ## handle-lock proof
 
 ```sh
-./build/stl2step tests/diag/handle-lock/handle-lock.stl \
+./build/cad_mesh_recovery tests/diag/handle-lock/handle-lock.stl \
   -o /tmp/hl-w3.step --engine trueform --no-verify --quiet
 python3 tests/tools/step_census.py /tmp/hl-w3.step
-./build/stl2step_regiondump tests/diag/handle-lock/handle-lock.stl --diag
+./build/cad_mesh_recovery_regiondump tests/diag/handle-lock/handle-lock.stl --diag
 ```
 
 ```
@@ -64,11 +64,11 @@ Phantom R≈27 / R≈40 segments are gone. One extra ~16 mm face vs GT ideal (16
 | Gate | Location | Effect |
 |------|----------|--------|
 | Per-face `faceIsValid` | `refit_build.cpp` `buildPartialCylinder` | Every kept partial must pass `BRepCheck_Analyzer` on the face before `builtAs=Single` |
-| `BRep_Tool::IsClosed(probe)` | `stl2step.cpp` probe | Waiver never runs on open shells |
+| `BRep_Tool::IsClosed(probe)` | `cad_mesh_recovery.cpp` probe | Waiver never runs on open shells |
 | `keepValidPartials` | `refit_build.cpp` J6 recover | Skips blanket partial explode when closed + all partials built analytic in coarse band |
-| Probe waiver | `stl2step.cpp` | Accepts closed probe when `nPartial≥10` despite whole-shell `BRepCheck` fail |
+| Probe waiver | `cad_mesh_recovery.cpp` | Accepts closed probe when `nPartial≥10` despite whole-shell `BRepCheck` fail |
 
-**Positive control:** intact handle-lock → `stl2step_census` reports `valid=true`, `closed=true`, 25 faces, 16 cylinders.
+**Positive control:** intact handle-lock → `cad_mesh_recovery_census` reports `valid=true`, `closed=true`, 25 faces, 16 cylinders.
 
 **Negative test:** `tests/diag/handle-lock/waiver_audit.py` deletes all triangles in partial region rid=16 (15 mm bore, 14 tris). Result: `smoothBuiltCylinders=0`, `openShells=1`, `watertight=false` — waiver does **not** rescue. Probe path requires `IsClosed`; broken mesh fails first.
 

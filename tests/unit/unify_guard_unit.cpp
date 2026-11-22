@@ -24,7 +24,7 @@
 #include <cstdio>
 #include <vector>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace detail {
 int countFreeEdges(const TopoDS_Shape& shape);
 std::vector<TopoDS_Face> facesRemovedWithoutImage(
@@ -118,11 +118,11 @@ static std::vector<TopoDS_Face> boxTriangles(bool sliver) {
 }
 
 int main() {
-    using stl2step::detail::countFreeEdges;
-    using stl2step::detail::facesRemovedWithoutImage;
-    using stl2step::detail::keepIfFreeEdgesNotIncreased;
-    using stl2step::detail::tallyWrittenBodies;
-    using stl2step::detail::unifySameDomainGuarded;
+    using cad_mesh_recovery::detail::countFreeEdges;
+    using cad_mesh_recovery::detail::facesRemovedWithoutImage;
+    using cad_mesh_recovery::detail::keepIfFreeEdgesNotIncreased;
+    using cad_mesh_recovery::detail::tallyWrittenBodies;
+    using cad_mesh_recovery::detail::unifySameDomainGuarded;
 
     TopoDS_Shape box = BRepPrimAPI_MakeBox(10.0, 10.0, 10.0).Solid();
     expect(countFreeEdges(box) == 0, "box-free-edges-0");

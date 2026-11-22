@@ -1,4 +1,4 @@
-// stl2step ellipse math — the closed forms behind the ELLIPSE bind class
+// cad_mesh_recovery ellipse math — the closed forms behind the ELLIPSE bind class
 // (lane ellipse-math, SPEC-ellipse PART A, D-140-9 §2; D-130-2, D-S3-111).
 //
 // The third instance of the 130-CONE-MATH / 140-torus-math shape: a pure gp_
@@ -31,8 +31,8 @@
 //
 // SPDX-License-Identifier: MIT
 
-#ifndef STL2STEP_REFIT_ELLIPSE_MATH_HPP
-#define STL2STEP_REFIT_ELLIPSE_MATH_HPP
+#ifndef CAD_MESH_RECOVERY_REFIT_ELLIPSE_MATH_HPP
+#define CAD_MESH_RECOVERY_REFIT_ELLIPSE_MATH_HPP
 
 #include <cstdint>
 
@@ -44,7 +44,7 @@
 #include <gp_Pnt.hxx>
 #include <gp_Vec.hxx>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 
 // ---------------------------------------------------------------------------
@@ -271,6 +271,6 @@ double ellipseChebyshevRemainder(double lambda, double H, int degree);
 double ellipseChebyshevLebesgue(int degree);
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery
 
-#endif  // STL2STEP_REFIT_ELLIPSE_MATH_HPP
+#endif  // CAD_MESH_RECOVERY_REFIT_ELLIPSE_MATH_HPP

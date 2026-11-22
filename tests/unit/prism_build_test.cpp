@@ -1,7 +1,7 @@
 // AC3-P3 — exercise buildPrismSolid / Stage-P routing (SPEC C1-C10, C16).
 // SPDX-License-Identifier: MIT
 
-#include <stl2step/stl2step.hpp>
+#include <cad_mesh_recovery/cad_mesh_recovery.hpp>
 
 #include "mesh_harness.hpp"
 #include "mesh_harness_refit.hpp"
@@ -44,27 +44,27 @@
 #include <gp_Pnt2d.hxx>
 #include <gp_XYZ.hxx>
 
-using stl2step::harness::HarnessMesh;
-using stl2step::harness::loadMesh;
-using stl2step::harness::toMeshView;
-using stl2step::refit::MeshView;
-using stl2step::refit::PrismLevels;
-using stl2step::refit::PrismTols;
-using stl2step::refit::ProfLoop;
-using stl2step::refit::ProfSeg;
-using stl2step::refit::Profile;
-using stl2step::refit::Region;
-using stl2step::refit::RegionSet;
-using stl2step::refit::SegmentParams;
-using stl2step::refit::SurfType;
-using stl2step::refit::buildFaces;
-using stl2step::refit::buildPrismSolid;
-using stl2step::refit::detectPrismatic;
-using stl2step::refit::fitProfile;
-using stl2step::refit::segment;
-using stl2step::refit::sliceProfiles;
+using cad_mesh_recovery::harness::HarnessMesh;
+using cad_mesh_recovery::harness::loadMesh;
+using cad_mesh_recovery::harness::toMeshView;
+using cad_mesh_recovery::refit::MeshView;
+using cad_mesh_recovery::refit::PrismLevels;
+using cad_mesh_recovery::refit::PrismTols;
+using cad_mesh_recovery::refit::ProfLoop;
+using cad_mesh_recovery::refit::ProfSeg;
+using cad_mesh_recovery::refit::Profile;
+using cad_mesh_recovery::refit::Region;
+using cad_mesh_recovery::refit::RegionSet;
+using cad_mesh_recovery::refit::SegmentParams;
+using cad_mesh_recovery::refit::SurfType;
+using cad_mesh_recovery::refit::buildFaces;
+using cad_mesh_recovery::refit::buildPrismSolid;
+using cad_mesh_recovery::refit::detectPrismatic;
+using cad_mesh_recovery::refit::fitProfile;
+using cad_mesh_recovery::refit::segment;
+using cad_mesh_recovery::refit::sliceProfiles;
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 void derivePrismTols(const MeshView& mv, const RegionSet& rs, PrismTols& t);
 void prismBindSketchOrigin(const gp_XYZ& o);
@@ -73,7 +73,7 @@ bool prismStagePUsed();
 int prismPlatePathHits();
 int prismLastReverted();
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery
 
 static int gFail = 0;
 
@@ -322,8 +322,8 @@ int main(int argc, char** argv) {
 
     // Synthetic API: two stacked squares (union of axially disjoint prisms).
     {
-        stl2step::refit::prismResetStageFlags();
-        stl2step::refit::prismBindSketchOrigin(gp_XYZ(0, 0, 0));
+        cad_mesh_recovery::refit::prismResetStageFlags();
+        cad_mesh_recovery::refit::prismBindSketchOrigin(gp_XYZ(0, 0, 0));
         PrismLevels lv;
         lv.ok = true;
         lv.axis = gp_Dir(0, 0, 1);
@@ -369,7 +369,7 @@ int main(int argc, char** argv) {
     }
 
     PrismTols tol;
-    stl2step::refit::derivePrismTols(mv, rs, tol);
+    cad_mesh_recovery::refit::derivePrismTols(mv, rs, tol);
     const PrismLevels lv = detectPrismatic(mv, rs, tol);
     check(lv.ok, "detect_ok");
     check(lv.y.size() == 3, "C3_three_levels");
@@ -399,7 +399,7 @@ int main(int argc, char** argv) {
         for (const Region& r : rs.regions)
             if (r.id == lv.capRegion[0]) origin = r.ax.Location().XYZ();
     }
-    stl2step::refit::prismBindSketchOrigin(origin);
+    cad_mesh_recovery::refit::prismBindSketchOrigin(origin);
 
     for (const Profile& p : profs) {
         std::fprintf(stderr, "prof slab=%d loops=%zu\n", p.slab, p.loops.size());
@@ -433,13 +433,13 @@ int main(int argc, char** argv) {
 
     // D10: pin the shipped artifact (convert + host unify), not the pre-unify API solid.
     // temp_directory_path(): /tmp is not a writable dir on MSVC/Windows.
-    stl2step::Options optPin;
+    cad_mesh_recovery::Options optPin;
     optPin.input = stl;
     optPin.output =
-        (std::filesystem::temp_directory_path() / "stl2step-p3-r3-api.step").string();
+        (std::filesystem::temp_directory_path() / "cad_mesh_recovery-p3-r3-api.step").string();
     optPin.smooth = true;
     optPin.verify = true;
-    const stl2step::Result r = stl2step::convert(optPin);
+    const cad_mesh_recovery::Result r = cad_mesh_recovery::convert(optPin);
     std::fprintf(stderr,
                  "convert ok=%d wt=%d open=%d volΔ=%.6f mesh=%.6f step=%.6f warn=%zu\n",
                  (int)r.ok, (int)r.watertight, r.openShells, r.volumeDeltaPct,
@@ -553,7 +553,7 @@ int main(int argc, char** argv) {
 
     // C9 — buildFaces Stage-P path does not set BuiltAs (plate/cascade not entered).
     {
-        stl2step::refit::prismResetStageFlags();
+        cad_mesh_recovery::refit::prismResetStageFlags();
         std::vector<TopoDS_Vertex> verts(mv.nVtx);
         BRep_Builder bb;
         for (size_t i = 0; i < mv.nVtx; ++i) {
@@ -564,22 +564,22 @@ int main(int argc, char** argv) {
         std::vector<TopoDS_Face> faces;
         const bool ok = buildFaces(mv, rs2, verts, faces, nullptr);
         check(ok && !faces.empty(), "C9_buildFaces");
-        check(stl2step::refit::prismStagePUsed(), "C9_stageP_used");
-        check(stl2step::refit::prismPlatePathHits() == 0, "C9_plate_not_called");
-        check(stl2step::refit::prismLastReverted() == 0, "C9_not_reverted");
+        check(cad_mesh_recovery::refit::prismStagePUsed(), "C9_stageP_used");
+        check(cad_mesh_recovery::refit::prismPlatePathHits() == 0, "C9_plate_not_called");
+        check(cad_mesh_recovery::refit::prismLastReverted() == 0, "C9_not_reverted");
         int nBuilt = 0;
         for (const Region& r : rs2.regions)
-            if (r.builtAs != stl2step::refit::BuiltAs::NotBuilt) ++nBuilt;
+            if (r.builtAs != cad_mesh_recovery::refit::BuiltAs::NotBuilt) ++nBuilt;
         check(nBuilt == 0, "C9_builtAs_untouched");
         std::fprintf(stderr, "C9 faces=%zu stageP=%d plate=%d builtAs=%d\n", faces.size(),
-                     (int)stl2step::refit::prismStagePUsed(),
-                     stl2step::refit::prismPlatePathHits(), nBuilt);
+                     (int)cad_mesh_recovery::refit::prismStagePUsed(),
+                     cad_mesh_recovery::refit::prismPlatePathHits(), nBuilt);
     }
 
     // C10 — injected bad profile reverts (Stage P not consumed).
     {
-        stl2step::refit::prismResetStageFlags();
-        ::setenv("STL2STEP_PRISM_INJECT_BAD", "1", 1);
+        cad_mesh_recovery::refit::prismResetStageFlags();
+        ::setenv("CAD_MESH_RECOVERY_PRISM_INJECT_BAD", "1", 1);
         std::vector<TopoDS_Vertex> verts(mv.nVtx);
         BRep_Builder bb;
         for (size_t i = 0; i < mv.nVtx; ++i) {
@@ -589,13 +589,13 @@ int main(int argc, char** argv) {
         RegionSet rs3 = rs;
         std::vector<TopoDS_Face> faces;
         const bool ok = buildFaces(mv, rs3, verts, faces, nullptr);
-        ::unsetenv("STL2STEP_PRISM_INJECT_BAD");
+        ::unsetenv("CAD_MESH_RECOVERY_PRISM_INJECT_BAD");
         check(ok || !ok, "C10_legacy_ran");
-        check(!stl2step::refit::prismStagePUsed(), "C10_stageP_not_used");
-        check(stl2step::refit::prismLastReverted() == 1, "C10_reverted_flag");
+        check(!cad_mesh_recovery::refit::prismStagePUsed(), "C10_stageP_not_used");
+        check(cad_mesh_recovery::refit::prismLastReverted() == 1, "C10_reverted_flag");
         std::fprintf(stderr, "C10 ok=%d stageP=%d reverted=%d faces=%zu\n", (int)ok,
-                     (int)stl2step::refit::prismStagePUsed(),
-                     stl2step::refit::prismLastReverted(), faces.size());
+                     (int)cad_mesh_recovery::refit::prismStagePUsed(),
+                     cad_mesh_recovery::refit::prismLastReverted(), faces.size());
     }
 
     std::fprintf(stderr, "SUMMARY fail=%d parked=%d\n", gFail, g_parked);

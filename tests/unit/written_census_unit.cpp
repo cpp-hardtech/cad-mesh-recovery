@@ -28,15 +28,15 @@
 #include <cstdio>
 #include <vector>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace detail {
 TopoDS_Shape unifySameDomainGuarded(const TopoDS_Shape& shape, double angleDeg,
                                     const std::vector<TopoDS_Face>* keep,
                                     Handle(BRepTools_History)& histOut);
 }
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery
 
-using namespace stl2step::detail;
+using namespace cad_mesh_recovery::detail;
 
 static int gFail = 0;
 
@@ -221,16 +221,16 @@ int main() {
         }
         built.push_back(lateral);  // index 6
         built.push_back(lateral);  // index 7
-        stl2step::refit::RegionSet rs;
-        auto region = [](int id, stl2step::refit::SurfType t, stl2step::refit::Origin o) {
-            stl2step::refit::Region r{};
+        cad_mesh_recovery::refit::RegionSet rs;
+        auto region = [](int id, cad_mesh_recovery::refit::SurfType t, cad_mesh_recovery::refit::Origin o) {
+            cad_mesh_recovery::refit::Region r{};
             r.id = id;
             r.type = t;
             r.origin = o;
             return r;
         };
-        using stl2step::refit::Origin;
-        using stl2step::refit::SurfType;
+        using cad_mesh_recovery::refit::Origin;
+        using cad_mesh_recovery::refit::SurfType;
         rs.regions.push_back(region(0, SurfType::Plane, Origin::PlaneGrow));
         rs.regions.push_back(region(1, SurfType::Cylinder, Origin::CylGrow));
         rs.regions.push_back(region(2, SurfType::Cylinder, Origin::FilletStrip));

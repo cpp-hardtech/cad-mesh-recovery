@@ -57,7 +57,7 @@
 #include <gp_Vec.hxx>
 #include <gp_XYZ.hxx>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 
 void prismBindSketchOrigin(const gp_XYZ& o);
@@ -83,7 +83,7 @@ thread_local int tUnifyG2 = 1, tUnifyG4 = 1;
 
 void failAt(const char* why) {
     tFail = why;
-    const char* e = std::getenv("STL2STEP_PRISM_DIAG");
+    const char* e = std::getenv("CAD_MESH_RECOVERY_PRISM_DIAG");
     if (e && e[0] && e[0] != '0')
         std::fprintf(stderr, "DIAG_PRISMBUILD fail=%s\n", why);
 }
@@ -93,7 +93,7 @@ std::atomic<int> gPlateHits{0};
 std::atomic<int> gLastReverted{0};
 
 bool prismDiagOn() {
-    const char* e = std::getenv("STL2STEP_PRISM_DIAG");
+    const char* e = std::getenv("CAD_MESH_RECOVERY_PRISM_DIAG");
     return e && e[0] && e[0] != '0';
 }
 
@@ -1039,7 +1039,7 @@ bool tryStageP(const MeshView& mv, RegionSet& rs, std::vector<TopoDS_Face>& out)
                 (void)writeProfileDxf(prof, lv, path);
             }
         }
-        const char* inj = std::getenv("STL2STEP_PRISM_INJECT_BAD");
+        const char* inj = std::getenv("CAD_MESH_RECOVERY_PRISM_INJECT_BAD");
         if (ready && inj && inj[0] && inj[0] != '0') {
             if (!profs.empty() && profs[0].loops.size() > 1)
                 profs[0].loops.resize(1);
@@ -1181,4 +1181,4 @@ bool tryStageP(const MeshView& mv, RegionSet& rs, std::vector<TopoDS_Face>& out)
 }
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery

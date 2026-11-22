@@ -1,4 +1,4 @@
-// stl2step ellipse math — the closed forms behind the 1.4.0 ELLIPSE bind class
+// cad_mesh_recovery ellipse math — the closed forms behind the 1.4.0 ELLIPSE bind class
 // (lane ellipse-math, SPEC-ellipse PART A, D-140-9 §2).  Signatures and the
 // derivations are published in src/refit_ellipse_math.hpp; the proofs and the
 // unit table are in _team/reports/ellipse-math.md.
@@ -43,7 +43,7 @@
 #include <gp_Vec.hxx>
 #include <gp_XYZ.hxx>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 
 const char* const kEllipseClausePlaneParam = "unhandled-ellipse-plane-param";
@@ -594,4 +594,4 @@ double ellipseOnCylMax(const gp_Cylinder& cyl, const gp_Elips& el, double f, dou
 }
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery

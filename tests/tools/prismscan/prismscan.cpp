@@ -26,19 +26,19 @@
 #include <dirent.h>
 #endif
 
-using stl2step::harness::HarnessMesh;
-using stl2step::harness::loadMesh;
-using stl2step::harness::toMeshView;
-using stl2step::refit::MeshView;
-using stl2step::refit::PrismLevels;
-using stl2step::refit::PrismTols;
-using stl2step::refit::Region;
-using stl2step::refit::RegionSet;
-using stl2step::refit::SegmentParams;
-using stl2step::refit::SurfType;
-using stl2step::refit::detectPrismatic;
+using cad_mesh_recovery::harness::HarnessMesh;
+using cad_mesh_recovery::harness::loadMesh;
+using cad_mesh_recovery::harness::toMeshView;
+using cad_mesh_recovery::refit::MeshView;
+using cad_mesh_recovery::refit::PrismLevels;
+using cad_mesh_recovery::refit::PrismTols;
+using cad_mesh_recovery::refit::Region;
+using cad_mesh_recovery::refit::RegionSet;
+using cad_mesh_recovery::refit::SegmentParams;
+using cad_mesh_recovery::refit::SurfType;
+using cad_mesh_recovery::refit::detectPrismatic;
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 void derivePrismTols(const MeshView& mv, const RegionSet& rs, PrismTols& t);
 }
@@ -156,17 +156,17 @@ CompRow scanComp(const HarnessMesh& mesh, size_t ci) {
     rs.compRoot = static_cast<int>(ci);
     if (!c.clean()) {
         PrismTols t;
-        stl2step::refit::derivePrismTols(mv, rs, t);
+        cad_mesh_recovery::refit::derivePrismTols(mv, rs, t);
         row.tauAx = t.tauAx;
         row.tauLvl = t.tauLvl;
         row.failedCond = 1;
         return row;
     }
     SegmentParams params;
-    (void)stl2step::refit::segment(mv, params, rs, nullptr);
+    (void)cad_mesh_recovery::refit::segment(mv, params, rs, nullptr);
     rs.compRoot = static_cast<int>(ci);
     PrismTols t;
-    stl2step::refit::derivePrismTols(mv, rs, t);
+    cad_mesh_recovery::refit::derivePrismTols(mv, rs, t);
     row.tauAx = t.tauAx;
     row.tauLvl = t.tauLvl;
     for (const Region& r : rs.regions)

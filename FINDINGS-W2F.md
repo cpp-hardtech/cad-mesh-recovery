@@ -30,25 +30,25 @@ exports (handle-lock @ 908 tris), not flagship real-CAD meshes.
 
 1. **Merged hl/H** (`e6f323e`, `4eda8b0`) — pinned S09 corpus + G0.3 S09 exit exemption
    (already satisfied; S09 G0.3 PASS retained).
-2. **Gate `smooth-flat`** in `src/stl2step.cpp` to `nTri ∈ [500, 1200]` (sync with
+2. **Gate `smooth-flat`** in `src/cad_mesh_recovery.cpp` to `nTri ∈ [500, 1200]` (sync with
    `coarseFusionBand` in `refit_internal.hpp`).
 
 ## Proof (post-fix, macOS arm64)
 
 ```sh
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DSTL2STEP_BUILD_TESTS=ON
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCAD_MESH_RECOVERY_BUILD_TESTS=ON
 cmake --build build -j 8
 ctest --test-dir build --output-on-failure   # 27/27
 
-./build/stl2step tests/corpus/Body11.stl -o /tmp/b11.step --quiet --smooth --no-verify
-./build/stl2step_census /tmp/b11.step
+./build/cad_mesh_recovery tests/corpus/Body11.stl -o /tmp/b11.step --quiet --smooth --no-verify
+./build/cad_mesh_recovery_census /tmp/b11.step
 # closed=true cylinder=127 openShells=0
 
-./build/stl2step tests/diag/handle-lock/handle-lock.stl -o /tmp/hl.step \
+./build/cad_mesh_recovery tests/diag/handle-lock/handle-lock.stl -o /tmp/hl.step \
   --engine trueform --quiet --no-verify
 # facesAfterUnify=137 watertight=true smoothRevertedComponents=0
 
 python3 tests/gates/run_gates.py --fixture Body11,Body28,cube --gate G0.3 \
-  --binary ./build/stl2step --corpus tests/corpus --no-verify
+  --binary ./build/cad_mesh_recovery --corpus tests/corpus --no-verify
 # G0.3 PASS on all three
 ```

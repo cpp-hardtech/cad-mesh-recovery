@@ -1,4 +1,4 @@
-// stl2step cone math — closed-form primitives for the 1.3.0 chamfer frustum.
+// cad_mesh_recovery cone math — closed-form primitives for the 1.3.0 chamfer frustum.
 //
 // SPEC-130-cone-math, lane 130-CONE-MATH.  Decisions in force:
 //   * D-130-2  an edge ships analytic only when the program computes, IN CLOSED
@@ -42,8 +42,8 @@
 //
 // SPDX-License-Identifier: MIT
 
-#ifndef STL2STEP_REFIT_CONE_MATH_HPP
-#define STL2STEP_REFIT_CONE_MATH_HPP
+#ifndef CAD_MESH_RECOVERY_REFIT_CONE_MATH_HPP
+#define CAD_MESH_RECOVERY_REFIT_CONE_MATH_HPP
 
 #include <cstdint>
 
@@ -55,7 +55,7 @@
 #include <gp_Pln.hxx>
 #include <gp_Pnt.hxx>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 
 // ---------------------------------------------------------------------------
@@ -295,6 +295,6 @@ double coneFrustumChordVolume(double R1, double R2, double height, int nSides);
 double coneFrustumDVolDensity(double rho, double R1, double R2, double height, int nSides);
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery
 
-#endif  // STL2STEP_REFIT_CONE_MATH_HPP
+#endif  // CAD_MESH_RECOVERY_REFIT_CONE_MATH_HPP

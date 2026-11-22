@@ -29,7 +29,7 @@ Files: `src/refit_grow.cpp`, `src/refit_segment.cpp`.
 
 | Rejected item | Rationale |
 |---------------|-----------|
-| `stl2step.cpp` open-shell accept when STEP contains cylinders | Violates watertight contract; open shell never ships |
+| `cad_mesh_recovery.cpp` open-shell accept when STEP contains cylinders | Violates watertight contract; open shell never ships |
 | `refit_build.cpp` J6 “coarse keep” (return built cylinders on J6 fail) | Same — relaxation of J6 closure |
 | `planeNearPerpendicular`, `planeCapCylinder`, `capCircleOnCylinder` | Overlap C's principled side-graze + cap fallbacks; **C wins** |
 | Looser `pickIntAna` accept (`sewTol*100`) | Overlap C's mesh-aware tolerance path |
@@ -40,7 +40,7 @@ Files: `src/refit_grow.cpp`, `src/refit_segment.cpp`.
 ## Proof (a) — build
 
 ```
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DSTL2STEP_BUILD_TESTS=ON
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCAD_MESH_RECOVERY_BUILD_TESTS=ON
 cmake --build build -j 8
 → exit 0, all targets built
 ```
@@ -48,7 +48,7 @@ cmake --build build -j 8
 ## Proof (b) — handle-lock TrueForm
 
 ```sh
-./build/stl2step tests/diag/handle-lock/handle-lock.stl \
+./build/cad_mesh_recovery tests/diag/handle-lock/handle-lock.stl \
   -o /tmp/hl-integrate.step --engine trueform --quiet
 ```
 

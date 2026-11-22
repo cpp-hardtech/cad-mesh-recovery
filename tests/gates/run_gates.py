@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""SPEC-P0 acceptance gate runner for stl2step (stdlib only)."""
+"""SPEC-P0 acceptance gate runner for cad_mesh_recovery (stdlib only)."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ import smooth_on as so
 
 # D-I-5: generated occt_calibrated.py (CMake configure_file).
 def _import_occt_calibrated():
-    gen = os.environ.get("STL2STEP_OCCT_GENERATED_DIR", "").strip()
+    gen = os.environ.get("CAD_MESH_RECOVERY_OCCT_GENERATED_DIR", "").strip()
     if gen:
         sys.path.insert(0, gen)
     for entry in os.environ.get("PYTHONPATH", "").split(os.pathsep):
@@ -190,14 +190,14 @@ class GateOutcome:
 
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(
-        description="SPEC-P0 acceptance gate runner for stl2step.",
+        description="SPEC-P0 acceptance gate runner for cad_mesh_recovery.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=textwrap.dedent(
             """\
             Shard examples:
-              run_gates.py --smoke --binary ./build/stl2step
-              run_gates.py --fixture S01,S06,S09 --gate G0.1,G4 --binary ./build/stl2step
-              run_gates.py --unpark G3,G4.4 --binary ./build/stl2step  # surface parked reds
+              run_gates.py --smoke --binary ./build/cad_mesh_recovery
+              run_gates.py --fixture S01,S06,S09 --gate G0.1,G4 --binary ./build/cad_mesh_recovery
+              run_gates.py --unpark G3,G4.4 --binary ./build/cad_mesh_recovery  # surface parked reds
             """
         ),
     )
@@ -205,14 +205,14 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     p.add_argument("--gate", help="Comma-separated gate ids (e.g. G0.1,G4)")
     p.add_argument("--smoke", action="store_true", help="Smoke run on tests/cube.stl")
     p.add_argument("--corpus", type=Path, default=DEFAULT_CORPUS, help="Corpus directory")
-    p.add_argument("--binary", type=Path, required=True, help="Path to stl2step CLI")
-    p.add_argument("--census", type=Path, help="Path to stl2step_census binary")
+    p.add_argument("--binary", type=Path, required=True, help="Path to cad_mesh_recovery CLI")
+    p.add_argument("--census", type=Path, help="Path to cad_mesh_recovery_census binary")
     p.add_argument("--dump", type=Path,
-                   help="Path to stl2step_regiondump binary (I-checker gate)")
+                   help="Path to cad_mesh_recovery_regiondump binary (I-checker gate)")
     p.add_argument("--ichecker", type=Path,
                    help="Path to tests/gates/check_regionset.py (I-checker gate)")
     p.add_argument("--baseline", type=Path, default=DEFAULT_BASELINE, help="G0.1 baseline dir")
-    p.add_argument("--no-verify", action="store_true", help="Pass --no-verify to stl2step")
+    p.add_argument("--no-verify", action="store_true", help="Pass --no-verify to cad_mesh_recovery")
     p.add_argument("--jobs", type=int, default=1, help="Parallel fixture workers")
     p.add_argument(
         "--report",
@@ -244,10 +244,10 @@ def parse_result_line(stdout: str) -> Dict[str, Any]:
             return json.loads(line[len("RESULT ") :])
         if line.startswith("RESULT{"):
             return json.loads(line[len("RESULT") :])
-    raise RuntimeError("no RESULT line in stl2step stdout")
+    raise RuntimeError("no RESULT line in cad_mesh_recovery stdout")
 
 
-def run_stl2step(
+def run_cad_mesh_recovery(
     binary: Path,
     stl: Path,
     step_out: Path,
@@ -275,7 +275,7 @@ def run_stl2step(
         result = parse_result_line(proc.stdout)
     except Exception as exc:
         raise RuntimeError(
-            f"stl2step failed to emit RESULT for {stl}: {exc}\n"
+            f"cad_mesh_recovery failed to emit RESULT for {stl}: {exc}\n"
             f"stdout={proc.stdout!r}\nstderr={proc.stderr!r}"
         ) from exc
     return RunArtifacts(proc.returncode, result, proc.stdout, proc.stderr, step_out)
@@ -506,8 +506,8 @@ def _under_windows_system_dir(path: str) -> bool:
 
 def _bash_tried_locations() -> List[str]:
     tried: List[str] = []
-    env = os.environ.get("STL2STEP_BASH")
-    tried.append(f"STL2STEP_BASH={env}" if env else "STL2STEP_BASH (unset)")
+    env = os.environ.get("CAD_MESH_RECOVERY_BASH")
+    tried.append(f"CAD_MESH_RECOVERY_BASH={env}" if env else "CAD_MESH_RECOVERY_BASH (unset)")
     tried.extend(_WIN_GIT_BASH)
     found = shutil.which("bash")
     if found:
@@ -523,12 +523,12 @@ def _bash_executable() -> Optional[str]:
 
     On Windows, CreateProcess searches System32 before PATH, so a bare
     ``bash`` name always hits the WSL stub even when Git Bash is on PATH.
-    Prefer an explicit Git for Windows path (or STL2STEP_BASH).
+    Prefer an explicit Git for Windows path (or CAD_MESH_RECOVERY_BASH).
     """
     if sys.platform != "win32":
         return shutil.which("bash") or "bash"
 
-    env = os.environ.get("STL2STEP_BASH")
+    env = os.environ.get("CAD_MESH_RECOVERY_BASH")
     for cand in ((env,) if env else ()) + _WIN_GIT_BASH:
         if cand and os.path.isfile(cand):
             return cand
@@ -606,16 +606,16 @@ def ensure_baseline(
     if bin_path is None:
         build = baseline_dir / ".build"
         for fallback in (
-            build / "stl2step",
-            build / "stl2step.exe",
-            build / "Release" / "stl2step",
-            build / "Release" / "stl2step.exe",
-            build / "Debug" / "stl2step",
-            build / "Debug" / "stl2step.exe",
-            build / "RelWithDebInfo" / "stl2step",
-            build / "RelWithDebInfo" / "stl2step.exe",
-            build / "MinSizeRel" / "stl2step",
-            build / "MinSizeRel" / "stl2step.exe",
+            build / "cad_mesh_recovery",
+            build / "cad_mesh_recovery.exe",
+            build / "Release" / "cad_mesh_recovery",
+            build / "Release" / "cad_mesh_recovery.exe",
+            build / "Debug" / "cad_mesh_recovery",
+            build / "Debug" / "cad_mesh_recovery.exe",
+            build / "RelWithDebInfo" / "cad_mesh_recovery",
+            build / "RelWithDebInfo" / "cad_mesh_recovery.exe",
+            build / "MinSizeRel" / "cad_mesh_recovery",
+            build / "MinSizeRel" / "cad_mesh_recovery.exe",
         ):
             hit = _resolve_baseline_bin(fallback)
             if hit is not None:
@@ -678,14 +678,14 @@ def gate_g0_1_off_path_identity(ctx: GateContext) -> GateOutcome:
     bas_txt = ctx.work_dir / f"{fixture.id}.bas.txt"
 
     try:
-        cur = run_stl2step(
+        cur = run_cad_mesh_recovery(
             ctx.binary,
             fixture.stl,
             cur_step,
             no_verify=ctx.no_verify,
             smooth=False,
         )
-        bas = run_stl2step(
+        bas = run_cad_mesh_recovery(
             ctx.baseline_bin,
             fixture.stl,
             bas_step,
@@ -811,7 +811,7 @@ def gate_g1_validity(ctx: GateContext) -> GateOutcome:
 
     out_step = ctx.work_dir / f"{ctx.fixture.id}_g1.step"
     try:
-        run = run_stl2step(
+        run = run_cad_mesh_recovery(
             ctx.binary,
             ctx.fixture.stl,
             out_step,
@@ -928,7 +928,7 @@ def gate_g4_determinism(ctx: GateContext) -> GateOutcome:
     step1 = ctx.work_dir / f"{ctx.fixture.id}_t1.step"
     step8 = ctx.work_dir / f"{ctx.fixture.id}_t8.step"
     try:
-        run1 = run_stl2step(
+        run1 = run_cad_mesh_recovery(
             ctx.binary,
             ctx.fixture.stl,
             step1,
@@ -936,7 +936,7 @@ def gate_g4_determinism(ctx: GateContext) -> GateOutcome:
             threads=1,
             smooth=False,
         )
-        run8 = run_stl2step(
+        run8 = run_cad_mesh_recovery(
             ctx.binary,
             ctx.fixture.stl,
             step8,
@@ -1020,7 +1020,7 @@ def gate_i_checker(ctx: GateContext) -> GateOutcome:
     """SPEC-P0 I-checker — RegionSet dump validation (check_regionset.py).
 
     LIVE since the wave-4 staging assembly: p1-compose-fix landed the
-    envelope->bare unwrap (`stl2step_regiondump --component N --bare --out`),
+    envelope->bare unwrap (`cad_mesh_recovery_regiondump --component N --bare --out`),
     so the runner drives the dump per CLEAN component and validates each bare
     RegionSet with check_regionset.py, including the fixture sidecar where one
     exists. A fixture with no clean components (S15, S16-R1-round-2) is SKIP,
@@ -1031,7 +1031,7 @@ def gate_i_checker(ctx: GateContext) -> GateOutcome:
         return xfail_not_landed(gate_id, ctx.fixture.id, "p0-ichecker + P1 dump")
     if not (ctx.dump_path and ctx.dump_path.is_file()):
         return go(ctx, gate_id, "XFAIL",
-                  "I-checker: --dump <stl2step_regiondump> not supplied or missing; "
+                  "I-checker: --dump <cad_mesh_recovery_regiondump> not supplied or missing; "
                   "build the target and pass --dump", hard=True)
     if not (ctx.ichecker_path and ctx.ichecker_path.is_file()):
         return go(ctx, gate_id, "XFAIL",
@@ -1193,7 +1193,7 @@ def gate_g_law(ctx: GateContext) -> GateOutcome:
             ctx,
             gate_id,
             "XFAIL",
-            "G-LAW: --dump <stl2step_regiondump> not supplied or missing",
+            "G-LAW: --dump <cad_mesh_recovery_regiondump> not supplied or missing",
             hard=True,
         )
     script = REPO_ROOT / "tests" / "gates" / "law_recognition.py"

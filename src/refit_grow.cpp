@@ -27,7 +27,7 @@
 #include <gp_Pnt.hxx>
 #include <gp_Vec.hxx>
 
-namespace stl2step { namespace refit {
+namespace cad_mesh_recovery { namespace refit {
 namespace {
 
 constexpr double kTiny = 1e-30;
@@ -43,17 +43,17 @@ inline double angleBandEps(double thetaRad) {
 constexpr double kRingResidualFrac = 0.25;
 
 bool p1DiagOn() {
-    const char* e = std::getenv("STL2STEP_P1_DIAG");
+    const char* e = std::getenv("CAD_MESH_RECOVERY_P1_DIAG");
     return e && e[0] != '\0' && e[0] != '0';
 }
 
 bool collapseDiagOn() {
-    const char* e = std::getenv("STL2STEP_COLLAPSE_DIAG");
+    const char* e = std::getenv("CAD_MESH_RECOVERY_COLLAPSE_DIAG");
     return e && e[0] != '\0' && e[0] != '0';
 }
 
 bool lawbandDiagOn() {
-    const char* e = std::getenv("STL2STEP_LAWBAND_DIAG");
+    const char* e = std::getenv("CAD_MESH_RECOVERY_LAWBAND_DIAG");
     return e && e[0] != '\0' && e[0] != '0';
 }
 
@@ -69,12 +69,12 @@ bool lawbandDiagOn() {
 // and domain emit stay off (U-R9 did not close).
 bool lawUnionOn() { return false; }
 
-// Diag only (STL2STEP_DIAG_A2): A2 grows PLANAR provisionals, so every link it
+// Diag only (CAD_MESH_RECOVERY_DIAG_A2): A2 grows PLANAR provisionals, so every link it
 // refuses is a statement about the mesh. Naming the predicate per refused link
 // is what turns "the ring arrives in pieces" into a measurement. Prints nothing
 // and decides nothing when off.
 bool a2DiagOn() {
-    const char* e = std::getenv("STL2STEP_DIAG_A2");
+    const char* e = std::getenv("CAD_MESH_RECOVERY_DIAG_A2");
     return e && e[0] != '\0' && e[0] != '0';
 }
 
@@ -1353,7 +1353,7 @@ private:
         }
     };
     static bool lawVgenDiagOn() {
-        const char* e = std::getenv("STL2STEP_LAWVGEN_DIAG");
+        const char* e = std::getenv("CAD_MESH_RECOVERY_LAWVGEN_DIAG");
         return e && e[0] != '\0' && e[0] != '0';
     }
     std::vector<int> unionOf(const std::vector<int>& members) const {
@@ -1682,7 +1682,7 @@ bool growProvisionalA2(const MeshView& mv, const SegmentParams&, const DerivedTo
     // mesh cannot state a fold at all; (2) its normal is strictly closer to
     // that patch's plane than to its own. A resolved fold between two patches
     // fails (1); a planar face floods whole so its triangles never meet (1)
-    // across a patch boundary. Prints under STL2STEP_DIAG_A2.
+    // across a patch boundary. Prints under CAD_MESH_RECOVERY_DIAG_A2.
     {
         const double q = (std::isfinite(mv.quantFloor) && mv.quantFloor > 0.0)
                              ? mv.quantFloor : 0.0;
@@ -2082,12 +2082,12 @@ bool claimCylindersB1(const MeshView& mv, const SegmentParams&, const DerivedTol
                          seedAxis.X(), seedAxis.Y(), seedAxis.Z());
         }
 
-        // Diag only (STL2STEP_DIAG_FOLD): D-130-8's "the running axis common to
+        // Diag only (CAD_MESH_RECOVERY_DIAG_FOLD): D-130-8's "the running axis common to
         // every fold", measured on what B1 is about to commit. For a cylinder
         // every adjacent-facet fold axis n_i x n_j is the axis exactly; for a
         // conical band it is the shared GENERATOR and turns with azimuth.
         // Prints nothing and decides nothing when off.
-        if (const char* fd = std::getenv("STL2STEP_DIAG_FOLD"); fd && fd[0] && fd[0] != '0') {
+        if (const char* fd = std::getenv("CAD_MESH_RECOVERY_DIAG_FOLD"); fd && fd[0] && fd[0] != '0') {
             const gp_XYZ ax(axisFinal.X(), axisFinal.Y(), axisFinal.Z());
             std::vector<std::pair<double, double>> wv;  // (|n_i x n_j|, alignment)
             std::vector<char> inS(work.provisionals.size(), 0);
@@ -2452,7 +2452,7 @@ bool releaseCapTriangles(const MeshView& mv, const DerivedTols& tol, SegmentWork
     if (!(tau > 0.0) || mv.nTri == 0 || !mv.triEdges) return true;
     const int nTri = static_cast<int>(mv.nTri);
     const double latBound = std::sin(tol.thetaSharp);
-    const char* dv = std::getenv("STL2STEP_DIAG_CAPOWN");
+    const char* dv = std::getenv("CAD_MESH_RECOVERY_DIAG_CAPOWN");
     const bool diag = dv && dv[0] && dv[0] != '0';
     std::vector<int> owner(static_cast<size_t>(nTri), -1);
     for (size_t ai = 0; ai < work.accepted.size(); ++ai)
@@ -3923,4 +3923,4 @@ bool claimLawBandsL(const MeshView& mv, const SegmentParams&, const DerivedTols&
     return true;
 }
 
-}}  // namespace stl2step::refit
+}}  // namespace cad_mesh_recovery::refit

@@ -6,8 +6,8 @@
 // own fit.
 // SPDX-License-Identifier: MIT
 
-#ifndef STL2STEP_REFIT_COAX_REHOST_HPP
-#define STL2STEP_REFIT_COAX_REHOST_HPP
+#ifndef CAD_MESH_RECOVERY_REFIT_COAX_REHOST_HPP
+#define CAD_MESH_RECOVERY_REFIT_COAX_REHOST_HPP
 
 #include "refit_coax_closed.hpp"
 
@@ -15,7 +15,7 @@
 
 #include <gp_XYZ.hxx>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 
 // An accepted region that coaxialFamilies grouped, certified on the surface
@@ -102,6 +102,6 @@ inline bool coaxRehostAlready(const gp_XYZ& oR, const gp_XYZ& aR, double radiusR
 }
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery
 
-#endif  // STL2STEP_REFIT_COAX_REHOST_HPP
+#endif  // CAD_MESH_RECOVERY_REFIT_COAX_REHOST_HPP

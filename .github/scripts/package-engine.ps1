@@ -5,8 +5,8 @@ package-engine.ps1 — per-release ENGINE ASSETS the SolidOut in-app updater con
 
 Produces, for the tag's engine:
 
-(1) stl2step-engine-<tag>-windows-x64.zip containing:
-    - stl2step.exe
+(1) cad_mesh_recovery-engine-<tag>-windows-x64.zip containing:
+    - cad_mesh_recovery.exe
     - *.dll closure in the SAME directory (Windows DLL search order; no subdirs).
     The closure is derived exactly as scripts\update-engine.ps1 does (dumpbin /dependents
     BFS, resolve against build dir then vcpkg bin then VC++ redist). No hand list.
@@ -128,12 +128,12 @@ if (-not $DumpBin) { Die 'no dumpbin.exe in the VS install' }
 
 $BuiltExe = $null
 foreach ($c in @(
-        (Join-Path $BuildDir 'Release\stl2step.exe'),
-        (Join-Path $BuildDir 'stl2step.exe'),
-        (Join-Path $BuildDir 'bin\Release\stl2step.exe'))) {
+        (Join-Path $BuildDir 'Release\cad_mesh_recovery.exe'),
+        (Join-Path $BuildDir 'cad_mesh_recovery.exe'),
+        (Join-Path $BuildDir 'bin\Release\cad_mesh_recovery.exe'))) {
     if (Test-Path $c) { $BuiltExe = $c; break }
 }
-if (-not $BuiltExe) { Die "no stl2step.exe under $BuildDir (pass -BuildDir at a CMake engine build tree)" }
+if (-not $BuiltExe) { Die "no cad_mesh_recovery.exe under $BuildDir (pass -BuildDir at a CMake engine build tree)" }
 Say "build binary $BuiltExe"
 
 $VcpkgRoot = Select-VcpkgRoot
@@ -195,14 +195,14 @@ if ($unresolved.Count -gt 0) {
 $dllCount = $closure.Count
 Say "closure: $dllCount DLLs (same derivation as update-engine.ps1)"
 
-$ZipName = "stl2step-engine-$Tag-windows-x64.zip"
+$ZipName = "cad_mesh_recovery-engine-$Tag-windows-x64.zip"
 New-Item -ItemType Directory -Path $Out -Force | Out-Null
 $Out = (Resolve-Path $Out).Path
 $Work = Join-Path ([System.IO.Path]::GetTempPath()) ("package-engine-" + [guid]::NewGuid().ToString('N').Substring(0, 8))
 $Stage = Join-Path $Work 'payload'
 New-Item -ItemType Directory -Path $Stage -Force | Out-Null
 try {
-    Copy-Item -LiteralPath $BuiltExe -Destination (Join-Path $Stage 'stl2step.exe') -Force
+    Copy-Item -LiteralPath $BuiltExe -Destination (Join-Path $Stage 'cad_mesh_recovery.exe') -Force
     foreach ($key in $closure.Keys) {
         $src = $closure[$key]
         Copy-Item -LiteralPath $src -Destination (Join-Path $Stage (Split-Path -Leaf $src)) -Force
@@ -213,12 +213,12 @@ try {
     $env:PATH = "$env:SystemRoot\system32;$env:SystemRoot"
     $ErrorActionPreference = 'Continue'
     try {
-        $r = Invoke-Native -PassOutput { & (Join-Path $Stage 'stl2step.exe') --version }
+        $r = Invoke-Native -PassOutput { & (Join-Path $Stage 'cad_mesh_recovery.exe') --version }
         $verOut = $r.Out; $verCode = $r.Code
     } finally { $env:PATH = $savedPath; $ErrorActionPreference = $savedEap }
     $versionLine = (($verOut | ForEach-Object { "$_" }) -join "`n").Trim().Split("`n")[0].Trim()
-    if ($verCode -ne 0 -or -not $versionLine) { Die 'staged stl2step --version produced no output' }
-    if ($versionLine -notmatch '^stl2step\s+(.+)$') { Die "could not parse engine version from '$versionLine'" }
+    if ($verCode -ne 0 -or -not $versionLine) { Die 'staged cad_mesh_recovery --version produced no output' }
+    if ($versionLine -notmatch '^cad_mesh_recovery\s+(.+)$') { Die "could not parse engine version from '$versionLine'" }
     $engineVersion = $Matches[1]
     Say "version $versionLine"
 
@@ -241,7 +241,7 @@ try {
             engineVersion  = $engineVersion
             assets         = [pscustomobject]@{
                 'macos-arm64' = [pscustomobject]@{
-                    name   = "stl2step-engine-$Tag-macos-arm64.tar.gz"
+                    name   = "cad_mesh_recovery-engine-$Tag-macos-arm64.tar.gz"
                     sha256 = $null
                     size   = $null
                     note   = 'filled by the macOS packaging step'

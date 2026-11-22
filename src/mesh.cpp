@@ -1,11 +1,11 @@
-// stl2step --mesh mode: STEP (B-Rep) -> binary STL + optional Format A edges.
+// cad_mesh_recovery --mesh mode: STEP (B-Rep) -> binary STL + optional Format A edges.
 //
 // Sibling of convert(). Never called from Converter::run(); never writes
 // Result / Result::toJson().
 //
 // SPDX-License-Identifier: MIT
 
-#include "stl2step/stl2step.hpp"
+#include "cad_mesh_recovery/cad_mesh_recovery.hpp"
 #include "parallel.hpp"
 
 #include <algorithm>
@@ -46,7 +46,7 @@
 #include <gp_Pnt.hxx>
 #include <gp_Trsf.hxx>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace {
 
 namespace fs = std::filesystem;
@@ -202,7 +202,7 @@ MeshResult meshFromStep(const MeshOptions& opt, const LogCallback& log) {
     OSD::SetSignal(Standard_False);
 
     try {
-        note(std::string("stl2step --mesh: ") + r.input + " -> " + r.output);
+        note(std::string("cad_mesh_recovery --mesh: ") + r.input + " -> " + r.output);
 
         STEPControl_Reader reader;
         if (reader.ReadFile(r.input.c_str()) != IFSelect_RetDone)
@@ -298,4 +298,4 @@ MeshResult meshFromStep(const MeshOptions& opt, const LogCallback& log) {
     }
 }
 
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery

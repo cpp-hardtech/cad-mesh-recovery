@@ -143,10 +143,10 @@ def parse_result_line(stdout: str) -> Dict[str, Any]:
             return json.loads(line[len("RESULT ") :])
         if line.startswith("RESULT{"):
             return json.loads(line[len("RESULT") :])
-    raise RuntimeError("no RESULT line in stl2step stdout")
+    raise RuntimeError("no RESULT line in cad_mesh_recovery stdout")
 
 
-def run_stl2step(
+def run_cad_mesh_recovery(
     binary: Path,
     stl: Path,
     step_out: Path,
@@ -174,7 +174,7 @@ def run_stl2step(
         result = parse_result_line(proc.stdout)
     except Exception as exc:
         raise RuntimeError(
-            f"stl2step failed to emit RESULT for {stl}: {exc}\n"
+            f"cad_mesh_recovery failed to emit RESULT for {stl}: {exc}\n"
             f"stdout={proc.stdout!r}\nstderr={proc.stderr!r}"
         ) from exc
     return RunArtifacts(proc.returncode, result, proc.stdout, proc.stderr, step_out)
@@ -264,10 +264,10 @@ def check_g0_2(ctx: GateContext) -> GateOutcome:
     off_step = ctx.work_dir / f"{ctx.fixture.id}_g02_off.step"
     on_step = ctx.work_dir / f"{ctx.fixture.id}_g02_on.step"
     try:
-        off = run_stl2step(
+        off = run_cad_mesh_recovery(
             ctx.binary, ctx.fixture.stl, off_step, no_verify=ctx.no_verify, smooth=False
         )
-        on = run_stl2step(
+        on = run_cad_mesh_recovery(
             ctx.binary, ctx.fixture.stl, on_step, no_verify=ctx.no_verify, smooth=True
         )
     except RuntimeError as exc:
@@ -320,10 +320,10 @@ def check_g0_3(ctx: GateContext) -> GateOutcome:
         off_step = ctx.work_dir / f"{fid}_g03_off.step"
         on_step = ctx.work_dir / f"{fid}_g03_on.step"
         try:
-            off = run_stl2step(
+            off = run_cad_mesh_recovery(
                 ctx.binary, ctx.fixture.stl, off_step, no_verify=ctx.no_verify, smooth=False
             )
-            on = run_stl2step(
+            on = run_cad_mesh_recovery(
                 ctx.binary,
                 ctx.fixture.stl,
                 on_step,
@@ -360,7 +360,7 @@ def check_g0_3(ctx: GateContext) -> GateOutcome:
     sew_off = ctx.work_dir / f"{fid}_g03_sew_off.step"
     sew_on = ctx.work_dir / f"{fid}_g03_sew_on.step"
     try:
-        base = run_stl2step(
+        base = run_cad_mesh_recovery(
             ctx.binary,
             ctx.fixture.stl,
             sew_off,
@@ -368,7 +368,7 @@ def check_g0_3(ctx: GateContext) -> GateOutcome:
             smooth=False,
             force_sew=True,
         )
-        both = run_stl2step(
+        both = run_cad_mesh_recovery(
             ctx.binary,
             ctx.fixture.stl,
             sew_on,
@@ -396,7 +396,7 @@ def check_g0_3(ctx: GateContext) -> GateOutcome:
     if ctx.baseline_bin and ctx.baseline_bin.is_file():
         bl_step = ctx.work_dir / f"{fid}_g03_baseline_sew.step"
         try:
-            bl = run_stl2step(
+            bl = run_cad_mesh_recovery(
                 ctx.baseline_bin,
                 ctx.fixture.stl,
                 bl_step,
@@ -440,7 +440,7 @@ def check_g0_3(ctx: GateContext) -> GateOutcome:
     else:
         plain_step = ctx.work_dir / f"{fid}_g03_plain_off.step"
         try:
-            plain = run_stl2step(
+            plain = run_cad_mesh_recovery(
                 ctx.binary,
                 ctx.fixture.stl,
                 plain_step,
@@ -482,7 +482,7 @@ def check_g2(ctx: GateContext) -> GateOutcome:
 
     on_step = ctx.work_dir / f"{ctx.fixture.id}_g2.step"
     try:
-        run = run_stl2step(
+        run = run_cad_mesh_recovery(
             ctx.binary, ctx.fixture.stl, on_step, no_verify=ctx.no_verify, smooth=True
         )
     except RuntimeError as exc:
@@ -604,7 +604,7 @@ def check_g2_5(ctx: GateContext) -> GateOutcome:
 
     on_step = ctx.work_dir / f"{ctx.fixture.id}_g25.step"
     try:
-        run = run_stl2step(
+        run = run_cad_mesh_recovery(
             ctx.binary, ctx.fixture.stl, on_step, no_verify=ctx.no_verify, smooth=True
         )
     except RuntimeError as exc:
@@ -655,7 +655,7 @@ def check_g3(ctx: GateContext) -> GateOutcome:
 
     on_step = ctx.work_dir / f"{ctx.fixture.id}_g3.step"
     try:
-        run = run_stl2step(
+        run = run_cad_mesh_recovery(
             ctx.binary,
             ctx.fixture.stl,
             on_step,
@@ -744,7 +744,7 @@ def check_g4_4(ctx: GateContext) -> GateOutcome:
 
     on_step = ctx.work_dir / f"{ctx.fixture.id}_g44.step"
     try:
-        run = run_stl2step(
+        run = run_cad_mesh_recovery(
             ctx.binary, ctx.fixture.stl, on_step, no_verify=ctx.no_verify, smooth=True
         )
     except RuntimeError as exc:
@@ -789,7 +789,7 @@ def check_g5(ctx: GateContext) -> GateOutcome:
     sidecar = load_sidecar(ctx.fixture)
     on_step = ctx.work_dir / f"{ctx.fixture.id}_g5.step"
     try:
-        run = run_stl2step(
+        run = run_cad_mesh_recovery(
             ctx.binary, ctx.fixture.stl, on_step, no_verify=ctx.no_verify, smooth=True
         )
     except RuntimeError as exc:
@@ -845,10 +845,10 @@ def check_r_ladder(ctx: GateContext) -> GateOutcome:
     off_step = ctx.work_dir / f"{fid}_rl_off.step"
     on_step = ctx.work_dir / f"{fid}_rl_on.step"
     try:
-        off = run_stl2step(
+        off = run_cad_mesh_recovery(
             ctx.binary, ctx.fixture.stl, off_step, no_verify=True, smooth=False
         )
-        on = run_stl2step(
+        on = run_cad_mesh_recovery(
             ctx.binary,
             ctx.fixture.stl,
             on_step,

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "regionset.schema.json",
   "$comment": "I1-I6, I8, I9 are cross-array invariants and are the checker's job (P0 check_regionset.py). This schema does not express them. I7 and I7b are two separate if/then rules keyed on closed360 inside Region.",
-  "title": "stl2step refit RegionSet dump",
+  "title": "cad_mesh_recovery refit RegionSet dump",
   "type": "object",
   "additionalProperties": false,
   "required": [

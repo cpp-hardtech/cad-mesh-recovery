@@ -24,7 +24,7 @@ Corpus meshes outside the coarse band (e.g. Body11 @ 15300 tris) unchanged.
 ## Proof — handle-lock radii vs `ground-truth.json`
 
 ```
-$ ./build/stl2step_regiondump tests/diag/handle-lock/handle-lock.stl --diag
+$ ./build/cad_mesh_recovery_regiondump tests/diag/handle-lock/handle-lock.stl --diag
   id=6 type=cylinder tris=28 radius=20.2468   (GT R=20)
   id=7 type=cylinder tris=18 radius=29.9994  (GT R=30)
 ```

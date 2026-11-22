@@ -1,4 +1,4 @@
-// stl2step ELLIPSE BIND site — see refit_ellipse_bind.hpp for the certificates.
+// cad_mesh_recovery ELLIPSE BIND site — see refit_ellipse_bind.hpp for the certificates.
 //
 // SPDX-License-Identifier: MIT
 
@@ -30,7 +30,7 @@
 
 #include "refit_ellipse_math.hpp"
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 namespace {
 
@@ -252,4 +252,4 @@ double ellipseBindSupOnCyl(const Handle(Geom_Curve)& c3, double f, double l,
 }
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery

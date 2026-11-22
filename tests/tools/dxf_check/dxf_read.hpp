@@ -1,13 +1,13 @@
 // DXF R12 reader for tests/tools only. Not linked into src/.
 // SPDX-License-Identifier: MIT
 
-#ifndef STL2STEP_DXF_READ_HPP
-#define STL2STEP_DXF_READ_HPP
+#ifndef CAD_MESH_RECOVERY_DXF_READ_HPP
+#define CAD_MESH_RECOVERY_DXF_READ_HPP
 
 #include <string>
 #include <vector>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace dxfcheck {
 
 enum class EntType { Line, Arc, Circle };
@@ -42,6 +42,6 @@ void reconstructLoops(DxfFile& f, double closeTol);
 bool loopsClosed(const DxfFile& f, double closeTol, std::string& err);
 
 }  // namespace dxfcheck
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery
 
 #endif

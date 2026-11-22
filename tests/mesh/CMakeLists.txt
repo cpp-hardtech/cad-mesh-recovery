@@ -3,7 +3,7 @@
 # Committed: seamed_cylinder.step (R=10 mm, H=30 mm analytic cylinder).
 # Generator source: gen_seamed_cylinder.cpp (not built by default).
 
-if(NOT TARGET stl2step)
+if(NOT TARGET cad_mesh_recovery)
     return()
 endif()
 
@@ -20,35 +20,35 @@ endif()
 
 add_test(NAME mesh_step_smoke
     COMMAND ${Python3_EXECUTABLE} "${_mesh_py}"
-        --binary "$<TARGET_FILE:stl2step>"
+        --binary "$<TARGET_FILE:cad_mesh_recovery>"
         --test smoke
         --step "${_mesh_step}"
         --make-step-from "${_mesh_stl}")
 set_tests_properties(mesh_step_smoke PROPERTIES
     LABELS "mesh"
     TIMEOUT 180
-    REQUIRED_FILES "$<TARGET_FILE:stl2step>;${_mesh_py};${_mesh_stl}")
+    REQUIRED_FILES "$<TARGET_FILE:cad_mesh_recovery>;${_mesh_py};${_mesh_stl}")
 
 add_test(NAME mesh_edges_seam
     COMMAND ${Python3_EXECUTABLE} "${_mesh_py}"
-        --binary "$<TARGET_FILE:stl2step>"
+        --binary "$<TARGET_FILE:cad_mesh_recovery>"
         --test edges_seam
         --cylinder-step "${_mesh_cyl}")
 set_tests_properties(mesh_edges_seam PROPERTIES
     LABELS "mesh"
     TIMEOUT 60
-    REQUIRED_FILES "$<TARGET_FILE:stl2step>;${_mesh_py};${_mesh_cyl}")
+    REQUIRED_FILES "$<TARGET_FILE:cad_mesh_recovery>;${_mesh_py};${_mesh_cyl}")
 
 add_test(NAME mesh_fail_closed
     COMMAND ${Python3_EXECUTABLE} "${_mesh_py}"
-        --binary "$<TARGET_FILE:stl2step>"
+        --binary "$<TARGET_FILE:cad_mesh_recovery>"
         --test fail_closed
         --step "${_mesh_step}"
         --make-step-from "${_mesh_stl}")
 set_tests_properties(mesh_fail_closed PROPERTIES
     LABELS "mesh"
     TIMEOUT 60
-    REQUIRED_FILES "$<TARGET_FILE:stl2step>;${_mesh_py};${_mesh_stl}")
+    REQUIRED_FILES "$<TARGET_FILE:cad_mesh_recovery>;${_mesh_py};${_mesh_stl}")
 
 # U3a rework: --mesh without -o writes <stem>.mesh.stl and never clobbers
 # a sibling <stem>.stl; a second run fail-closes if the default exists.
@@ -59,13 +59,13 @@ set(_mesh_nc_py "${CMAKE_CURRENT_SOURCE_DIR}/../mesh_never_clobber.py")
 if(EXISTS "${_mesh_nc_py}")
     add_test(NAME mesh_never_clobber
         COMMAND ${Python3_EXECUTABLE} "${_mesh_nc_py}"
-            --binary "$<TARGET_FILE:stl2step>"
+            --binary "$<TARGET_FILE:cad_mesh_recovery>"
             --step "${_mesh_step}"
             --make-step-from "${_mesh_stl}")
     set_tests_properties(mesh_never_clobber PROPERTIES
         LABELS "mesh"
         TIMEOUT 180
-        REQUIRED_FILES "$<TARGET_FILE:stl2step>;${_mesh_nc_py};${_mesh_stl}")
+        REQUIRED_FILES "$<TARGET_FILE:cad_mesh_recovery>;${_mesh_nc_py};${_mesh_stl}")
 endif()
 unset(_mesh_nc_py)
 

@@ -1,8 +1,8 @@
 // POSIX process/env shims for MSVC. Include is a no-op on POSIX.
 // SPDX-License-Identifier: MIT
 
-#ifndef STL2STEP_POSIX_COMPAT_HPP
-#define STL2STEP_POSIX_COMPAT_HPP
+#ifndef CAD_MESH_RECOVERY_POSIX_COMPAT_HPP
+#define CAD_MESH_RECOVERY_POSIX_COMPAT_HPP
 
 #ifdef _WIN32
 #include <cstdio>

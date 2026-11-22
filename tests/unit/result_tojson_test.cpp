@@ -3,14 +3,14 @@
 // write overflows the 16-byte SSO. The exact bad size is that wrap.
 // SPDX-License-Identifier: MIT
 
-#include "stl2step/stl2step.hpp"
+#include "cad_mesh_recovery/cad_mesh_recovery.hpp"
 
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
 #include <string>
 
-using stl2step::Result;
+using cad_mesh_recovery::Result;
 
 static int gFail = 0;
 

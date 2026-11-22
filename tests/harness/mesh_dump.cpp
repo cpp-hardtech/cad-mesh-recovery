@@ -1,4 +1,4 @@
-// stl2step_meshharness — dump welded/split mesh tables as one JSON object.
+// cad_mesh_recovery_meshharness — dump welded/split mesh tables as one JSON object.
 //
 // SPDX-License-Identifier: MIT
 
@@ -12,9 +12,9 @@
 #include <cstring>
 #include <string>
 
-using stl2step::harness::HarnessComponent;
-using stl2step::harness::HarnessMesh;
-using stl2step::harness::loadMesh;
+using cad_mesh_recovery::harness::HarnessComponent;
+using cad_mesh_recovery::harness::HarnessMesh;
+using cad_mesh_recovery::harness::loadMesh;
 
 static uint64_t fnv1a64(const uint8_t* p, size_t n) {
     uint64_t h = 14695981039346656037ull;
@@ -99,7 +99,7 @@ int main(int argc, char** argv) {
     HarnessMesh mesh;
     std::string err;
     if (!loadMesh(path, scale, weldTol, sewTol, mesh, err)) {
-        std::fprintf(stderr, "stl2step_meshharness: %s\n", err.c_str());
+        std::fprintf(stderr, "cad_mesh_recovery_meshharness: %s\n", err.c_str());
         return 1;
     }
 

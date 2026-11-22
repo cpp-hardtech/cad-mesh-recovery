@@ -1,4 +1,4 @@
-// stl2step P1 stage C1 — fillet strip claim (D1 §1.5, D7 radius).
+// cad_mesh_recovery P1 stage C1 — fillet strip claim (D1 §1.5, D7 radius).
 // gp_ / stdlib only. Never throws. Silent on every reject / NYI (D5.5).
 //
 // SPDX-License-Identifier: MIT
@@ -18,7 +18,7 @@
 #include <gp_Vec.hxx>
 #include <gp_XYZ.hxx>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 namespace {
 
@@ -710,7 +710,7 @@ bool claimFilletsC1(const MeshView& mv, const SegmentParams& p,
         int skF1 = 0, skF2 = 0, nF1pair = 0, nF2pair = 0;
 
         auto diagOn = []() {
-            const char* e = std::getenv("STL2STEP_P1_DIAG");
+            const char* e = std::getenv("CAD_MESH_RECOVERY_P1_DIAG");
             return e && e[0] && e[0] != '0';
         };
 
@@ -1299,7 +1299,7 @@ bool claimFilletsC1(const MeshView& mv, const SegmentParams& p,
             }
             const double R = Rmed;
             const double epsF = tol.epsFilletTol(R);
-            if (const char* e = std::getenv("STL2STEP_P1_DIAG"); e && e[0] && e[0] != '0') {
+            if (const char* e = std::getenv("CAD_MESH_RECOVERY_P1_DIAG"); e && e[0] && e[0] != '0') {
                 std::fprintf(stderr,
                              "  C1 strip n=%d minTri=%d R=%.6g maxDev=%.6g "
                              "wedge=%.3f L=%d/%d R=%d/%d verts=%zu\n",
@@ -1385,7 +1385,7 @@ bool claimFilletsC1(const MeshView& mv, const SegmentParams& p,
                 continue;
             }
             if (!(passSpread && passG4 && passChains)) {
-                if (const char* e = std::getenv("STL2STEP_P1_DIAG"); e && e[0] && e[0] != '0') {
+                if (const char* e = std::getenv("CAD_MESH_RECOVERY_P1_DIAG"); e && e[0] && e[0] != '0') {
                     std::fprintf(stderr,
                                  "  C1 D7 fail n=%d R=%.5g maxDev=%.5g epsF=%.5g "
                                  "spread=%d G4=%d chains=%d medL=%.5g medR=%.5g wedge=%.3f\n",
@@ -1595,7 +1595,7 @@ bool claimFilletsC1(const MeshView& mv, const SegmentParams& p,
             work.accepted.push_back(std::move(r));
         }
 
-        if (const char* e = std::getenv("STL2STEP_P1_DIAG"); e && e[0] && e[0] != '0') {
+        if (const char* e = std::getenv("CAD_MESH_RECOVERY_P1_DIAG"); e && e[0] && e[0] != '0') {
             int nLong = 0;
             for (const Cand& c : raw)
                 if (c.n >= 4) ++nLong;
@@ -1624,4 +1624,4 @@ bool claimFilletsC1(const MeshView& mv, const SegmentParams& p,
 }
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery

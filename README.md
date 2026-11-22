@@ -4,44 +4,65 @@
 
 <h1 align="center">CAD Mesh Recovery</h1>
 
-**Convert STL meshes into STEP geometry for mechanical CAD workflows.**
+**Convert triangle meshes into STEP solid geometry for mechanical CAD workflows.**
 
-CAD Mesh Recovery provides a C++17 library and command-line tool for recovering CAD geometry from triangle meshes. It builds on Open CASCADE Technology (OCCT) and runs locally on Linux, macOS, and Windows.
+CAD Mesh Recovery reads STL meshes and writes STEP files that a CAD system can open as
+boundary representations. It ships as a C++17 library plus a command-line tool, builds on
+Open CASCADE Technology (OCCT), and runs on Linux, macOS, and Windows.
 
-[Quick start](#quick-start) · [Conversion modes](#conversion-modes) · [C++ integration](#c-integration) · [Roadmap](#roadmap)
+The tool exists for the case where the mesh is all that is left of a part: scanning, legacy
+exports, or a supplier that only delivered STL. It reconstructs as much structure as the
+tessellation supports and says plainly when it could not.
 
 ## What it does
 
-- Reads binary and ASCII STL files and writes STEP AP203, AP214, or AP242.
-- Splits disconnected bodies, welds duplicate vertices, merges coplanar triangles, and attempts to repair irregular meshes. Components that cannot close may be written as open shells with warnings.
-- Recovers supported analytic surfaces from tessellated mechanical parts in TrueForm mode. It can also tessellate existing STEP geometry to binary STL.
-- Reports conversion outcomes as machine-readable JSON through the CLI and through the C++ API.
+- Reads binary and ASCII STL and writes STEP AP203, AP214, or AP242.
+- Splits disconnected bodies, welds duplicate vertices, merges coplanar triangles, and
+  attempts to repair irregular meshes. Components that cannot close may be written as open
+  shells, with warnings.
+- Recovers supported analytic surfaces from tessellated mechanical parts in `trueform` mode,
+  and can tessellate existing STEP geometry back to binary STL.
+- Reports the outcome as machine-readable JSON on standard output.
 
-STL stores triangle coordinates without a unit label, CAD feature history, or design tolerances. Specify the input units when needed. STEP output uses millimetres. Freeform, scanned, and heavily simplified geometry can remain faceted, and some inputs produce open shells or fail to convert.
+STL stores coordinates without a unit label, no feature history, and no design tolerances.
+State the input units when needed; STEP output is written in millimetres. Freeform, scanned,
+and heavily simplified geometry can stay faceted, and some inputs produce open shells or fail
+to convert.
 
-## Quick start
+## Requirements
 
-Install a C++17 compiler, CMake, and OCCT development libraries. The CMake project declares a minimum of 3.16. Use CMake 3.21 or newer for the preset workflow below. OCCT 7.9.x is the baseline for the calibrated tests.
+- A C++17 compiler and CMake 3.16 or newer. CMake 3.21 or newer is needed for the preset
+  workflow.
+- OCCT development libraries. The calibrated tests use OCCT 7.9.x as their baseline and
+  report a skip on older versions.
 
-- **macOS with Homebrew** — `brew install opencascade`
-- **Debian or Ubuntu** — `sudo apt install libocct-foundation-dev libocct-modeling-data-dev libocct-modeling-algorithms-dev libocct-data-exchange-dev`
-- **Fedora** — `sudo dnf install opencascade-devel`
-- **Arch Linux** — `sudo pacman -S opencascade`
-- **Windows with vcpkg** — `vcpkg install opencascade`. Pass the vcpkg toolchain file to CMake with `-DCMAKE_TOOLCHAIN_FILE=<path>`.
+Installing OCCT:
 
-The configure step uses the OCCT CMake package or the bundled finder. For a custom installation, pass `-DOpenCASCADE_ROOT=/path/to/occt` or add its prefix to `CMAKE_PREFIX_PATH`.
+| Platform | Command |
+| --- | --- |
+| macOS (Homebrew) | `brew install opencascade` |
+| Debian / Ubuntu | `sudo apt install libocct-foundation-dev libocct-modeling-data-dev libocct-modeling-algorithms-dev libocct-data-exchange-dev` |
+| Fedora | `sudo dnf install opencascade-devel` |
+| Arch Linux | `sudo pacman -S opencascade` |
+| Windows (vcpkg) | `vcpkg install opencascade`, then pass `-DCMAKE_TOOLCHAIN_FILE=<path>` |
+
+Configuration uses the OCCT CMake package or the bundled finder. For a custom installation,
+pass `-DOpenCASCADE_ROOT=/path/to/occt` or add its prefix to `CMAKE_PREFIX_PATH`.
+
+## Build
 
 ```sh
 git clone https://github.com/cpp-hardtech/cad-mesh-recovery.git
 cd cad-mesh-recovery
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release --parallel
-./build/stl2step part.stl
+./build/cad_mesh_recovery part.stl
 ```
 
-The final command expects `part.stl` in the current directory and writes `part.step` beside it. Visual Studio builds place the CLI at `build\Release\stl2step.exe`. The remaining examples assume the executable is on your `PATH`.
+The last command expects `part.stl` in the working directory and writes `part.step` beside it.
+Visual Studio builds place the CLI at `build\Release\cad_mesh_recovery.exe`.
 
-To build the example programs and run the project tests, use the `dev` preset.
+To build the examples and run the tests, use the `dev` preset:
 
 ```sh
 cmake --preset dev
@@ -49,80 +70,139 @@ cmake --build --preset dev --config Release
 ctest --preset dev -C Release
 ```
 
-Tests calibrated for OCCT 7.9.x report a skip on older versions. Use `STL2STEP_BUILD_CLI`, `STL2STEP_BUILD_EXAMPLES`, `STL2STEP_BUILD_TESTS`, and `STL2STEP_INSTALL` to control build outputs.
+Build outputs are controlled by `CAD_MESH_RECOVERY_BUILD_CLI`,
+`CAD_MESH_RECOVERY_BUILD_EXAMPLES`, `CAD_MESH_RECOVERY_BUILD_TESTS`, and
+`CAD_MESH_RECOVERY_INSTALL`.
 
 ## Conversion modes
 
-- **Verbatim** is the default. It builds a boundary representation (B-Rep) from the mesh and merges coplanar faces where possible. Curved areas retain the input tessellation.
-- **TrueForm** attempts analytic recovery of supported geometry, including planes, cylinders, chamfers, and some rounded transitions. It can reconstruct supported prismatic profiles and export DXF sections. Regions where recovery fails can retain their facets.
+- **Verbatim** (default) builds a boundary representation from the mesh and merges coplanar
+  faces where possible. Curved areas keep the input tessellation.
+- **TrueForm** attempts analytic recovery of supported geometry — planes, cylinders, chamfers,
+  and some rounded transitions. It can reconstruct supported prismatic profiles and export
+  DXF sections. Regions where recovery fails keep their facets.
 
 ```sh
-stl2step part.stl -o part-verbatim.step
-stl2step part.stl --engine trueform -o part-analytic.step
-stl2step part-in-inches.stl --units in --schema AP242 --threads 4
-stl2step --mesh part-analytic.step -o preview.stl --edges preview.edges
+cad_mesh_recovery part.stl -o part-verbatim.step
+cad_mesh_recovery part.stl --engine trueform -o part-analytic.step
+cad_mesh_recovery part-in-inches.stl --units in --schema AP242 --threads 4
+cad_mesh_recovery --mesh part-analytic.step -o preview.stl --edges preview.edges
 ```
 
-For a supported prismatic part, pass `--dxf profiles` alongside `--engine trueform` to export a DXF per recognized level. Use `--quiet` to suppress progress output and `stl2step --help` to list available options. See the [reconstruction method](docs/METHOD.md) for the geometry and tolerance checks.
+For a supported prismatic part, add `--dxf profiles` together with `--engine trueform` to
+export one DXF per recognised level. `cad_mesh_recovery --help` lists every option. The
+geometry and tolerance checks are described in [docs/METHOD.md](docs/METHOD.md).
 
-### Automation and verification
+## Command-line reference
 
-Conversion prints a final `RESULT {json}` line on standard output and sends diagnostics to standard error. Exit code **0** means conversion completed cleanly, **2** means a STEP file was written with warnings, and **1** means conversion failed. Check `openShells` and `warnings` when a downstream consumer requires closed solids.
+| Group | Option | Purpose |
+| --- | --- | --- |
+| Input | `--units <unit>` | Unit of the input coordinates. |
+| Input | `--scale <factor>` | Apply a uniform scale factor. |
+| Output | `-o <file>` | Output STEP path. |
+| Output | `--schema <schema>` | STEP schema: `AP203`, `AP214`, or `AP242`. |
+| Engine | `--engine <mode>` | `verbatim` (default) or `trueform`. |
+| Mesh | `--mesh <file>` | Tessellate a STEP file instead of converting a mesh. |
+| Mesh | `--edges <file>` | Write B-Rep edge segments as little-endian float32 pairs. |
+| Repair | `--weld` | Weld duplicate vertices. |
+| Repair | `--unify-angle <deg>` | Threshold for unifying faces. |
+| Repair | `--force-sew` | Force sewing of the result. |
+| Repair | `--sew-tol <tol>` | Sewing tolerance. |
+| Repair | `--no-unify` | Skip face unification. |
+| Repair | `--no-solid` | Do not require a closed solid. |
+| Smoothing | `--smooth` | Enable surface smoothing. |
+| Smoothing | `--smooth-angle <deg>` | Angle threshold for smoothing. |
+| Smoothing | `--smooth-tol <tol>` | Tolerance for smoothing. |
+| Smoothing | `--no-smooth` | Disable smoothing. |
+| Smoothing | `--no-smooth-fillets` | Leave fillets unsmoothed. |
+| Smoothing | `--refit` | Refit surfaces after smoothing. |
+| Performance | `--threads <n>` | Worker thread count. |
+| Verification | `--no-verify` | Skip the reopen and volume check. |
+| Output | `--dxf <mode>` | Export DXF sections (`profiles`). |
+| Output | `--quiet` | Suppress progress output. |
+| Info | `-h, --help` | Print usage and exit. |
+| Info | `-v, --version` | Print the version and exit. |
 
-By default the engine reopens the generated STEP for a volume check. The reported `volumeDeltaPct` compares the reopened file with the B-Rep sent to the writer. A source-to-output volume comparison can use `meshVolumeMM3` and `stepVolumeMM3`. The B-Rep validity check may be skipped above 50,000 faces, signalled by `"validityCheck":"skipped"`. Use `--no-verify` only when your integration handles verification separately.
+## Output contract
 
-Mesh mode accepts STEP input and emits `MESH_RESULT {json}` on standard output. It returns **0** on success and **1** on failure. The optional `--edges` file contains little-endian float32 endpoint pairs for drawing B-Rep edges. Each segment occupies 24 bytes.
+Conversion prints a final `RESULT {json}` line on standard output and sends diagnostics to
+standard error.
+
+| Exit code | Meaning |
+| --- | --- |
+| `0` | Conversion completed cleanly. |
+| `2` | A STEP file was written, with warnings. |
+| `1` | Conversion failed. |
+
+By default the engine reopens the generated STEP for a volume check and reports
+`volumeDeltaPct`, which compares the reopened file against the B-Rep that was written. A
+source-to-output comparison can use `meshVolumeMM3` and `stepVolumeMM3`. Above 50,000 faces
+the B-Rep validity check may be skipped and reports `"validityCheck":"skipped"`. Check
+`openShells` and `warnings` when a downstream consumer requires closed solids.
+
+Mesh mode accepts STEP input and prints `MESH_RESULT {json}`, returning `0` on success and `1`
+on failure. The optional `--edges` file holds 24-byte records: little-endian float32 endpoint
+pairs for drawing B-Rep edges.
 
 ## C++ integration
 
-Link against `stl2step::core` and include [the public header](include/stl2step/stl2step.hpp). The public API uses C++ standard library types. OCCT is a build and link dependency.
+Link against `cad_mesh_recovery::core` and include
+[the public header](include/cad_mesh_recovery/cad_mesh_recovery.hpp). The public API uses only
+C++ standard library types; OCCT remains a build and link dependency.
 
 ```cpp
-#include <stl2step/stl2step.hpp>
+#include <cad_mesh_recovery/cad_mesh_recovery.hpp>
 
 #include <iostream>
 
 int main() {
-    stl2step::Options options;
+    cad_mesh_recovery::Options options;
     options.input = "part.stl";
     options.output = "part.step";
     options.smooth = true;
 
-    const auto result = stl2step::convert(options);
+    const auto result = cad_mesh_recovery::convert(options);
     std::cout << result.toJson() << '\n';
     return result.exitCode;
 }
 ```
 
-Use `Result::ok` and `Result::error` to inspect failures. Pass a `LogCallback` to receive progress and diagnostics. [The embedding example](examples/convert_min.cpp) shows how to use the callback and surface warnings.
+Inspect failures through `Result::ok` and `Result::error`. Pass a `LogCallback` to receive
+progress and diagnostics; [examples/convert_min.cpp](examples/convert_min.cpp) shows the
+callback and how to surface warnings.
 
-To install the library and its CMake package, configure with `-DSTL2STEP_INSTALL=ON`, build, and install to your chosen prefix.
+To install the library and its CMake package:
 
 ```sh
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DSTL2STEP_INSTALL=ON
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCAD_MESH_RECOVERY_INSTALL=ON
 cmake --build build --config Release --parallel
 cmake --install build --config Release --prefix /path/to/prefix
 ```
 
-Add that prefix to `CMAKE_PREFIX_PATH` in the consuming project.
+Then add that prefix to `CMAKE_PREFIX_PATH` and link the imported target:
 
 ```cmake
-find_package(stl2step CONFIG REQUIRED)
-target_link_libraries(your_app PRIVATE stl2step::core)
+find_package(cad_mesh_recovery CONFIG REQUIRED)
+target_link_libraries(your_app PRIVATE cad_mesh_recovery::core)
 ```
 
-You can also add the source tree with `add_subdirectory` or CMake's `FetchContent`. Use `stl2step::core` as the link target in either case. For subprocess integrations, see the [CLI integration recipes](AGENTS.md).
+`add_subdirectory` and CMake's `FetchContent` work as well; the link target is the same. For
+subprocess integrations, see the CLI recipes in [AGENTS.md](AGENTS.md).
 
-## Roadmap
+## Documentation
 
-The proposed focus is **offline batch migration of legacy mechanical part libraries**, with geometry QA for deciding which generated STEP files are ready for review or import. The following capabilities are planned.
+- [Reconstruction method](docs/METHOD.md)
+- [CLI integration recipes](AGENTS.md)
 
-- **Repeatable batches** — record input hashes, units, conversion options, and engine versions in a manifest so a batch can be resumed and rerun.
-- **Geometry comparison** — measure sampled distances from source mesh to STEP surfaces and back, alongside changes in part bounds and volume.
-- **Acceptance rules** — apply per-part tolerances, flag open shells and skipped checks, and produce a machine-readable report for review and CI.
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-Distributed under the MIT License. The original copyright notice and the full
-license text are retained in [LICENSE](LICENSE). Provenance and attribution
-are documented in [NOTICE](NOTICE).
+Distributed under the MIT License. The original copyright notice and the full license text
+are retained in [LICENSE](LICENSE). Provenance and attribution are documented in
+[NOTICE](NOTICE).
+
+This software links against Open CASCADE Technology, which is licensed under LGPL-2.1 with an
+additional exception. OCCT is a separate dependency and is not bundled with this source tree.

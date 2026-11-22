@@ -18,7 +18,7 @@
 #include <thread>
 #include <vector>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 namespace {
 
@@ -204,7 +204,7 @@ static std::string buildDxf(const Profile& p, const PrismLevels& lv) {
     }
     pairS(s, 0, "ENDSEC");
 
-    pairS(s, 999, "stl2step profile dxf");
+    pairS(s, 999, "cad_mesh_recovery profile dxf");
     {
         char buf[80];
         std::snprintf(buf, sizeof(buf), "declined=%d", nDec);
@@ -323,4 +323,4 @@ bool consumeEmitDxfFlag(const std::string& flag, const std::string& val,
 }
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery

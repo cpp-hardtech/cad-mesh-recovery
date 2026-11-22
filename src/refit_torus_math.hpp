@@ -1,4 +1,4 @@
-// stl2step torus math — the closed-form primitive behind the 1.4.0 toroidal
+// cad_mesh_recovery torus math — the closed-form primitive behind the 1.4.0 toroidal
 // round (lane torus-math, SPEC-torus PART B).  Decisions in force:
 //   * D-130-2  an edge ships analytic only when the program computes, IN CLOSED
 //              FORM, the supremum deviation between the shipped curve and the
@@ -48,8 +48,8 @@
 //
 // SPDX-License-Identifier: MIT
 
-#ifndef STL2STEP_REFIT_TORUS_MATH_HPP
-#define STL2STEP_REFIT_TORUS_MATH_HPP
+#ifndef CAD_MESH_RECOVERY_REFIT_TORUS_MATH_HPP
+#define CAD_MESH_RECOVERY_REFIT_TORUS_MATH_HPP
 
 #include <cstdint>
 
@@ -60,7 +60,7 @@
 #include <gp_Pnt.hxx>
 #include <gp_Torus.hxx>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 
 // ---------------------------------------------------------------------------
@@ -223,6 +223,6 @@ double circleOnTorusMax(const gp_Torus& torus, const gp_Circ& circ,
                         double linTol = Precision::Confusion());
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery
 
-#endif  // STL2STEP_REFIT_TORUS_MATH_HPP
+#endif  // CAD_MESH_RECOVERY_REFIT_TORUS_MATH_HPP

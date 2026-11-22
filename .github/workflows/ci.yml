@@ -43,7 +43,7 @@ jobs:
           echo "LD_LIBRARY_PATH=$MAMBA_ROOT_PREFIX/envs/occt/lib" >> "$GITHUB_ENV"
       - name: Configure
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-                   -DSTL2STEP_BUILD_EXAMPLES=ON -DSTL2STEP_BUILD_TESTS=ON
+                   -DCAD_MESH_RECOVERY_BUILD_EXAMPLES=ON -DCAD_MESH_RECOVERY_BUILD_TESTS=ON
       - name: Build
         run: cmake --build build -j
       - name: Test
@@ -62,7 +62,7 @@ jobs:
         run: brew install opencascade
       - name: Configure
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-                   -DSTL2STEP_BUILD_EXAMPLES=ON -DSTL2STEP_BUILD_TESTS=ON
+                   -DCAD_MESH_RECOVERY_BUILD_EXAMPLES=ON -DCAD_MESH_RECOVERY_BUILD_TESTS=ON
       - name: Build
         run: cmake --build build -j
       - name: Test
@@ -103,7 +103,7 @@ jobs:
       - name: Configure
         run: cmake -S . -B build
                    -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
-                   -DSTL2STEP_BUILD_EXAMPLES=ON -DSTL2STEP_BUILD_TESTS=ON
+                   -DCAD_MESH_RECOVERY_BUILD_EXAMPLES=ON -DCAD_MESH_RECOVERY_BUILD_TESTS=ON
       - name: Build
         run: cmake --build build --config Release -j
       - name: Test

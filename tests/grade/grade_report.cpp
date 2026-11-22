@@ -90,7 +90,7 @@ std::string writeJson(const GradeDocument& d) {
     const std::string stepRel = relPath(d.stlPath, d.stepPath);
     const char* fmt = d.mesh.qf.ascii ? "ascii" : "binary";
     o << "{\n";
-    o << "\"schema\":\"stl2step.grade/1\",\n";
+    o << "\"schema\":\"cad_mesh_recovery.grade/1\",\n";
     o << "\"stl\":{\"path\":\"" << esc(stlRel.empty() ? d.stlPath : stlRel) << "\",\"sha256\":\""
       << d.stlSha << "\",\"bytes\":" << d.stlBytes << "},\n";
     o << "\"step\":{\"path\":\"" << esc(stepRel) << "\",\"sha256\":\"" << d.stepSha

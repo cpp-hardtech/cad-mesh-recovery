@@ -19,9 +19,9 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[3]
 STL = Path(__file__).resolve().parent / "handle-lock.stl"
-STL2STEP = REPO / "build" / "stl2step"
-REGIONDUMP = REPO / "build" / "stl2step_regiondump"
-CENSUS = REPO / "build" / "stl2step_census"
+CAD_MESH_RECOVERY = REPO / "build" / "cad_mesh_recovery"
+REGIONDUMP = REPO / "build" / "cad_mesh_recovery_regiondump"
+CENSUS = REPO / "build" / "cad_mesh_recovery_census"
 
 
 def read_binary_stl(path: Path) -> tuple[list[tuple[float, float, float]], list[tuple[int, int, int]]]:
@@ -97,7 +97,7 @@ def region_tri_indices() -> list[int]:
 
 
 def run_trueform(stl: Path, step: Path, *, verify: bool = True) -> dict:
-    cmd = [str(STL2STEP), str(stl), "-o", str(step), "--engine", "trueform", "--quiet"]
+    cmd = [str(CAD_MESH_RECOVERY), str(stl), "-o", str(step), "--engine", "trueform", "--quiet"]
     if not verify:
         cmd.append("--no-verify")
     proc = subprocess.run(cmd, capture_output=True, text=True)
@@ -108,15 +108,15 @@ def run_trueform(stl: Path, step: Path, *, verify: bool = True) -> dict:
 
 
 def per_face_brep_valid(step: Path) -> tuple[bool, int, int]:
-  """Whole-shape + per-face BRepCheck via stl2step_census internals (shape-level)."""
+  """Whole-shape + per-face BRepCheck via cad_mesh_recovery_census internals (shape-level)."""
   proc = subprocess.run([str(CENSUS), str(step)], check=True, capture_output=True, text=True)
   r = json.loads(proc.stdout)
   return bool(r.get("valid")), int(r.get("faces", 0)), int(r.get("openShells", 0))
 
 
 def main() -> int:
-    if not STL2STEP.is_file():
-        print("build stl2step first", file=sys.stderr)
+    if not CAD_MESH_RECOVERY.is_file():
+        print("build cad_mesh_recovery first", file=sys.stderr)
         return 2
 
     with tempfile.TemporaryDirectory() as td:

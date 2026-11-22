@@ -29,7 +29,7 @@ never routed chains to `constructedCylCylGenerator`. Failed chains enrolled
 ## Proof (macOS arm64, this worktree)
 
 ```sh
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DSTL2STEP_BUILD_TESTS=ON
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCAD_MESH_RECOVERY_BUILD_TESTS=ON
 cmake --build build -j 8
 ctest --test-dir build   # 27/27 pass
 ```
@@ -37,7 +37,7 @@ ctest --test-dir build   # 27/27 pass
 ### handle-lock TrueForm
 
 ```sh
-./build/stl2step tests/diag/handle-lock/handle-lock.stl \
+./build/cad_mesh_recovery tests/diag/handle-lock/handle-lock.stl \
   -o /tmp/hl-cy.step --engine trueform --quiet
 ```
 
@@ -69,7 +69,7 @@ wiring is Lane E / closure follow-on, not edge construction.
 ### Body12.stl (second fixture)
 
 ```sh
-./build/stl2step "$STL2STEP_PRIVATE_CORPUS/Body12.stl" \
+./build/cad_mesh_recovery "$CAD_MESH_RECOVERY_PRIVATE_CORPUS/Body12.stl" \
   -o /tmp/b12.step --engine trueform --quiet
 # cyl|cyl warnings: 108 (skew/non-parallel mother lode — needs further conic accept)
 ```

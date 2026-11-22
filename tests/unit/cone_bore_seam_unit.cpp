@@ -9,7 +9,7 @@
 // Synthetic geometry only.
 // SPDX-License-Identifier: MIT
 
-#include <stl2step/stl2step.hpp>
+#include <cad_mesh_recovery/cad_mesh_recovery.hpp>
 
 #include "posix_compat.hpp"
 #include "refit_axis_seam.hpp"
@@ -38,7 +38,7 @@
 #include <string>
 #include <vector>
 
-using namespace stl2step::refit;
+using namespace cad_mesh_recovery::refit;
 
 static int gFail = 0;
 
@@ -215,16 +215,16 @@ static void caseHole(const char* tag, int nb, int nc, double phDeg) {
     const bool wrote = writeStl(stl, chamferedHole(nb, nc, phDeg, 7.5, -3.25));
     expect(wrote, (std::string(tag) + "_stl_written").c_str());
     if (!wrote) return;
-    const double tau = 2.0 * stl2step::stlQuantFloor(stl).q;
+    const double tau = 2.0 * cad_mesh_recovery::stlQuantFloor(stl).q;
     expect(tau > 0.0, (std::string(tag) + "_tau").c_str());
 
-    stl2step::Options opt;
+    cad_mesh_recovery::Options opt;
     opt.input = stl;
     opt.output = step;
     opt.smooth = true;
     opt.verify = true;
     opt.threads = 1;
-    const stl2step::Result r = stl2step::convert(opt);
+    const cad_mesh_recovery::Result r = cad_mesh_recovery::convert(opt);
     const std::string t(tag);
     expect(r.ok && r.solids == 1 && r.smoothRevertedComponents == 0, (t + "_convert").c_str());
     expect(r.smoothBuiltCylinders == 1 && r.smoothBuiltCones == 2 && r.smoothFacetFaces == 0,

@@ -6,8 +6,8 @@
 // records for a degree-1 span on a cylinder.
 // SPDX-License-Identifier: MIT
 
-#ifndef STL2STEP_REFIT_CYLCYL_CONTACT_HPP
-#define STL2STEP_REFIT_CYLCYL_CONTACT_HPP
+#ifndef CAD_MESH_RECOVERY_REFIT_CYLCYL_CONTACT_HPP
+#define CAD_MESH_RECOVERY_REFIT_CYLCYL_CONTACT_HPP
 
 #include <gp_Ax2.hxx>
 #include <gp_Ax3.hxx>
@@ -21,7 +21,7 @@
 #include <algorithm>
 #include <cmath>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 
 struct CylAxis {
@@ -274,6 +274,6 @@ inline SteinmetzPair steinmetzSections(const CylAxis& a, const CylAxis& b, doubl
 }
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery
 
 #endif

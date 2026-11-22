@@ -1,4 +1,4 @@
-// stl2step P1 stage T — toroidal-round claim (D-140-6 §1/§3(7), SPEC-torus-2).
+// cad_mesh_recovery P1 stage T — toroidal-round claim (D-140-6 §1/§3(7), SPEC-torus-2).
 //
 // Consumes ProvClaim::Unclaimed provisionals and eligible Origin::CylGrow
 // regions (maxVertexDev > tau) in Phase C's position: after C1, before A3.
@@ -25,7 +25,7 @@
 #include <gp_Pnt.hxx>
 #include <gp_XYZ.hxx>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 namespace {
 
@@ -33,8 +33,8 @@ constexpr double kPi = 3.14159265358979323846264338327950288;
 constexpr double kTwoPi = 2.0 * kPi;
 
 bool torusDiagEnabled() {
-    const char* a = std::getenv("STL2STEP_DIAG_130");
-    const char* b = std::getenv("STL2STEP_DIAG_P2");
+    const char* a = std::getenv("CAD_MESH_RECOVERY_DIAG_130");
+    const char* b = std::getenv("CAD_MESH_RECOVERY_DIAG_P2");
     return (a && a[0] && a[0] != '0') || (b && b[0] && b[0] != '0');
 }
 
@@ -684,4 +684,4 @@ bool claimToriT(const MeshView& mv, const SegmentParams& p, const DerivedTols& /
 }
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery

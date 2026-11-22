@@ -32,5 +32,5 @@
     20.0,
     30.0
   ],
-  "notes": "Radii from COMMON.md; line count is approximate (not specified in source). Future lanes should drive stl2step --engine trueform toward this census."
+  "notes": "Radii from COMMON.md; line count is approximate (not specified in source). Future lanes should drive cad_mesh_recovery --engine trueform toward this census."
 }

@@ -3,7 +3,7 @@
 
 The engine classifies every edge two analytic faces share (RESULT
 ``edgeClasses``, one ``DIAG_EDGECLASS`` line per edge under
-``STL2STEP_P2_DIAG=1``).  This gate holds the three red lines DECISION-130
+``CAD_MESH_RECOVERY_P2_DIAG=1``).  This gate holds the three red lines DECISION-130
 D-130-2 states, over the whole corpus plus the P2 build fixtures:
 
   * ``unhandled`` on an analytic|analytic edge  == 0
@@ -39,8 +39,8 @@ the ratchet itself.
 Usage:
   edge_class_gate.py --self-test
   edge_class_gate.py --synthetic-pass
-  edge_class_gate.py --measure --binary ./build/stl2step      # seeding view
-  edge_class_gate.py --binary ./build/stl2step
+  edge_class_gate.py --measure --binary ./build/cad_mesh_recovery      # seeding view
+  edge_class_gate.py --binary ./build/cad_mesh_recovery
 """
 
 from __future__ import annotations
@@ -145,7 +145,7 @@ def parse_result_line(stdout: str) -> Dict[str, Any]:
             return json.loads(line[len("RESULT ") :])
         if line.startswith("RESULT{"):
             return json.loads(line[len("RESULT") :])
-    raise GateError("no RESULT line in stl2step stdout")
+    raise GateError("no RESULT line in cad_mesh_recovery stdout")
 
 
 def run_one(binary: Path, stl: Path, work: Path) -> Dict[str, Any]:
@@ -467,7 +467,7 @@ def honour_expected_red_list(
 
 def run_live(binary: Path, ratchet_path: Path, jobs: int) -> int:
     if not binary.is_file():
-        raise GateError(f"stl2step binary missing: {binary}")
+        raise GateError(f"cad_mesh_recovery binary missing: {binary}")
     ratchet = load_ratchet(ratchet_path)
     measured = measure(binary, jobs)
     checks, censuses = evaluate(measured, ratchet)

@@ -1,4 +1,4 @@
-// SPEC AC-CASCADE — exercise stl2step::convert() (the public C++ API).
+// SPEC AC-CASCADE — exercise cad_mesh_recovery::convert() (the public C++ API).
 // Not a ctest (lane pins 27/27 + hl_census_ratchet + cascade_no_waiver).
 //
 // Modes via CASCADE_EXPECT (default unset):
@@ -9,7 +9,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-#include <stl2step/stl2step.hpp>
+#include <cad_mesh_recovery/cad_mesh_recovery.hpp>
 
 #include <cstdio>
 #include <cstdlib>
@@ -22,21 +22,21 @@ namespace {
 
 const double kVolBudget = 6.013;
 
-int runConvert(const std::string& stl, const std::string& step, stl2step::Result& r,
+int runConvert(const std::string& stl, const std::string& step, cad_mesh_recovery::Result& r,
                std::vector<std::string>& extra) {
-    stl2step::Options opt;
+    cad_mesh_recovery::Options opt;
     opt.input = stl;
     opt.output = step;
     opt.smooth = true;
     opt.verify = true;
     std::mutex logMu;
-    auto log = [&](stl2step::Severity sev, const std::string& msg) {
-        if (sev == stl2step::Severity::Warning || sev == stl2step::Severity::Error) {
+    auto log = [&](cad_mesh_recovery::Severity sev, const std::string& msg) {
+        if (sev == cad_mesh_recovery::Severity::Warning || sev == cad_mesh_recovery::Severity::Error) {
             std::lock_guard<std::mutex> g(logMu);
             extra.push_back(msg);
         }
     };
-    r = stl2step::convert(opt, log);
+    r = cad_mesh_recovery::convert(opt, log);
     return r.ok ? 0 : 1;
 }
 
@@ -58,7 +58,7 @@ int main(int argc, char** argv) {
     if (std::system(mkdir.c_str()) != 0) return 2;
 
     std::string step = std::string(outDir) + "/hl-" + expect + ".step";
-    stl2step::Result r;
+    cad_mesh_recovery::Result r;
     std::vector<std::string> extra;
     const int rc = runConvert(stl, step, r, extra);
 
@@ -78,7 +78,7 @@ int main(int argc, char** argv) {
     if (std::strcmp(expect, "bad") == 0) {
         bool saw = false;
         for (const auto& w : r.warnings)
-            if (w.find("STL2STEP_FAIL_RID") != std::string::npos) saw = true;
+            if (w.find("CAD_MESH_RECOVERY_FAIL_RID") != std::string::npos) saw = true;
         if (!saw) {
             std::fprintf(stderr, "CASCADE_API FAIL: malformed knob produced no warning\n");
             return 1;

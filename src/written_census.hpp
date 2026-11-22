@@ -1,4 +1,4 @@
-// stl2step -- written-shape face census for the RESULT counters (D-gid-7.6).
+// cad_mesh_recovery -- written-shape face census for the RESULT counters (D-gid-7.6).
 // SPDX-License-Identifier: MIT
 //
 // smoothBuiltPlanes, smoothBuiltFillets, smoothPlanes, smoothCylinders and
@@ -33,8 +33,8 @@
 // faces (D-130-10(1)); this census does not change them. smoothFillets is not
 // in D-gid-7.6's list and stays the plan's FilletStrip region count.
 
-#ifndef STL2STEP_WRITTEN_CENSUS_HPP
-#define STL2STEP_WRITTEN_CENSUS_HPP
+#ifndef CAD_MESH_RECOVERY_WRITTEN_CENSUS_HPP
+#define CAD_MESH_RECOVERY_WRITTEN_CENSUS_HPP
 
 #include <BRepAdaptor_Surface.hxx>
 #include <BRepTools_History.hxx>
@@ -50,7 +50,7 @@
 #include <set>
 #include <vector>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 struct RegionSet;
 }
@@ -157,13 +157,13 @@ inline WrittenFaceCounts countWrittenFaces(const TopoDS_Shape& written, const Fa
     return c;
 }
 
-// kind[i] / unit[i] for each face buildFaces shipped (stl2step.cpp), from
+// kind[i] / unit[i] for each face buildFaces shipped (cad_mesh_recovery.cpp), from
 // rs.shipFaceRid / rs.shipFaceFacet and the region's origin and type. A face
 // with no recorded provenance gets kind 0 and is reported as unknownFaces.
 void describeShippedFaces(const refit::RegionSet& rs, const std::vector<TopoDS_Face>& built,
                           std::vector<uint8_t>& kind, std::vector<int>& unit);
 
 }  // namespace detail
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery
 
-#endif  // STL2STEP_WRITTEN_CENSUS_HPP
+#endif  // CAD_MESH_RECOVERY_WRITTEN_CENSUS_HPP

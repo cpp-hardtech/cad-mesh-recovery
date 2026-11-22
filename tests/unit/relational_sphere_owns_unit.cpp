@@ -13,7 +13,7 @@
 #include <limits>
 #include <vector>
 
-using namespace stl2step::refit;
+using namespace cad_mesh_recovery::refit;
 
 static int gFail = 0;
 

@@ -1,4 +1,4 @@
-// stl2step torus math — the closed-form primitive behind the 1.4.0 toroidal
+// cad_mesh_recovery torus math — the closed-form primitive behind the 1.4.0 toroidal
 // round (lane torus-math, SPEC-torus PART B, D-140-6 §3(4)).  Signatures are
 // published in src/refit_torus_math.hpp; the derivation is stated there and in
 // _team/reports/torus-math.md.
@@ -46,7 +46,7 @@
 #include <gp_Vec.hxx>
 #include <gp_XYZ.hxx>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 namespace {
 
@@ -274,4 +274,4 @@ double circleOnTorusMax(const gp_Torus& torus, const gp_Circ& circ, TorusDevClas
 }
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery

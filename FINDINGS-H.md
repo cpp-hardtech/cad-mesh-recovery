@@ -10,8 +10,8 @@ Lane brief cited macOS vs Linux cylinder-recognition divergence and Linux number
 
 ## Instrumentation
 
-Tools: `STL2STEP_P1_DIAG=1 ./build/p1_compose_diag`, `stl2step_regiondump --bare`,
-`stl2step_p2buildtest --live`.
+Tools: `CAD_MESH_RECOVERY_P1_DIAG=1 ./build/p1_compose_diag`, `cad_mesh_recovery_regiondump --bare`,
+`cad_mesh_recovery_p2buildtest --live`.
 
 ### Same bytes on both platforms (macOS `S09.stl` copied to Linux)
 
@@ -65,7 +65,7 @@ ULP noise at `theta_cyl_lo` cannot flip membership.
 
 ```sh
 # macOS
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DSTL2STEP_BUILD_TESTS=ON
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCAD_MESH_RECOVERY_BUILD_TESTS=ON
 cmake --build build -j 8
 ctest --test-dir build --output-on-failure   # expect 27/27
 
@@ -73,9 +73,9 @@ ctest --test-dir build --output-on-failure   # expect 27/27
 scripts/ci-linux-preflight.sh cnc            # expect 27/27
 
 # S09 comp1 identity check (both platforms after pin)
-./build/stl2step_regiondump tests/corpus/S09.stl --component 1 --bare --threads 1 --out /tmp/c1.json
+./build/cad_mesh_recovery_regiondump tests/corpus/S09.stl --component 1 --bare --threads 1 --out /tmp/c1.json
 # stats: planes=22 cylinders=0 fillets=0
-./build/stl2step_p2buildtest --live --component 1 /tmp/c1.json tests/corpus/S09.stl \
+./build/cad_mesh_recovery_p2buildtest --live --component 1 /tmp/c1.json tests/corpus/S09.stl \
   --sidecar tests/corpus/S09.expected.json
 # ok=true cyl=0 vol=496.706
 ```

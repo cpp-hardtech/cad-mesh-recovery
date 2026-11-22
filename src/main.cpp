@@ -1,9 +1,9 @@
-// stl2step command-line front-end. Parses arguments into stl2step::Options,
+// cad_mesh_recovery command-line front-end. Parses arguments into cad_mesh_recovery::Options,
 // runs the engine, streams progress, and prints the machine-readable RESULT line.
 //
 // SPDX-License-Identifier: MIT
 
-#include "stl2step/stl2step.hpp"
+#include "cad_mesh_recovery/cad_mesh_recovery.hpp"
 
 #include <cstdio>
 #include <cstdlib>
@@ -14,7 +14,7 @@
 #include <io.h>
 #endif
 
-using namespace stl2step;
+using namespace cad_mesh_recovery;
 
 // Piped/file stdout is fully buffered; SolidOut (CREATE_NO_WINDOW) and
 // `> out.txt` both lose the last contract line if we return without a
@@ -37,9 +37,9 @@ static void unbufferPipedStdout() {
 
 static void usage() {
     printf(
-        "stl2step %s -- convert an STL mesh into a STEP (B-Rep) solid\n\n"
-        "usage: stl2step <input.stl> [output.step] [options]\n"
-        "       stl2step --mesh <in.step> [-o out.stl] [--edges <out.edges>]  default <stem>.mesh.stl\n\n"
+        "cad_mesh_recovery %s -- convert an STL mesh into a STEP (B-Rep) solid\n\n"
+        "usage: cad_mesh_recovery <input.stl> [output.step] [options]\n"
+        "       cad_mesh_recovery --mesh <in.step> [-o out.stl] [--edges <out.edges>]  default <stem>.mesh.stl\n\n"
         "  -o <file>            output path (convert: default .step; mesh: default <stem>.mesh.stl)\n"
         "  --mesh <file>        mesh mode: tessellate a STEP to binary STL (+ optional drawable edges)\n"
         "  --edges <file>       mesh mode only: write Format A edge segments (24-byte LE xyz pairs)\n"
@@ -101,7 +101,7 @@ static int runMeshMode(int argc, char** argv) {
             return argv[++i];
         };
         if (a == "-h" || a == "--help") { usage(); return 0; }
-        else if (a == "-v" || a == "--version") { printf("stl2step %s\n", version()); return 0; }
+        else if (a == "-v" || a == "--version") { printf("cad_mesh_recovery %s\n", version()); return 0; }
         else if (a == "--mesh")           opt.input = val("--mesh");
         else if (a == "-o")               opt.output = val("-o");
         else if (a == "--edges")          opt.edgesFile = val("--edges");
@@ -179,7 +179,7 @@ int main(int argc, char** argv) {
             return v;
         };
         if (a == "-h" || a == "--help") { usage(); return 0; }
-        else if (a == "-v" || a == "--version") { printf("stl2step %s\n", version()); return 0; }
+        else if (a == "-v" || a == "--version") { printf("cad_mesh_recovery %s\n", version()); return 0; }
         else if (a == "-o")              opt.output = val("-o");
         else if (a == "--schema")      { if (!parseSchema(val("--schema"), opt.schema)) {
                                              fprintf(stderr, "error: --schema must be AP203, AP214 or AP242\n");

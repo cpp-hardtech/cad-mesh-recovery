@@ -7,8 +7,8 @@
 // existing tolerance and the D-fc-6.7 G5 bound 0.1*R of the certified circle.
 // SPDX-License-Identifier: MIT
 
-#ifndef STL2STEP_REFIT_WIRE_CLIP_HPP
-#define STL2STEP_REFIT_WIRE_CLIP_HPP
+#ifndef CAD_MESH_RECOVERY_REFIT_WIRE_CLIP_HPP
+#define CAD_MESH_RECOVERY_REFIT_WIRE_CLIP_HPP
 
 #include <BRepBuilderAPI_MakeEdge.hxx>
 #include <BRep_Builder.hxx>
@@ -39,7 +39,7 @@
 
 #include <cmath>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 
 // Deepest entry of the open segment AB into the disk (O, R). Positive is
@@ -276,6 +276,6 @@ inline TopoDS_Edge tangentClipEdge(const gp_Circ& cert, const TopoDS_Vertex& vV,
 }
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery
 
 #endif

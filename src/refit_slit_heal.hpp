@@ -10,8 +10,8 @@
 // No threshold: coincidence is read at the tolerance the edges themselves carry.
 // SPDX-License-Identifier: MIT
 
-#ifndef STL2STEP_REFIT_SLIT_HEAL_HPP
-#define STL2STEP_REFIT_SLIT_HEAL_HPP
+#ifndef CAD_MESH_RECOVERY_REFIT_SLIT_HEAL_HPP
+#define CAD_MESH_RECOVERY_REFIT_SLIT_HEAL_HPP
 
 #include "refit.hpp"
 
@@ -26,7 +26,7 @@
 #include <cstddef>
 #include <vector>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 
 struct FinBigon {
@@ -165,6 +165,6 @@ inline bool edgeRunsCoincide(const std::vector<TopoDS_Edge>& a, const std::vecto
 }
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery
 
-#endif  // STL2STEP_REFIT_SLIT_HEAL_HPP
+#endif  // CAD_MESH_RECOVERY_REFIT_SLIT_HEAL_HPP

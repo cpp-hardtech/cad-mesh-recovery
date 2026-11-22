@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Never-clobber default for `stl2step --mesh` without `-o`.
+"""Never-clobber default for `cad_mesh_recovery --mesh` without `-o`.
 
 (a) Next to a pre-existing <stem>.stl, `--mesh <stem>.step --quiet` must leave
     that STL byte-identical and write <stem>.mesh.stl.

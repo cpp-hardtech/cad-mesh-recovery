@@ -4,7 +4,7 @@
 A fixture listed under expected-red.json p1_compose_gate may XFAIL only its
 recoverable[] misses. This drives run_compose_gate.main() end to end with the
 real check_regionset.py; only the region dump is stubbed (a committed
-RegionSet stands in for stl2step_regiondump), so no engine binary is needed.
+RegionSet stands in for cad_mesh_recovery_regiondump), so no engine binary is needed.
 
 Forced cases: a listed fixture whose only failure is a recoverable miss is
 XFAIL; a listed fixture with an unlisted failure class (an absent expected

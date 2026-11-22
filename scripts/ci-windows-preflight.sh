@@ -5,15 +5,15 @@
 # build alone is ~3.5h on a cold hosted runner).
 #
 #   scripts/ci-windows-preflight.sh <user@host>
-#   STL2STEP_WIN_HOST=<user@host> scripts/ci-windows-preflight.sh
+#   CAD_MESH_RECOVERY_WIN_HOST=<user@host> scripts/ci-windows-preflight.sh
 #
-# Host is required ($1 or STL2STEP_WIN_HOST). No baked-in user, hostname,
+# Host is required ($1 or CAD_MESH_RECOVERY_WIN_HOST). No baked-in user, hostname,
 # or LAN address.
 #
 # Node roots (Windows paths, no spaces; defaults are the original D: layout):
-#   STL2STEP_WIN_ROOT   CI root          (default D:\stl2step-ci)
-#   STL2STEP_WIN_VCPKG  vcpkg checkout   (default D:\vcpkg)
-# The node lock is <drive of STL2STEP_WIN_ROOT>\team-node-lock.
+#   CAD_MESH_RECOVERY_WIN_ROOT   CI root          (default D:\cad_mesh_recovery-ci)
+#   CAD_MESH_RECOVERY_WIN_VCPKG  vcpkg checkout   (default D:\vcpkg)
+# The node lock is <drive of CAD_MESH_RECOVERY_WIN_ROOT>\team-node-lock.
 #
 # One-time prep on the PC (already done 2026-08-26): VS 2022 Build Tools
 # with MSVC + SDK + bundled CMake, and <root>\install-occt.cmd
@@ -41,19 +41,19 @@ if [ -z "${PREFLIGHT_SELF_COPY:-}" ]; then
 fi
 ORIG_SCRIPT="$PREFLIGHT_SELF_COPY"
 
-HOST="${1:-${STL2STEP_WIN_HOST:-}}"
+HOST="${1:-${CAD_MESH_RECOVERY_WIN_HOST:-}}"
 if [ -z "$HOST" ]; then
   echo "usage: scripts/ci-windows-preflight.sh <user@host>" >&2
-  echo "   or: STL2STEP_WIN_HOST=<user@host> scripts/ci-windows-preflight.sh" >&2
+  echo "   or: CAD_MESH_RECOVERY_WIN_HOST=<user@host> scripts/ci-windows-preflight.sh" >&2
   exit 1
 fi
 REPO_ROOT="$(cd "$(dirname "$ORIG_SCRIPT")/.." && pwd)"
 
-_win_root_default='D:\stl2step-ci'
+_win_root_default='D:\cad_mesh_recovery-ci'
 _win_vcpkg_default='D:\vcpkg'
-WIN_ROOT="${STL2STEP_WIN_ROOT:-$_win_root_default}"
-WIN_VCPKG="${STL2STEP_WIN_VCPKG:-$_win_vcpkg_default}"
-WIN_ROOT_FWD="${WIN_ROOT//\\//}"                    # scp wants D:/stl2step-ci
+WIN_ROOT="${CAD_MESH_RECOVERY_WIN_ROOT:-$_win_root_default}"
+WIN_VCPKG="${CAD_MESH_RECOVERY_WIN_VCPKG:-$_win_vcpkg_default}"
+WIN_ROOT_FWD="${WIN_ROOT//\\//}"                    # scp wants D:/cad_mesh_recovery-ci
 WIN_LOCK="${WIN_ROOT%%:*}:"'\team-node-lock'
 
 # Record the exact local HEAD the tree is synced from.
@@ -181,10 +181,10 @@ ssh "$HOST" "cmd /c (if exist ${WIN_ROOT}\\repo rmdir /s /q ${WIN_ROOT}\\repo) &
 # tar on both ends. NO --exclude patterns: bsdtar matches them against
 # nested path components, which silently drops tests/gates/build_fixtures
 # and build_local.cpp (proven 2026-08-26, twice). Instead, enumerate the
-# top-level entries and skip build*/_team/.stl2step-* by name.
+# top-level entries and skip build*/_team/.cad_mesh_recovery-* by name.
 entries=()
 while IFS= read -r e; do
-  case "$e" in build*|_team|.stl2step-*|.ci-local) continue ;; esac
+  case "$e" in build*|_team|.cad_mesh_recovery-*|.ci-local) continue ;; esac
   # A git WORKTREE's .git is a pointer FILE holding the absolute path of the
   # main checkout's gitdir; shipping it verbatim gives the node a path that does
   # not exist, so build_baseline.sh exits 128 and the pinned 187ead0 twin run
@@ -225,7 +225,7 @@ if [ -f "$REPO_ROOT/.git" ]; then
 fi
 
 echo "== preflight: build + ctest (Release)"
-cat > /tmp/stl2step-baseline-cleanup.sh <<'EOF'
+cat > /tmp/cad_mesh_recovery-baseline-cleanup.sh <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 COMMIT=187ead0d8cf3d3694153cbcff9314d65324fec63
@@ -251,7 +251,7 @@ fi
 EOF
 # Unquoted heredoc so the node roots expand: keep the body free of $, backticks,
 # and backslashes before \ $ ` or a newline, or cmd receives mangled text.
-cat > /tmp/stl2step-win-preflight.cmd <<EOF
+cat > /tmp/cad_mesh_recovery-win-preflight.cmd <<EOF
 @echo off
 set BT=C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools
 set CMAKE=%BT%\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe
@@ -265,13 +265,13 @@ set "PYTHONUTF8=1"
 cd /d ${WIN_ROOT}
 "%CMAKE%" -S repo -B build ^
   -DCMAKE_TOOLCHAIN_FILE=${WIN_VCPKG}\scripts\buildsystems\vcpkg.cmake ^
-  -DSTL2STEP_BUILD_EXAMPLES=ON -DSTL2STEP_BUILD_TESTS=ON || exit /b 1
+  -DCAD_MESH_RECOVERY_BUILD_EXAMPLES=ON -DCAD_MESH_RECOVERY_BUILD_TESTS=ON || exit /b 1
 "%CMAKE%" --build build --config Release -j 14 || exit /b 1
 bash baseline-cleanup.sh || exit /b 1
 "%CTEST%" --test-dir build -C Release --output-on-failure
 EOF
-scp -q /tmp/stl2step-baseline-cleanup.sh "$HOST:${WIN_ROOT_FWD}/baseline-cleanup.sh"
-scp -q /tmp/stl2step-win-preflight.cmd "$HOST:${WIN_ROOT_FWD}/preflight.cmd"
+scp -q /tmp/cad_mesh_recovery-baseline-cleanup.sh "$HOST:${WIN_ROOT_FWD}/baseline-cleanup.sh"
+scp -q /tmp/cad_mesh_recovery-win-preflight.cmd "$HOST:${WIN_ROOT_FWD}/preflight.cmd"
 
 LOG="$(mktemp)"
 if ! ssh "$HOST" "cmd /c ${WIN_ROOT}\\preflight.cmd" 2>&1 | tee "$LOG"; then

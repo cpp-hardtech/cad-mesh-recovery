@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# build_baseline.sh — reproducible stl2step 1.0.0 (commit 187ead0) CLI.
+# build_baseline.sh — reproducible cad_mesh_recovery 1.0.0 (commit 187ead0) CLI.
 #
 # Checks out 187ead0 without touching the current worktree, configures it
 # with the same CMake generator / build type as the current tree (or
-# CMake's platform default + Release), and builds tests/gates/baseline/.build/stl2step.
+# CMake's platform default + Release), and builds tests/gates/baseline/.build/cad_mesh_recovery.
 #
 # Never commit the checkout, the build tree, or the binary.
 # Idempotent: a second run reuses the worktree and an incremental build.
@@ -14,9 +14,9 @@ COMMIT="187ead0d8cf3d3694153cbcff9314d65324fec63"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
-SRC_DIR="${STL2STEP_BASELINE_SRC:-$SCRIPT_DIR/.worktree-187ead0}"
-BUILD_DIR="${STL2STEP_BASELINE_BUILD:-$SCRIPT_DIR/.build}"
-CURRENT_BUILD="${STL2STEP_CURRENT_BUILD:-$REPO_ROOT/build}"
+SRC_DIR="${CAD_MESH_RECOVERY_BASELINE_SRC:-$SCRIPT_DIR/.worktree-187ead0}"
+BUILD_DIR="${CAD_MESH_RECOVERY_BASELINE_BUILD:-$SCRIPT_DIR/.build}"
+CURRENT_BUILD="${CAD_MESH_RECOVERY_CURRENT_BUILD:-$REPO_ROOT/build}"
 FORCE=0
 JOBS=""
 GENERATOR=""
@@ -27,7 +27,7 @@ usage() {
 usage: $0 [--force] [--jobs N] [--generator G] [--build-type T] [--current-build DIR]
 
 Build the released 1.0.0 engine (git commit ${COMMIT_SHORT}) into:
-  ${BUILD_DIR}/stl2step
+  ${BUILD_DIR}/cad_mesh_recovery
 
 --current-build DIR   read CMAKE_GENERATOR / CMAKE_BUILD_TYPE from this
                       cache (default: <repo>/build). Used so the baseline
@@ -125,8 +125,8 @@ fi
 src_commit() {
     if [[ -e "$SRC_DIR/.git" ]]; then
         git -C "$SRC_DIR" rev-parse HEAD 2>/dev/null || true
-    elif [[ -f "$SRC_DIR/.stl2step-baseline-commit" ]]; then
-        tr -d '[:space:]' < "$SRC_DIR/.stl2step-baseline-commit"
+    elif [[ -f "$SRC_DIR/.cad_mesh_recovery-baseline-commit" ]]; then
+        tr -d '[:space:]' < "$SRC_DIR/.cad_mesh_recovery-baseline-commit"
     fi
 }
 
@@ -165,7 +165,7 @@ ensure_src() {
     echo "worktree add refused (likely nested); falling back to git archive"
     mkdir -p "$SRC_DIR"
     git -C "$REPO_ROOT" archive "$COMMIT" | tar -x -C "$SRC_DIR"
-    printf '%s\n' "$COMMIT" > "$SRC_DIR/.stl2step-baseline-commit"
+    printf '%s\n' "$COMMIT" > "$SRC_DIR/.cad_mesh_recovery-baseline-commit"
     echo "baseline source: git archive $COMMIT_SHORT -> $SRC_DIR"
 }
 
@@ -214,10 +214,10 @@ if [[ -n "$GENERATOR" ]]; then
 fi
 CMAKE_ARGS+=(
     -DCMAKE_BUILD_TYPE="$BUILD_TYPE"
-    -DSTL2STEP_BUILD_CLI=ON
-    -DSTL2STEP_BUILD_TESTS=OFF
-    -DSTL2STEP_BUILD_EXAMPLES=OFF
-    -DSTL2STEP_INSTALL=OFF
+    -DCAD_MESH_RECOVERY_BUILD_CLI=ON
+    -DCAD_MESH_RECOVERY_BUILD_TESTS=OFF
+    -DCAD_MESH_RECOVERY_BUILD_EXAMPLES=OFF
+    -DCAD_MESH_RECOVERY_INSTALL=OFF
 )
 if ! is_vs_generator "$GENERATOR"; then
     if [[ -n "$C_COMPILER" ]]; then
@@ -244,8 +244,8 @@ else
     echo "reusing existing baseline CMake cache (${GENERATOR:-<cmake default>} / $BUILD_TYPE)"
 fi
 
-echo "building baseline stl2step (-j $JOBS)"
-cmake --build "$BUILD_DIR" --target stl2step --config "$BUILD_TYPE" -j "$JOBS"
+echo "building baseline cad_mesh_recovery (-j $JOBS)"
+cmake --build "$BUILD_DIR" --target cad_mesh_recovery --config "$BUILD_TYPE" -j "$JOBS"
 
 # After a no -G configure, report the generator CMake actually picked.
 if [[ -z "$GENERATOR" ]]; then
@@ -254,10 +254,10 @@ fi
 
 BIN=""
 for candidate in \
-    "$BUILD_DIR/stl2step" \
-    "$BUILD_DIR/stl2step.exe" \
-    "$BUILD_DIR/$BUILD_TYPE/stl2step" \
-    "$BUILD_DIR/$BUILD_TYPE/stl2step.exe"
+    "$BUILD_DIR/cad_mesh_recovery" \
+    "$BUILD_DIR/cad_mesh_recovery.exe" \
+    "$BUILD_DIR/$BUILD_TYPE/cad_mesh_recovery" \
+    "$BUILD_DIR/$BUILD_TYPE/cad_mesh_recovery.exe"
 do
     if [[ -f "$candidate" ]]; then
         BIN="$candidate"
@@ -265,7 +265,7 @@ do
     fi
 done
 if [[ -z "$BIN" ]]; then
-    echo "error: expected executable under $BUILD_DIR (stl2step[.exe] or $BUILD_TYPE/stl2step[.exe])" >&2
+    echo "error: expected executable under $BUILD_DIR (cad_mesh_recovery[.exe] or $BUILD_TYPE/cad_mesh_recovery[.exe])" >&2
     exit 1
 fi
 

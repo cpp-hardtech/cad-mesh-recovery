@@ -28,19 +28,19 @@
 #include <gp_Vec.hxx>
 #include <gp_XYZ.hxx>
 
-using stl2step::harness::HarnessMesh;
-using stl2step::harness::loadMesh;
-using stl2step::harness::toMeshView;
-using stl2step::refit::BuiltAs;
-using stl2step::refit::Loop;
-using stl2step::refit::LoopRole;
-using stl2step::refit::MeshView;
-using stl2step::refit::Origin;
-using stl2step::refit::Region;
-using stl2step::refit::RegionSet;
-using stl2step::refit::SegmentParams;
-using stl2step::refit::SurfType;
-using stl2step::refit::buildFaces;
+using cad_mesh_recovery::harness::HarnessMesh;
+using cad_mesh_recovery::harness::loadMesh;
+using cad_mesh_recovery::harness::toMeshView;
+using cad_mesh_recovery::refit::BuiltAs;
+using cad_mesh_recovery::refit::Loop;
+using cad_mesh_recovery::refit::LoopRole;
+using cad_mesh_recovery::refit::MeshView;
+using cad_mesh_recovery::refit::Origin;
+using cad_mesh_recovery::refit::Region;
+using cad_mesh_recovery::refit::RegionSet;
+using cad_mesh_recovery::refit::SegmentParams;
+using cad_mesh_recovery::refit::SurfType;
+using cad_mesh_recovery::refit::buildFaces;
 
 static int gFail = 0;
 
@@ -212,7 +212,7 @@ static bool prepare(const std::string& path, HarnessMesh& mesh, MeshView& mv, Re
     toMeshView(mesh, mesh.comps[0], mv);
     rs = RegionSet{};
     SegmentParams p;
-    if (!stl2step::refit::segment(mv, p, rs, nullptr)) return false;
+    if (!cad_mesh_recovery::refit::segment(mv, p, rs, nullptr)) return false;
     std::fprintf(stderr, "segment regions=%zu q=%.6g\n", rs.regions.size(), mv.quantFloor);
     dumpRegions(rs);
     return true;
@@ -342,7 +342,7 @@ static bool forceOneLoop(Region& r) {
 }
 
 static bool buildCensus(const MeshView& mv, RegionSet& rs, FaceCensus& c, bool& ok) {
-    ::setenv("STL2STEP_DIAG_REL", "1", 1);
+    ::setenv("CAD_MESH_RECOVERY_DIAG_REL", "1", 1);
     std::vector<TopoDS_Vertex> verts(mv.nVtx);
     BRep_Builder bb;
     for (size_t i = 0; i < mv.nVtx; ++i) {
@@ -351,7 +351,7 @@ static bool buildCensus(const MeshView& mv, RegionSet& rs, FaceCensus& c, bool& 
     }
     std::vector<TopoDS_Face> faces;
     ok = buildFaces(mv, rs, verts, faces, nullptr);
-    ::unsetenv("STL2STEP_DIAG_REL");
+    ::unsetenv("CAD_MESH_RECOVERY_DIAG_REL");
     c = censusOf(faces);
     std::fprintf(stderr, "build ok=%d faces=%zu cyl=%d plane=%d facet3=%d other=%d\n", (int)ok,
                  faces.size(), c.cyl, c.plane, c.facet3, c.other);

@@ -5,14 +5,14 @@
 // D5.3 include allowlist and cannot include this header.
 // SPDX-License-Identifier: MIT
 
-#ifndef STL2STEP_REFIT_ISLAND_ABSORB_HPP
-#define STL2STEP_REFIT_ISLAND_ABSORB_HPP
+#ifndef CAD_MESH_RECOVERY_REFIT_ISLAND_ABSORB_HPP
+#define CAD_MESH_RECOVERY_REFIT_ISLAND_ABSORB_HPP
 
 #include "refit.hpp"
 
 #include <vector>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 
 // max over t in S of |dist(centroid(t), axis_S) - R_S|. A function of the mesh.
@@ -29,6 +29,6 @@ bool uniqueF1Host(const MeshView& mv, const std::vector<Region>& regions,
                   double& sag, double& hostSag);
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery
 
 #endif

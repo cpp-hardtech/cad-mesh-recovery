@@ -24,7 +24,7 @@
 #include <gp_Torus.hxx>
 #include <gp_Lin.hxx>
 
-using namespace stl2step::refit;
+using namespace cad_mesh_recovery::refit;
 
 static int gFail = 0;
 
@@ -996,14 +996,14 @@ static bool sameRegionSet(const RegionSet& a, const RegionSet& b) {
 // state) equals a full segment() with the same withheld triangles. On the corpus
 // pickup the two R12 hub tori are withheld; the two R89.5 arc tori stay.
 static void caseResegment(const char* stl) {
-    stl2step::harness::HarnessMesh mesh;
+    cad_mesh_recovery::harness::HarnessMesh mesh;
     std::string err;
-    if (!stl2step::harness::loadMesh(stl, 1.0, 0.0, 0.0, mesh, err) || mesh.comps.empty()) {
+    if (!cad_mesh_recovery::harness::loadMesh(stl, 1.0, 0.0, 0.0, mesh, err) || mesh.comps.empty()) {
         expect(false, "reseg: corpus mesh loads");
         return;
     }
     MeshView mv{};
-    stl2step::harness::toMeshView(mesh, mesh.comps[0], mv);
+    cad_mesh_recovery::harness::toMeshView(mesh, mesh.comps[0], mv);
     SegmentParams sp;
     RegionSet probe;
     expect(segment(mv, sp, probe, nullptr), "reseg: segment");

@@ -8,7 +8,7 @@ Registered `tests/corpus/handle-lock.{stl,expected.json}` with
 Pre-fix TrueForm run (waiver intact):
 
 ```
-./build/stl2step tests/diag/handle-lock/handle-lock.stl -o /tmp/o.step --engine trueform --quiet
+./build/cad_mesh_recovery tests/diag/handle-lock/handle-lock.stl -o /tmp/o.step --engine trueform --quiet
 RESULT volumeDeltaPct=121.567807 stepVolumeMM3=44536.658346 meshVolumeMM3=15868.884516
        smoothBuiltCylinders=16 smoothRevertedComponents=0 watertight=true
 warnings: "smooth: B-Rep invalid after build", "B-Rep volume differs from mesh volume beyond refit budget"
@@ -22,7 +22,7 @@ Two hl/rids waivers suppressed the R2 safety net on the coarse-Fusion band (500�
 
 1. **`keepValidPartials`** (`refit_build.cpp`): when shell closed + ≥10 partial cylinders,
    skipped BRepCheck-invalid recovery instead of exploding bad analytic faces.
-2. **Probe waiver** (`stl2step.cpp`): when component probe failed `BRepCheck_Analyzer`,
+2. **Probe waiver** (`cad_mesh_recovery.cpp`): when component probe failed `BRepCheck_Analyzer`,
    re-accepted the build if `nPartial≥10` in the 500–1200 tri band.
 
 Together they shipped a **closed, watertight, BRepCheck-invalid** 25-face shell
@@ -37,7 +37,7 @@ Together they shipped a **closed, watertight, BRepCheck-invalid** 25-face shell
 
 Extra ~28 700 mm³ came from **partial-cylinder sheets** whose UV-trimmed faces
 extended beyond their boundary wires (and/or inverted orientation on hole walls)
-while the shell still reported closed. `stl2step_census` on the bad STEP reported
+while the shell still reported closed. `cad_mesh_recovery_census` on the bad STEP reported
 `valid=true` at shape level but whole-shape volume was 2.8× the mesh.
 
 `regiondump`: 25 regions, 16 cylinders (15 partial), `dVolAbs=318.13`, budget=954.39 mm³.
@@ -59,7 +59,7 @@ while the shell still reported closed. `stl2step_census` on the bad STEP reporte
 ## Proof (post-fix, hl/volumefix)
 
 ```
-./build/stl2step tests/corpus/handle-lock.stl -o /tmp/hl.step --engine trueform --quiet
+./build/cad_mesh_recovery tests/corpus/handle-lock.stl -o /tmp/hl.step --engine trueform --quiet
 RESULT volumeDeltaPct=0.0 stepVolumeMM3=15864.701 meshVolumeMM3=15868.885
        smoothBuiltCylinders=1 smoothRevertedComponents=0 watertight=true warnings=[]
 ```

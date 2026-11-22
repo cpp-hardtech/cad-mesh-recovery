@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""G0.1 identity comparator for stl2step (python3, stdlib only).
+"""G0.1 identity comparator for cad_mesh_recovery (python3, stdlib only).
 
 Compare two STEP files or two RESULT payloads the way SPEC-P0 G0.1
 requires: DATA-section STEP (HEADER discarded; FILE_NAME timestamp is

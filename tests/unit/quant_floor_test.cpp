@@ -22,8 +22,8 @@
 #include <string>
 #include <vector>
 
-using stl2step::StlQuantFloor;
-using stl2step::stlQuantFloor;
+using cad_mesh_recovery::StlQuantFloor;
+using cad_mesh_recovery::stlQuantFloor;
 
 static int gPass = 0;
 static int gFail = 0;

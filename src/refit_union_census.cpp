@@ -16,7 +16,7 @@
 
 #include <gp_XYZ.hxx>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 namespace {
 
@@ -314,4 +314,4 @@ UnionCensus unionCensus(const MeshView& mv, const std::vector<int>& claim, const
 }
 
 }  // namespace refit
-}  // namespace stl2step
+}  // namespace cad_mesh_recovery

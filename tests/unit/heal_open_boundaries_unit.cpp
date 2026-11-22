@@ -18,7 +18,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "mesh_heal.hpp"
-#include "stl2step/stl2step.hpp"
+#include "cad_mesh_recovery/cad_mesh_recovery.hpp"
 
 #include <algorithm>
 #include <array>
@@ -32,8 +32,8 @@
 #include <utility>
 #include <vector>
 
-using stl2step::detail::HealStats;
-using stl2step::detail::healOpenBoundaries;
+using cad_mesh_recovery::detail::HealStats;
+using cad_mesh_recovery::detail::healOpenBoundaries;
 using Tris = std::vector<std::array<int, 3>>;
 using Pts = std::vector<std::array<double, 3>>;
 
@@ -273,21 +273,21 @@ int main(int argc, char** argv) {
         const std::string stl = scratch + "/heal_open_lid.stl";
         check(writeStl(stl, tris, pts), "wrote synthetic STL");
 
-        stl2step::Options on;
+        cad_mesh_recovery::Options on;
         on.input = stl;
         on.output = scratch + "/heal_open_lid_on.step";
         on.threads = 1;
         on.smooth = true;
-        const stl2step::Result r = stl2step::convert(on);
+        const cad_mesh_recovery::Result r = cad_mesh_recovery::convert(on);
         if (!r.ok) std::fprintf(stderr, "  error: %s\n", r.error.c_str());
         check(r.ok && r.solids == 1 && r.openShells == 0 && r.watertight && r.components == 1,
               "convert TrueForm: one watertight solid");
         check(r.smoothSkippedComponents == 0, "convert TrueForm: component not skipped as dirty");
 
-        stl2step::Options off = on;
+        cad_mesh_recovery::Options off = on;
         off.output = scratch + "/heal_open_lid_off.step";
         off.smooth = false;
-        const stl2step::Result v = stl2step::convert(off);
+        const cad_mesh_recovery::Result v = cad_mesh_recovery::convert(off);
         check(v.ok && v.components == 2 && !v.watertight, "convert Verbatim: unchanged (no heal)");
     }
 

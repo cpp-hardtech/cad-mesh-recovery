@@ -15,8 +15,8 @@ Asserts:
 Usage:
   collapse_fail_ratchet.py --self-test
   collapse_fail_ratchet.py --synthetic-pass
-  collapse_fail_ratchet.py --measure --binary ./build/stl2step
-  collapse_fail_ratchet.py --binary ./build/stl2step
+  collapse_fail_ratchet.py --measure --binary ./build/cad_mesh_recovery
+  collapse_fail_ratchet.py --binary ./build/cad_mesh_recovery
 """
 
 from __future__ import annotations
@@ -81,7 +81,7 @@ def parse_result_line(stdout: str) -> Dict[str, Any]:
             return json.loads(line[len("RESULT ") :])
         if line.startswith("RESULT{"):
             return json.loads(line[len("RESULT") :])
-    raise GateError("no RESULT line in stl2step stdout")
+    raise GateError("no RESULT line in cad_mesh_recovery stdout")
 
 
 def parse_diag_kv(line: str) -> Optional[Tuple[str, Dict[str, str]]]:
@@ -326,7 +326,7 @@ def run_trueform(
         str(threads),
     ]
     environ = os.environ.copy()
-    environ["STL2STEP_COLLAPSE_DIAG"] = "1"
+    environ["CAD_MESH_RECOVERY_COLLAPSE_DIAG"] = "1"
     proc = subprocess.run(cmd, capture_output=True, text=True, env=environ)
     result = parse_result_line(proc.stdout)
     return result, proc.stderr, proc.returncode
@@ -411,7 +411,7 @@ def run_live(
     jobs: int = 2,
 ) -> int:
     if not binary.is_file():
-        raise GateError(f"stl2step binary missing: {binary}")
+        raise GateError(f"cad_mesh_recovery binary missing: {binary}")
     if not pickup_stl.is_file():
         raise GateError(f"handle-pickup STL missing: {pickup_stl}")
     if not hl_stl.is_file():

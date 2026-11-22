@@ -62,7 +62,7 @@
 #include <gp_Vec.hxx>
 #include <gp_XYZ.hxx>
 
-using namespace stl2step::refit;
+using namespace cad_mesh_recovery::refit;
 
 static const double kPi = 3.14159265358979323846264338327950288;
 static const int kSamples = 10000;   // SPEC-ellipse A.4 (O1): >= 10^4 uniform parameters

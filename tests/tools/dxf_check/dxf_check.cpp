@@ -24,13 +24,13 @@
 #include <gp_Dir.hxx>
 #include <gp_Pnt2d.hxx>
 
-using stl2step::refit::PrismLevels;
-using stl2step::refit::ProfLoop;
-using stl2step::refit::ProfSeg;
-using stl2step::refit::Profile;
-using stl2step::refit::emitProfilesDxf;
-using stl2step::refit::makeProfileDxfName;
-using stl2step::refit::writeProfileDxf;
+using cad_mesh_recovery::refit::PrismLevels;
+using cad_mesh_recovery::refit::ProfLoop;
+using cad_mesh_recovery::refit::ProfSeg;
+using cad_mesh_recovery::refit::Profile;
+using cad_mesh_recovery::refit::emitProfilesDxf;
+using cad_mesh_recovery::refit::makeProfileDxfName;
+using cad_mesh_recovery::refit::writeProfileDxf;
 
 namespace {
 
@@ -163,7 +163,7 @@ static bool radiusMatch(double a, double b, double relTol) {
     return std::fabs(a - b) <= relTol * scale;
 }
 
-static bool compareToProfile(const stl2step::dxfcheck::DxfFile& dxf,
+static bool compareToProfile(const cad_mesh_recovery::dxfcheck::DxfFile& dxf,
                              const Profile& src, double relTol, double closeTol,
                              std::string& err) {
     if (static_cast<int>(dxf.loops.size()) != static_cast<int>(src.loops.size())) {
@@ -186,7 +186,7 @@ static bool compareToProfile(const stl2step::dxfcheck::DxfFile& dxf,
             const auto& ss = src.loops[i].segs[k];
             if (!ss.isArc || ss.declinedAmbiguous) continue;
             const auto& de = dxf.loops[i].segs[k];
-            if (de.type == stl2step::dxfcheck::EntType::Line) {
+            if (de.type == cad_mesh_recovery::dxfcheck::EntType::Line) {
                 err = dxf.path + ": arc emitted as line";
                 return false;
             }
@@ -204,7 +204,7 @@ struct CheckResult {
     std::string path;
     bool ok = false;
     std::string err;
-    stl2step::dxfcheck::DxfFile dxf;
+    cad_mesh_recovery::dxfcheck::DxfFile dxf;
 };
 
 static CheckResult checkOne(const std::string& path, bool expectClosed,
@@ -212,7 +212,7 @@ static CheckResult checkOne(const std::string& path, bool expectClosed,
     CheckResult r;
     r.path = path;
     std::string err;
-    if (!stl2step::dxfcheck::readDxf(path, r.dxf, err)) {
+    if (!cad_mesh_recovery::dxfcheck::readDxf(path, r.dxf, err)) {
         r.err = err;
         return r;
     }
@@ -220,8 +220,8 @@ static CheckResult checkOne(const std::string& path, bool expectClosed,
         r.err = path + ": banned entity present";
         return r;
     }
-    stl2step::dxfcheck::reconstructLoops(r.dxf, closeTol);
-    if (expectClosed && !stl2step::dxfcheck::loopsClosed(r.dxf, closeTol, err)) {
+    cad_mesh_recovery::dxfcheck::reconstructLoops(r.dxf, closeTol);
+    if (expectClosed && !cad_mesh_recovery::dxfcheck::loopsClosed(r.dxf, closeTol, err)) {
         r.err = err;
         return r;
     }
@@ -285,9 +285,9 @@ static int runSelfTest(const std::string& dir) {
     for (const auto& p : profs) {
         const std::string path =
             (std::filesystem::path(dir) / makeProfileDxfName(p, lv)).string();
-        stl2step::dxfcheck::DxfFile dxf;
+        cad_mesh_recovery::dxfcheck::DxfFile dxf;
         std::string err;
-        if (!stl2step::dxfcheck::readDxf(path, dxf, err)) {
+        if (!cad_mesh_recovery::dxfcheck::readDxf(path, dxf, err)) {
             std::fprintf(stderr, "self-test read: %s\n", err.c_str());
             return 1;
         }
@@ -295,7 +295,7 @@ static int runSelfTest(const std::string& dir) {
             std::fprintf(stderr, "self-test: banned entities in %s\n", path.c_str());
             return 1;
         }
-        stl2step::dxfcheck::reconstructLoops(dxf, closeTol);
+        cad_mesh_recovery::dxfcheck::reconstructLoops(dxf, closeTol);
         if (!compareToProfile(dxf, p, relTol, closeTol, err)) {
             std::fprintf(stderr, "self-test round-trip: %s\n", err.c_str());
             ok = false;
@@ -333,9 +333,9 @@ static int runSelfTest(const std::string& dir) {
         std::fprintf(stderr, "self-test: declined write failed\n");
         return 1;
     }
-    stl2step::dxfcheck::DxfFile ddxf;
+    cad_mesh_recovery::dxfcheck::DxfFile ddxf;
     std::string err;
-    if (!stl2step::dxfcheck::readDxf(decPath, ddxf, err) || ddxf.nDeclined != 2) {
+    if (!cad_mesh_recovery::dxfcheck::readDxf(decPath, ddxf, err) || ddxf.nDeclined != 2) {
         std::fprintf(stderr, "self-test: declined count %d (want 2)\n", ddxf.nDeclined);
         ok = false;
     }
@@ -347,10 +347,10 @@ static int runSelfTest(const std::string& dir) {
     for (const auto& p : profs) {
         const std::string path =
             (std::filesystem::path(dir) / makeProfileDxfName(p, lv)).string();
-        stl2step::dxfcheck::DxfFile dxf;
-        if (!stl2step::dxfcheck::readDxf(path, dxf, err)) continue;
+        cad_mesh_recovery::dxfcheck::DxfFile dxf;
+        if (!cad_mesh_recovery::dxfcheck::readDxf(path, dxf, err)) continue;
         for (const auto& e : dxf.ents) {
-            if (e.type == stl2step::dxfcheck::EntType::Circle &&
+            if (e.type == cad_mesh_recovery::dxfcheck::EntType::Circle &&
                 radiusMatch(e.R, 5.75, relTol))
                 sawCircle575 = true;
         }

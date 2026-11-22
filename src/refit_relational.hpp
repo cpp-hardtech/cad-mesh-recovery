@@ -1,8 +1,8 @@
 // Shared relational rulings (D-fc-1.4, D-fc-1.6). Inline; no algorithm.
 // SPDX-License-Identifier: MIT
 
-#ifndef STL2STEP_REFIT_RELATIONAL_HPP
-#define STL2STEP_REFIT_RELATIONAL_HPP
+#ifndef CAD_MESH_RECOVERY_REFIT_RELATIONAL_HPP
+#define CAD_MESH_RECOVERY_REFIT_RELATIONAL_HPP
 
 #include "refit_internal.hpp"
 
@@ -10,7 +10,7 @@
 #include <cmath>
 #include <vector>
 
-namespace stl2step {
+namespace cad_mesh_recovery {
 namespace refit {
 
 // D-fc-1.6(1). τ = 2q. q <= 0 admits nothing.
@@ -268,6 +268,6 @@ inline void sectionTangentPlane(double cx, double cy, double r, double phi, doub
     d = nx * (cx + r * nx) + ny * (cy + r * ny);
 }
 
-}}  // namespace stl2step::refit
+}}  // namespace cad_mesh_recovery::refit
 
-#endif  // STL2STEP_REFIT_RELATIONAL_HPP
+#endif  // CAD_MESH_RECOVERY_REFIT_RELATIONAL_HPP

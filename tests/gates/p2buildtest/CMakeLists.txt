@@ -1,44 +1,44 @@
 # tests/gates/p2buildtest — rework-cycle local driver (GRAFT G1, F8).
 # Name must not match root .gitignore `build*/`.
-# Compiles src/refit_build.cpp directly. Does not add the TU to stl2step_core.
+# Compiles src/refit_build.cpp directly. Does not add the TU to cad_mesh_recovery_core.
 
 cmake_minimum_required(VERSION 3.16)
 
-if(NOT TARGET stl2step::core)
-    project(stl2step_p2buildtest LANGUAGES CXX)
+if(NOT TARGET cad_mesh_recovery::core)
+    project(cad_mesh_recovery_p2buildtest LANGUAGES CXX)
     get_filename_component(_root "${CMAKE_CURRENT_SOURCE_DIR}/../../.." ABSOLUTE)
     if(EXISTS "${_root}/CMakeLists.txt")
-        set(STL2STEP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-        set(STL2STEP_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-        set(STL2STEP_INSTALL OFF CACHE BOOL "" FORCE)
+        set(CAD_MESH_RECOVERY_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+        set(CAD_MESH_RECOVERY_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+        set(CAD_MESH_RECOVERY_INSTALL OFF CACHE BOOL "" FORCE)
         add_subdirectory("${_root}" "${CMAKE_CURRENT_BINARY_DIR}/_engine")
     else()
-        find_package(stl2step REQUIRED)
+        find_package(cad_mesh_recovery REQUIRED)
     endif()
     unset(_root)
 endif()
 
-if(NOT TARGET stl2step::harness)
+if(NOT TARGET cad_mesh_recovery::harness)
     add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../../harness"
                      "${CMAKE_CURRENT_BINARY_DIR}/_harness")
 endif()
 
-add_executable(stl2step_p2buildtest
+add_executable(cad_mesh_recovery_p2buildtest
     build_local.cpp
     "${CMAKE_CURRENT_SOURCE_DIR}/../../../src/refit_build.cpp")
-target_compile_features(stl2step_p2buildtest PRIVATE cxx_std_17)
-target_include_directories(stl2step_p2buildtest PRIVATE
+target_compile_features(cad_mesh_recovery_p2buildtest PRIVATE cxx_std_17)
+target_include_directories(cad_mesh_recovery_p2buildtest PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/../../../src")
-target_link_libraries(stl2step_p2buildtest PRIVATE
-    stl2step::core stl2step::harness)
-set_target_properties(stl2step_p2buildtest PROPERTIES
+target_link_libraries(cad_mesh_recovery_p2buildtest PRIVATE
+    cad_mesh_recovery::core cad_mesh_recovery::harness)
+set_target_properties(cad_mesh_recovery_p2buildtest PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
 
 if(MSVC)
-    target_compile_definitions(stl2step_p2buildtest PRIVATE _USE_MATH_DEFINES NOMINMAX)
-    target_compile_options(stl2step_p2buildtest PRIVATE /EHsc)
+    target_compile_definitions(cad_mesh_recovery_p2buildtest PRIVATE _USE_MATH_DEFINES NOMINMAX)
+    target_compile_options(cad_mesh_recovery_p2buildtest PRIVATE /EHsc)
 endif()
 
 # Live re-gate (lane p2-real). CTest entry lives under tests/gates/p2real/.
@@ -48,6 +48,6 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../p2real/CMakeLists.txt")
 endif()
 
 # ad-hoc signing (see root helper)
-if(TARGET stl2step_p2buildtest)
-  stl2step_adhoc_sign(stl2step_p2buildtest)
+if(TARGET cad_mesh_recovery_p2buildtest)
+  cad_mesh_recovery_adhoc_sign(cad_mesh_recovery_p2buildtest)
 endif()
