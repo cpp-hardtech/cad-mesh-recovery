@@ -1,0 +1,1291 @@
+# tests/unit — law-band API tests (AC2-L1).
+cmake_minimum_required(VERSION 3.16)
+
+get_filename_component(_stl2step_root "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
+if(NOT DEFINED STL2STEP_OCCT_SKIP_EXIT_CODE)
+    include("${CMAKE_CURRENT_SOURCE_DIR}/../support/occt_calibrated.cmake")
+endif()
+
+if(NOT TARGET stl2step::core)
+    project(stl2step_unit LANGUAGES CXX)
+    if(EXISTS "${_stl2step_root}/CMakeLists.txt")
+        set(STL2STEP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+        set(STL2STEP_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+        set(STL2STEP_INSTALL OFF CACHE BOOL "" FORCE)
+        add_subdirectory("${_stl2step_root}" "${CMAKE_CURRENT_BINARY_DIR}/_engine")
+    else()
+        find_package(stl2step REQUIRED)
+    endif()
+endif()
+
+if(NOT TARGET stl2step::harness)
+    add_subdirectory("${_stl2step_root}/tests/harness"
+                     "${CMAKE_CURRENT_BINARY_DIR}/_harness")
+endif()
+
+add_executable(stl2step_lawband_test lawband_test.cpp)
+target_compile_features(stl2step_lawband_test PRIVATE cxx_std_17)
+set_target_properties(stl2step_lawband_test PROPERTIES
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+target_link_libraries(stl2step_lawband_test PRIVATE stl2step::harness)
+target_include_directories(stl2step_lawband_test PRIVATE
+    "${_stl2step_root}/src"
+    "${_stl2step_root}/tests/harness")
+if(MSVC)
+    target_compile_definitions(stl2step_lawband_test PRIVATE _USE_MATH_DEFINES NOMINMAX)
+endif()
+if(COMMAND stl2step_adhoc_sign)
+    stl2step_adhoc_sign(stl2step_lawband_test)
+endif()
+
+set(_anat "${_stl2step_root}/tests/gates/labels/handle-lock.band-anatomy.json")
+set(_stl "${_stl2step_root}/tests/corpus/handle-lock.stl")
+set(_mis "${_stl2step_root}/tests/gates/labels/handle-lock.misfit-map.json")
+set(_lab "${_stl2step_root}/tests/gates/labels/handle-lock.tri-labels.json")
+
+add_test(NAME lawband_unit
+    COMMAND stl2step_lawband_test
+        "${_stl}" "${_anat}" "${_lab}" "${_mis}")
+set_tests_properties(lawband_unit PROPERTIES
+    LABELS "unit;lawband"
+    TIMEOUT 180)
+
+# A16: RULE 4.2a — banned recognition literals must not appear as thresholds.
+add_test(NAME lawband_rule42a_grep
+    COMMAND "${CMAKE_COMMAND}" -E env
+        "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_SOURCE_DIR}/check_rule42a.cmake")
+set_tests_properties(lawband_rule42a_grep PROPERTIES
+    LABELS "unit;lawband"
+    TIMEOUT 30)
+
+add_executable(stl2step_prism_test prism_test.cpp)
+target_compile_features(stl2step_prism_test PRIVATE cxx_std_17)
+set_target_properties(stl2step_prism_test PROPERTIES
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+target_link_libraries(stl2step_prism_test PRIVATE stl2step::harness)
+target_include_directories(stl2step_prism_test PRIVATE
+    "${_stl2step_root}/src"
+    "${_stl2step_root}/tests/harness")
+if(MSVC)
+    target_compile_definitions(stl2step_prism_test PRIVATE _USE_MATH_DEFINES NOMINMAX)
+endif()
+if(COMMAND stl2step_adhoc_sign)
+    stl2step_adhoc_sign(stl2step_prism_test)
+endif()
+
+set(_body11 "${_stl2step_root}/tests/corpus/Body11.stl")
+set(_neg "${_stl2step_root}/tests/corpus/nonprismatic-control.stl")
+add_test(NAME prism_unit
+    COMMAND stl2step_prism_test "${_stl}" "${_body11}" "${_neg}")
+set_tests_properties(prism_unit PROPERTIES
+    LABELS "unit;prism"
+    TIMEOUT 180)
+
+add_test(NAME prism_literal_ban
+    COMMAND "${CMAKE_COMMAND}" -E env
+        "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_SOURCE_DIR}/check_prism_literals.cmake")
+set_tests_properties(prism_literal_ban PROPERTIES
+    LABELS "unit;prism"
+    TIMEOUT 30)
+
+add_executable(stl2step_profile_test
+    profile_test.cpp
+    "${_stl2step_root}/tests/tools/profile_dump/prism_levels_stub.cpp")
+target_compile_features(stl2step_profile_test PRIVATE cxx_std_17)
+set_target_properties(stl2step_profile_test PROPERTIES
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+target_link_libraries(stl2step_profile_test PRIVATE stl2step::harness)
+target_include_directories(stl2step_profile_test PRIVATE
+    "${_stl2step_root}/src"
+    "${_stl2step_root}/tests/harness")
+if(MSVC)
+    target_compile_definitions(stl2step_profile_test PRIVATE _USE_MATH_DEFINES NOMINMAX)
+endif()
+if(COMMAND stl2step_adhoc_sign)
+    stl2step_adhoc_sign(stl2step_profile_test)
+endif()
+
+add_test(NAME profile_unit
+    COMMAND stl2step_profile_test "${_stl}")
+set_tests_properties(profile_unit PROPERTIES
+    LABELS "unit;profile"
+    TIMEOUT 180)
+
+add_executable(stl2step_prism_build_test prism_build_test.cpp)
+target_compile_features(stl2step_prism_build_test PRIVATE cxx_std_17)
+set_target_properties(stl2step_prism_build_test PROPERTIES
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+target_link_libraries(stl2step_prism_build_test PRIVATE stl2step::harness stl2step::core)
+target_include_directories(stl2step_prism_build_test PRIVATE
+    "${_stl2step_root}/src"
+    "${_stl2step_root}/tests/harness")
+if(MSVC)
+    target_compile_definitions(stl2step_prism_build_test PRIVATE _USE_MATH_DEFINES NOMINMAX)
+endif()
+if(COMMAND stl2step_adhoc_sign)
+    stl2step_adhoc_sign(stl2step_prism_build_test)
+endif()
+
+add_test(NAME prism_build_unit
+    COMMAND stl2step_prism_build_test "${_stl}")
+set_tests_properties(prism_build_unit PROPERTIES
+    LABELS "unit;prism-build"
+    TIMEOUT 180)
+
+# 130-CONE-MATH (SPEC-130-cone-math) — the closed-form cone math in
+# src/refit_cone_math.cpp, certified against the OCCT parametric equation,
+# GeomAPI_ProjectPointOnSurf and IntAna_QuadQuadGeo.
+#
+# This target deliberately COMPILES src/refit_cone_math.cpp instead of linking
+# stl2step::core: the math under test is pure gp_ geometry (refit_cone_math.hpp
+# pulls in no engine header), and `--target cone_math_unit` must not drag in
+# refit_build.cpp, which another lane owns. That one file is the whole TU — the
+# cone math sits outside src/refit_math.cpp precisely because the D5.3 include
+# allowlist covers the P1 sources and admits neither gp.hxx nor a third project
+# header. Nothing else in the tree changes how it builds.
+# `OpenCASCADE::OpenCASCADE` is an IMPORTED target and therefore DIRECTORY
+# scoped: the sibling targets only see it transitively through stl2step::core.
+# When this file is configured standalone (the `NOT TARGET stl2step::core`
+# branch at the top) the engine's find_package ran in a child scope and the name
+# does not exist here, so naming it directly fails at generate time. Re-find it
+# in this scope — the module path and the cache are already primed, so it costs
+# nothing — rather than linking stl2step::core, which carries its own
+# refit_cone_math.cpp and would duplicate every symbol in this executable.
+if(NOT TARGET OpenCASCADE::OpenCASCADE)
+    list(APPEND CMAKE_MODULE_PATH "${_stl2step_root}/cmake")
+    find_package(OpenCASCADE REQUIRED)
+endif()
+
+add_executable(cone_math_unit
+    cone_math_test.cpp
+    "${_stl2step_root}/src/refit_cone_math.cpp")
+target_compile_features(cone_math_unit PRIVATE cxx_std_17)
+set_target_properties(cone_math_unit PROPERTIES
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+target_include_directories(cone_math_unit PRIVATE
+    "${_stl2step_root}/src"
+    "${_stl2step_root}/include")
+target_link_libraries(cone_math_unit PRIVATE OpenCASCADE::OpenCASCADE)
+if(MSVC)
+    target_compile_definitions(cone_math_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
+    target_compile_options(cone_math_unit PRIVATE /EHsc)
+endif()
+if(COMMAND stl2step_adhoc_sign)
+    stl2step_adhoc_sign(cone_math_unit)
+endif()
+
+add_test(NAME cone_math_unit COMMAND cone_math_unit)
+set_tests_properties(cone_math_unit PROPERTIES
+    LABELS "unit;cone-math"
+    TIMEOUT 60)
+
+# 130-CONE-BUILD — the certified `circle-on-cone` / `line-on-cone` BIND classes
+# in src/refit_cone_bind.cpp: the supremum of |C3d(t) - S(pcurve(t))|, which is
+# the surface supremum cone_math_unit certifies COMPOSED with the
+# parametrisation. Same construction as cone_math_unit for the same reason: it
+# compiles the two cone TUs rather than linking stl2step::core, so
+# `--target cone_bind_unit` never drags in refit_build.cpp.
+add_executable(cone_bind_unit
+    cone_bind_test.cpp
+    "${_stl2step_root}/src/refit_cone_bind.cpp"
+    "${_stl2step_root}/src/refit_cone_math.cpp")
+target_compile_features(cone_bind_unit PRIVATE cxx_std_17)
+set_target_properties(cone_bind_unit PROPERTIES
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+target_include_directories(cone_bind_unit PRIVATE
+    "${_stl2step_root}/src"
+    "${_stl2step_root}/include")
+target_link_libraries(cone_bind_unit PRIVATE OpenCASCADE::OpenCASCADE)
+if(MSVC)
+    target_compile_definitions(cone_bind_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
+    target_compile_options(cone_bind_unit PRIVATE /EHsc)
+endif()
+if(COMMAND stl2step_adhoc_sign)
+    stl2step_adhoc_sign(cone_bind_unit)
+endif()
+
+add_test(NAME cone_bind_unit COMMAND cone_bind_unit)
+set_tests_properties(cone_bind_unit PROPERTIES
+    LABELS "unit;cone-math"
+    TIMEOUT 60)
+
+# torus-math (SPEC-torus PART B, D-140-6 §3(4)) — the closed-form
+# `circle-on-torus` supremum in src/refit_torus_math.cpp, certified against a
+# numeric distance oracle built from the OCCT parametric equation (meridian
+# circles), GeomAPI_ProjectPointOnSurf on a Geom_ToroidalSurface, and the S04 /
+# S19 tangency circles. Same construction as cone_math_unit for the same reason:
+# it COMPILES the one pure-gp_ TU instead of linking stl2step::core, so
+# `--target torus_math_unit` never drags in refit_build.cpp.
+add_executable(torus_math_unit
+    torus_math_test.cpp
+    "${_stl2step_root}/src/refit_torus_math.cpp")
+target_compile_features(torus_math_unit PRIVATE cxx_std_17)
+set_target_properties(torus_math_unit PROPERTIES
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+target_include_directories(torus_math_unit PRIVATE
+    "${_stl2step_root}/src"
+    "${_stl2step_root}/include")
+target_link_libraries(torus_math_unit PRIVATE OpenCASCADE::OpenCASCADE)
+if(MSVC)
+    target_compile_definitions(torus_math_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
+    target_compile_options(torus_math_unit PRIVATE /EHsc)
+endif()
+if(COMMAND stl2step_adhoc_sign)
+    stl2step_adhoc_sign(torus_math_unit)
+endif()
+
+add_test(NAME torus_math_unit COMMAND torus_math_unit)
+set_tests_properties(torus_math_unit PROPERTIES
+    LABELS "unit;torus-math"
+    TIMEOUT 120)
+
+# ellipse-math (SPEC-ellipse PART A, D-140-9 §2) — the closed forms behind the
+# ELLIPSE bind class in src/refit_ellipse_math.cpp: the EXACT `ellipse-on-plane`
+# supremum (quartic critical set) and the certified `ellipse-on-cylinder-bound`
+# (section identity + Bernstein hull + Chebyshev remainder), certified against a
+# >= 10^4-sample refined oracle on OCCT's own pcurves (GeomAPI::To2d,
+# GeomProjLib::Curve2d) and S11-b's measured degree-8 poles. Same construction as
+# cone_math_unit for the same reason: it COMPILES the one pure-gp_ TU instead of
+# linking stl2step::core, so `--target ellipse_math_unit` never drags in
+# refit_build.cpp.
+add_executable(ellipse_math_unit
+    ellipse_math_test.cpp
+    "${_stl2step_root}/src/refit_ellipse_math.cpp")
+target_compile_features(ellipse_math_unit PRIVATE cxx_std_17)
+set_target_properties(ellipse_math_unit PROPERTIES
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+target_include_directories(ellipse_math_unit PRIVATE
+    "${_stl2step_root}/src"
+    "${_stl2step_root}/include")
+target_link_libraries(ellipse_math_unit PRIVATE OpenCASCADE::OpenCASCADE)
+if(MSVC)
+    target_compile_definitions(ellipse_math_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
+    target_compile_options(ellipse_math_unit PRIVATE /EHsc)
+endif()
+if(COMMAND stl2step_adhoc_sign)
+    stl2step_adhoc_sign(ellipse_math_unit)
+endif()
+
+add_test(NAME ellipse_math_unit COMMAND ellipse_math_unit)
+set_tests_properties(ellipse_math_unit PROPERTIES
+    LABELS "unit;ellipse-math"
+    TIMEOUT 300)
+
+# 130-ABSORB-3 (D-130-12) — the mesh file's own coordinate quantization.
+# Compiles src/stl_quant.cpp directly rather than linking stl2step::core: the TU
+# is pure <cstdio>/<cmath> with no OCCT and no engine header, so the test needs
+# no OpenCASCADE at all and `--target quant_floor_unit` drags in nothing else.
+add_executable(quant_floor_unit
+    quant_floor_test.cpp
+    "${_stl2step_root}/src/stl_quant.cpp")
+target_compile_features(quant_floor_unit PRIVATE cxx_std_17)
+set_target_properties(quant_floor_unit PROPERTIES
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+target_include_directories(quant_floor_unit PRIVATE "${_stl2step_root}/src")
+if(MSVC)
+    target_compile_definitions(quant_floor_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
+endif()
+if(COMMAND stl2step_adhoc_sign)
+    stl2step_adhoc_sign(quant_floor_unit)
+endif()
+
+add_test(NAME quant_floor_unit COMMAND quant_floor_unit "${CMAKE_BINARY_DIR}")
+set_tests_properties(quant_floor_unit PROPERTIES
+    LABELS "unit;quant"
+    TIMEOUT 60)
+
+# D-train-seams D-S8: the certified-span partition. Pure — a residual list in,
+# maximal runs out. No engine, no OCCT.
+add_executable(seam_span_unit seam_span_unit.cpp)
+target_compile_features(seam_span_unit PRIVATE cxx_std_17)
+set_target_properties(seam_span_unit PROPERTIES
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+if(MSVC)
+    target_compile_definitions(seam_span_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
+endif()
+if(COMMAND stl2step_adhoc_sign)
+    stl2step_adhoc_sign(seam_span_unit)
+endif()
+add_test(NAME seam_span_unit COMMAND seam_span_unit)
+set_tests_properties(seam_span_unit PROPERTIES
+    LABELS "unit;seam-span"
+    TIMEOUT 60)
+
+# SPEC-volid §4.3 / D-140-10 — S01/S02/S03 volume-attribution identity.
+# Spawns the CLI with STL2STEP_VOLID=1; asserts the §2.5 closesA/closesB
+# bracket on the three synthetic fixtures only.
+if(TARGET stl2step)
+    add_executable(volid_identity_test volid_identity.cpp)
+    target_compile_features(volid_identity_test PRIVATE cxx_std_17)
+    set_target_properties(volid_identity_test PROPERTIES
+        CXX_STANDARD_REQUIRED ON
+        CXX_EXTENSIONS OFF
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+    target_include_directories(volid_identity_test PRIVATE
+        "${CMAKE_BINARY_DIR}/generated")
+    if(MSVC)
+        target_compile_definitions(volid_identity_test PRIVATE _USE_MATH_DEFINES NOMINMAX)
+    endif()
+    if(COMMAND stl2step_adhoc_sign)
+        stl2step_adhoc_sign(volid_identity_test)
+    endif()
+    add_test(NAME volid_identity
+        COMMAND volid_identity_test
+            $<TARGET_FILE:stl2step>
+            "${_stl2step_root}/tests/corpus/S01.stl"
+            "${_stl2step_root}/tests/corpus/S02.stl"
+            "${_stl2step_root}/tests/corpus/S03.stl")
+    set_tests_properties(volid_identity PROPERTIES
+        LABELS "unit;volid"
+        TIMEOUT 180
+        DEPENDS corpus_generate
+        SKIP_RETURN_CODE ${STL2STEP_OCCT_SKIP_EXIT_CODE})
+endif()
+
+# 140-UNION-CENSUS (SPEC-union PART B, D-140-8 U-R5..U-R8, U-R13) -- the
+# same-surface union census in src/refit_union_census.cpp: `claimChordSagitta`
+# against a closed form and a numerical supremum along every welded edge, and
+# the U-R6/U-R7/U-R8 counts on hand-built rings. Same construction as
+# cone_math_unit for the same reason: it compiles the one TU rather than
+# linking stl2step::core, so `--target union_census_unit` never drags in
+# refit_grow.cpp or refit_build.cpp, which other lanes own.
+add_executable(union_census_unit
+    union_census_test.cpp
+    "${_stl2step_root}/src/refit_union_census.cpp")
+target_compile_features(union_census_unit PRIVATE cxx_std_17)
+set_target_properties(union_census_unit PROPERTIES
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+target_include_directories(union_census_unit PRIVATE
+    "${_stl2step_root}/src"
+    "${_stl2step_root}/include")
+target_link_libraries(union_census_unit PRIVATE OpenCASCADE::OpenCASCADE)
+if(MSVC)
+    target_compile_definitions(union_census_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
+    target_compile_options(union_census_unit PRIVATE /EHsc)
+endif()
+if(COMMAND stl2step_adhoc_sign)
+    stl2step_adhoc_sign(union_census_unit)
+endif()
+
+add_test(NAME union_census_unit COMMAND union_census_unit)
+set_tests_properties(union_census_unit PROPERTIES
+    LABELS "unit;union-census"
+    TIMEOUT 60)
+
+# D-142-1: --threads 1 constructs zero std::thread; threads=4 spawns and
+# produces identical canonical STEP DATA.
+add_executable(threads_spawn_test threads_spawn_test.cpp)
+target_compile_features(threads_spawn_test PRIVATE cxx_std_17)
+set_target_properties(threads_spawn_test PROPERTIES
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+target_link_libraries(threads_spawn_test PRIVATE stl2step::core)
+target_include_directories(threads_spawn_test PRIVATE
+    "${_stl2step_root}/include")
+if(COMMAND stl2step_adhoc_sign)
+    stl2step_adhoc_sign(threads_spawn_test)
+endif()
+
+set(_threads_scratch "${CMAKE_BINARY_DIR}/threads1-test")
+set(_mesh_cyl "${_stl2step_root}/tests/mesh/seamed_cylinder.step")
+add_test(NAME threads1_no_spawn
+    COMMAND threads_spawn_test no_spawn
+        "${_stl2step_root}/tests/corpus"
+        "${_mesh_cyl}"
+        "${_threads_scratch}")
+set_tests_properties(threads1_no_spawn PROPERTIES
+    LABELS "unit;threads"
+    TIMEOUT 300)
+add_test(NAME threads_default_spawns
+    COMMAND threads_spawn_test default_spawns
+        "${_stl2step_root}/tests/corpus"
+        "${_mesh_cyl}"
+        "${_threads_scratch}")
+set_tests_properties(threads_default_spawns PROPERTIES
+    LABELS "unit;threads"
+    TIMEOUT 300)
+unset(_threads_scratch)
+unset(_mesh_cyl)
+
+# D-I-4: Result::toJson must not wrap a negative snprintf count into a 0-size
+# string (MSVC SSO 16). Portable: the wrap itself is the unit condition.
+add_executable(result_tojson_test result_tojson_test.cpp)
+target_compile_features(result_tojson_test PRIVATE cxx_std_17)
+set_target_properties(result_tojson_test PROPERTIES
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+target_link_libraries(result_tojson_test PRIVATE stl2step::core)
+target_include_directories(result_tojson_test PRIVATE
+    "${_stl2step_root}/include")
+if(COMMAND stl2step_adhoc_sign)
+    stl2step_adhoc_sign(result_tojson_test)
+endif()
+add_test(NAME result_tojson_unit COMMAND result_tojson_test)
+set_tests_properties(result_tojson_unit PROPERTIES
+    LABELS "unit;tojson"
+    TIMEOUT 30)
+
+# fc/heal-r1: zero-area T-junction absorb. One registration of the new TU.
+add_executable(tjunction_absorb_test tjunction_absorb_test.cpp)
+target_compile_features(tjunction_absorb_test PRIVATE cxx_std_17)
+set_target_properties(tjunction_absorb_test PROPERTIES
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+target_link_libraries(tjunction_absorb_test PRIVATE stl2step::core)
+target_include_directories(tjunction_absorb_test PRIVATE
+    "${_stl2step_root}/include")
+if(COMMAND stl2step_adhoc_sign)
+    stl2step_adhoc_sign(tjunction_absorb_test)
+endif()
+add_test(NAME tjunction_absorb_test
+    COMMAND tjunction_absorb_test
+        "${CMAKE_CURRENT_BINARY_DIR}")
+set_tests_properties(tjunction_absorb_test PROPERTIES
+    LABELS "unit;heal"
+    TIMEOUT 120)
+
+# fc/contract (D-fc-1.3, D-fc-1.12). relational_extrude_unit pins the shared
+# closed forms. The other three register and return 0 until their lanes fill them.
+foreach(_fc_unit IN ITEMS relational_extrude relational_revolve tesslaw relational_reclaim)
+    add_executable(${_fc_unit}_unit ${_fc_unit}_unit.cpp)
+    target_compile_features(${_fc_unit}_unit PRIVATE cxx_std_17)
+    set_target_properties(${_fc_unit}_unit PROPERTIES
+        CXX_STANDARD_REQUIRED ON
+        CXX_EXTENSIONS OFF
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+    target_link_libraries(${_fc_unit}_unit PRIVATE stl2step::core)
+    target_include_directories(${_fc_unit}_unit PRIVATE
+        "${_stl2step_root}/include"
+        "${_stl2step_root}/src")
+    if(MSVC)
+        target_compile_definitions(${_fc_unit}_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
+        target_compile_options(${_fc_unit}_unit PRIVATE /EHsc)
+    endif()
+    if(COMMAND stl2step_adhoc_sign)
+        stl2step_adhoc_sign(${_fc_unit}_unit)
+    endif()
+    # posix_compat.hpp lives in tests/support (winfix 159e22a for tesslaw; portfix for the relational units).
+    if(_fc_unit STREQUAL "tesslaw" OR _fc_unit STREQUAL "relational_extrude" OR _fc_unit STREQUAL "relational_revolve" OR _fc_unit STREQUAL "relational_reclaim")
+        target_include_directories(${_fc_unit}_unit PRIVATE
+            "${_stl2step_root}/tests/support")
+    endif()
+    if(_fc_unit STREQUAL "relational_reclaim")
+        add_test(NAME ${_fc_unit}_unit
+            COMMAND ${_fc_unit}_unit "${_stl2step_root}/tests/corpus/handle-pickup.stl")
+    else()
+        add_test(NAME ${_fc_unit}_unit COMMAND ${_fc_unit}_unit)
+    endif()
+    # The reclaim unit also converts the public handle-pickup corpus.
+    if(_fc_unit STREQUAL "relational_reclaim")
+        set_tests_properties(${_fc_unit}_unit PROPERTIES
+            LABELS "unit;fc-contract"
+            TIMEOUT 90)
+    else()
+        set_tests_properties(${_fc_unit}_unit PROPERTIES
+            LABELS "unit;fc-contract"
+            TIMEOUT 60)
+    endif()
+endforeach()
+unset(_fc_unit)
+
+# fc/fx-tori (D-fc-4.6): torus-relation predicates (atoms, leave-one-out, rails).
+add_executable(relational_torus_unit relational_torus_unit.cpp)
+target_compile_features(relational_torus_unit PRIVATE cxx_std_17)
+set_target_properties(relational_torus_unit PROPERTIES
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+target_link_libraries(relational_torus_unit PRIVATE stl2step::core stl2step::harness)
+target_include_directories(relational_torus_unit PRIVATE
+    "${_stl2step_root}/include"
+    "${_stl2step_root}/src"
+    "${_stl2step_root}/tests/support"
+    "${_stl2step_root}/tests/harness")
+if(MSVC)
+    target_compile_definitions(relational_torus_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
+    target_compile_options(relational_torus_unit PRIVATE /EHsc)
+endif()
+if(COMMAND stl2step_adhoc_sign)
+    stl2step_adhoc_sign(relational_torus_unit)
+endif()
+add_test(NAME relational_torus_unit
+    COMMAND relational_torus_unit "${_stl2step_root}/tests/corpus/handle-pickup.stl")
+set_tests_properties(relational_torus_unit PROPERTIES
+    LABELS "unit;fc-contract"
+    TIMEOUT 60)
+
+# fc/fx-cylcyl (D-fc-5.17): Steinmetz admission and the degree-1 chord bound.
+add_executable(relational_cylcyl_unit relational_cylcyl_unit.cpp)
+target_compile_features(relational_cylcyl_unit PRIVATE cxx_std_17)
+set_target_properties(relational_cylcyl_unit PROPERTIES
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+target_link_libraries(relational_cylcyl_unit PRIVATE stl2step::core)
+target_include_directories(relational_cylcyl_unit PRIVATE
+    "${_stl2step_root}/include"
+    "${_stl2step_root}/src")
+if(MSVC)
+    target_compile_definitions(relational_cylcyl_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
+    target_compile_options(relational_cylcyl_unit PRIVATE /EHsc)
+endif()
+if(COMMAND stl2step_adhoc_sign)
+    stl2step_adhoc_sign(relational_cylcyl_unit)
+endif()
+add_test(NAME relational_cylcyl_unit COMMAND relational_cylcyl_unit)
+set_tests_properties(relational_cylcyl_unit PROPERTIES
+    LABELS "unit;fc-contract"
+    TIMEOUT 60)
+
+# fc/fx-tori-r1 (D-fc-4.8): one seam azimuth per torus axis family.
+add_executable(relational_axis_seam_unit relational_axis_seam_unit.cpp)
+target_compile_features(relational_axis_seam_unit PRIVATE cxx_std_17)
+set_target_properties(relational_axis_seam_unit PROPERTIES
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+target_link_libraries(relational_axis_seam_unit PRIVATE stl2step::core)
+target_include_directories(relational_axis_seam_unit PRIVATE
+    "${_stl2step_root}/include"
+    "${_stl2step_root}/src"
+    "${_stl2step_root}/tests/support")
+if(MSVC)
+    target_compile_definitions(relational_axis_seam_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
+    target_compile_options(relational_axis_seam_unit PRIVATE /EHsc)
+endif()
+if(COMMAND stl2step_adhoc_sign)
+    stl2step_adhoc_sign(relational_axis_seam_unit)
+endif()
+add_test(NAME relational_axis_seam_unit COMMAND relational_axis_seam_unit)
+set_tests_properties(relational_axis_seam_unit PROPERTIES
+    LABELS "unit;fc-contract"
+    TIMEOUT 60)
+
+# fc/fx-arch (D-fc-5.1, D-fc-5.2): coaxial arc family and section fillets.
+add_executable(relational_arc_unit relational_arc_unit.cpp)
+target_compile_features(relational_arc_unit PRIVATE cxx_std_17)
+set_target_properties(relational_arc_unit PROPERTIES
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+target_link_libraries(relational_arc_unit PRIVATE stl2step::core)
+target_include_directories(relational_arc_unit PRIVATE
+    "${_stl2step_root}/include"
+    "${_stl2step_root}/src"
+    "${_stl2step_root}/tests/support")
+if(MSVC)
+    target_compile_definitions(relational_arc_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
+    target_compile_options(relational_arc_unit PRIVATE /EHsc)
+endif()
+if(COMMAND stl2step_adhoc_sign)
+    stl2step_adhoc_sign(relational_arc_unit)
+endif()
+add_test(NAME relational_arc_unit COMMAND relational_arc_unit)
+set_tests_properties(relational_arc_unit PROPERTIES
+    LABELS "unit;fc-contract"
+    TIMEOUT 60)
+
+# fc/fx-cmc-cylmeet (D-fc-5.17): partial counterbore sheet budget and certificates.
+add_executable(relational_cylmeet_unit relational_cylmeet_unit.cpp)
+target_compile_features(relational_cylmeet_unit PRIVATE cxx_std_17)
+set_target_properties(relational_cylmeet_unit PROPERTIES
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+target_link_libraries(relational_cylmeet_unit PRIVATE stl2step::core)
+target_include_directories(relational_cylmeet_unit PRIVATE
+    "${_stl2step_root}/include"
+    "${_stl2step_root}/src"
+    "${_stl2step_root}/tests/support")
+if(MSVC)
+    target_compile_definitions(relational_cylmeet_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
+    target_compile_options(relational_cylmeet_unit PRIVATE /EHsc)
+endif()
+if(COMMAND stl2step_adhoc_sign)
+    stl2step_adhoc_sign(relational_cylmeet_unit)
+endif()
+add_test(NAME relational_cylmeet_unit COMMAND relational_cylmeet_unit)
+set_tests_properties(relational_cylmeet_unit PROPERTIES
+    LABELS "unit;fc-contract"
+    TIMEOUT 60)
+
+add_executable(relational_classb_unit relational_classb_unit.cpp)
+target_compile_features(relational_classb_unit PRIVATE cxx_std_17)
+set_target_properties(relational_classb_unit PROPERTIES
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+target_link_libraries(relational_classb_unit PRIVATE stl2step::core)
+target_include_directories(relational_classb_unit PRIVATE
+    "${_stl2step_root}/include"
+    "${_stl2step_root}/src"
+    "${_stl2step_root}/tests/support")
+if(MSVC)
+    target_compile_definitions(relational_classb_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
+    target_compile_options(relational_classb_unit PRIVATE /EHsc)
+endif()
+if(COMMAND stl2step_adhoc_sign)
+    stl2step_adhoc_sign(relational_classb_unit)
+endif()
+add_test(NAME relational_classb_unit COMMAND relational_classb_unit)
+set_tests_properties(relational_classb_unit PROPERTIES
+    LABELS "unit;fc-contract"
+    TIMEOUT 60)
+
+# fc/fx-craftpolish (D-fc-3.2.10, D-fc-4.3, D-fc-4.6 build): one-edge cap arcs of
+# a multi-component strip, the partial-torus wire retry, and the robbing of
+# uncertified prior strips.
+add_executable(relational_capface_unit relational_capface_unit.cpp)
+target_compile_features(relational_capface_unit PRIVATE cxx_std_17)
+set_target_properties(relational_capface_unit PROPERTIES
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+target_link_libraries(relational_capface_unit PRIVATE stl2step::core)
+target_include_directories(relational_capface_unit PRIVATE
+    "${_stl2step_root}/include"
+    "${_stl2step_root}/src"
+    "${_stl2step_root}/tests/support")
+if(MSVC)
+    target_compile_definitions(relational_capface_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
+    target_compile_options(relational_capface_unit PRIVATE /EHsc)
+endif()
+if(COMMAND stl2step_adhoc_sign)
+    stl2step_adhoc_sign(relational_capface_unit)
+endif()
+add_test(NAME relational_capface_unit COMMAND relational_capface_unit)
+set_tests_properties(relational_capface_unit PROPERTIES
+    LABELS "unit;fc-contract"
+    TIMEOUT 60)
+
+# fc/fx-heal132 (D-fc-5.10): healOpenBoundaries (weld + vertex-on-edge split,
+# per-cluster certificate) on synthetic meshes, plus one convert() round trip.
+add_executable(heal_open_boundaries_unit heal_open_boundaries_unit.cpp)
+target_compile_features(heal_open_boundaries_unit PRIVATE cxx_std_17)
+set_target_properties(heal_open_boundaries_unit PROPERTIES
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+target_link_libraries(heal_open_boundaries_unit PRIVATE stl2step::core)
+target_include_directories(heal_open_boundaries_unit PRIVATE
+    "${_stl2step_root}/include"
+    "${_stl2step_root}/src")
+if(MSVC)
+    target_compile_definitions(heal_open_boundaries_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
+    target_compile_options(heal_open_boundaries_unit PRIVATE /EHsc)
+endif()
+if(COMMAND stl2step_adhoc_sign)
+    stl2step_adhoc_sign(heal_open_boundaries_unit)
+endif()
+add_test(NAME heal_open_boundaries_unit
+    COMMAND heal_open_boundaries_unit
+        "${CMAKE_CURRENT_BINARY_DIR}")
+set_tests_properties(heal_open_boundaries_unit PROPERTIES
+    LABELS "unit;heal"
+    TIMEOUT 120)
+
+# fc/fx-slitheal (D-fc-5.11 F3): zero-area fins and out-and-back slits.
+add_executable(relational_slit_heal_unit relational_slit_heal_unit.cpp)
+target_compile_features(relational_slit_heal_unit PRIVATE cxx_std_17)
+set_target_properties(relational_slit_heal_unit PROPERTIES
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+target_link_libraries(relational_slit_heal_unit PRIVATE stl2step::core)
+target_include_directories(relational_slit_heal_unit PRIVATE
+    "${_stl2step_root}/include"
+    "${_stl2step_root}/src"
+    "${_stl2step_root}/tests/support")
+if(MSVC)
+    target_compile_definitions(relational_slit_heal_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
+    target_compile_options(relational_slit_heal_unit PRIVATE /EHsc)
+endif()
+if(COMMAND stl2step_adhoc_sign)
+    stl2step_adhoc_sign(relational_slit_heal_unit)
+endif()
+add_test(NAME relational_slit_heal_unit COMMAND relational_slit_heal_unit)
+set_tests_properties(relational_slit_heal_unit PROPERTIES
+    LABELS "unit;fc-contract"
+    TIMEOUT 60)
+
+# fc/fx-t2-wire (D-fc-6.1(d), RQ-8): tangent chord clip and F1 island absorb.
+add_executable(relational_wire_clip_unit relational_wire_clip_unit.cpp)
+target_compile_features(relational_wire_clip_unit PRIVATE cxx_std_17)
+set_target_properties(relational_wire_clip_unit PROPERTIES
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+target_link_libraries(relational_wire_clip_unit PRIVATE stl2step::core)
+target_include_directories(relational_wire_clip_unit PRIVATE
+    "${_stl2step_root}/include"
+    "${_stl2step_root}/src"
+    "${_stl2step_root}/tests/support")
+if(MSVC)
+    target_compile_definitions(relational_wire_clip_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
+    target_compile_options(relational_wire_clip_unit PRIVATE /EHsc)
+endif()
+if(COMMAND stl2step_adhoc_sign)
+    stl2step_adhoc_sign(relational_wire_clip_unit)
+endif()
+add_test(NAME relational_wire_clip_unit COMMAND relational_wire_clip_unit)
+set_tests_properties(relational_wire_clip_unit PROPERTIES
+    LABELS "unit;fc-contract"
+    TIMEOUT 60)
+
+add_executable(relational_island_absorb_unit relational_island_absorb_unit.cpp)
+target_compile_features(relational_island_absorb_unit PRIVATE cxx_std_17)
+set_target_properties(relational_island_absorb_unit PROPERTIES
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+target_link_libraries(relational_island_absorb_unit PRIVATE stl2step::core)
+target_include_directories(relational_island_absorb_unit PRIVATE
+    "${_stl2step_root}/include"
+    "${_stl2step_root}/src"
+    "${_stl2step_root}/tests/support")
+if(MSVC)
+    target_compile_definitions(relational_island_absorb_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
+    target_compile_options(relational_island_absorb_unit PRIVATE /EHsc)
+endif()
+if(COMMAND stl2step_adhoc_sign)
+    stl2step_adhoc_sign(relational_island_absorb_unit)
+endif()
+add_test(NAME relational_island_absorb_unit COMMAND relational_island_absorb_unit)
+set_tests_properties(relational_island_absorb_unit PROPERTIES
+    LABELS "unit;fc-contract"
+    TIMEOUT 60)
+
+# fc/fx-sphere (D-fc-5.11 F8): sphere corners of three certified rounds.
+add_executable(relational_sphere_unit relational_sphere_unit.cpp)
+target_compile_features(relational_sphere_unit PRIVATE cxx_std_17)
+set_target_properties(relational_sphere_unit PROPERTIES
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+target_link_libraries(relational_sphere_unit PRIVATE stl2step::core)
+target_include_directories(relational_sphere_unit PRIVATE
+    "${_stl2step_root}/include"
+    "${_stl2step_root}/src"
+    "${_stl2step_root}/tests/support")
+if(MSVC)
+    target_compile_definitions(relational_sphere_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
+    target_compile_options(relational_sphere_unit PRIVATE /EHsc)
+endif()
+if(COMMAND stl2step_adhoc_sign)
+    stl2step_adhoc_sign(relational_sphere_unit)
+endif()
+add_test(NAME relational_sphere_unit COMMAND relational_sphere_unit)
+set_tests_properties(relational_sphere_unit PROPERTIES
+    LABELS "unit;fc-contract"
+    TIMEOUT 60)
+
+# fc/fx-ruled (D-fc-5.9): the ruled quad between certified rails -- every
+# certificate step, the stage on a synthetic twisted prism, and that prism end
+# to end through convert() (its STL and STEP go to the build directory).
+add_executable(relational_ruled_unit relational_ruled_unit.cpp)
+target_compile_features(relational_ruled_unit PRIVATE cxx_std_17)
+set_target_properties(relational_ruled_unit PROPERTIES
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+target_link_libraries(relational_ruled_unit PRIVATE stl2step::core)
+target_include_directories(relational_ruled_unit PRIVATE
+    "${_stl2step_root}/include"
+    "${_stl2step_root}/src"
+    "${_stl2step_root}/tests/support")
+if(MSVC)
+    target_compile_definitions(relational_ruled_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
+    target_compile_options(relational_ruled_unit PRIVATE /EHsc)
+endif()
+if(COMMAND stl2step_adhoc_sign)
+    stl2step_adhoc_sign(relational_ruled_unit)
+endif()
+add_test(NAME relational_ruled_unit
+    COMMAND relational_ruled_unit "${CMAKE_CURRENT_BINARY_DIR}")
+set_tests_properties(relational_ruled_unit PROPERTIES
+    LABELS "unit;fc-contract"
+    TIMEOUT 60)
+
+# fc/fx-signvol (D-fc-6.2): shell volume gate compares magnitude with magnitude.
+add_executable(shell_volume_unit shell_volume_unit.cpp)
+target_compile_features(shell_volume_unit PRIVATE cxx_std_17)
+set_target_properties(shell_volume_unit PROPERTIES
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+target_link_libraries(shell_volume_unit PRIVATE stl2step::core)
+target_include_directories(shell_volume_unit PRIVATE
+    "${_stl2step_root}/include"
+    "${_stl2step_root}/src"
+    "${_stl2step_root}/tests/support")
+if(MSVC)
+    target_compile_definitions(shell_volume_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
+    target_compile_options(shell_volume_unit PRIVATE /EHsc)
+endif()
+if(COMMAND stl2step_adhoc_sign)
+    stl2step_adhoc_sign(shell_volume_unit)
+endif()
+add_test(NAME shell_volume_unit COMMAND shell_volume_unit)
+set_tests_properties(shell_volume_unit PROPERTIES
+    LABELS "unit;fc-contract"
+    TIMEOUT 60)
+
+# fc/fx-t2-heal-r1 (D-fc-6.1): one-cycle closed360 demotion and per-region dissolve.
+add_executable(relational_topo_heal_unit relational_topo_heal_unit.cpp)
+target_compile_features(relational_topo_heal_unit PRIVATE cxx_std_17)
+set_target_properties(relational_topo_heal_unit PROPERTIES
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+target_link_libraries(relational_topo_heal_unit PRIVATE stl2step::core)
+target_include_directories(relational_topo_heal_unit PRIVATE
+    "${_stl2step_root}/include"
+    "${_stl2step_root}/src")
+if(MSVC)
+    target_compile_definitions(relational_topo_heal_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
+    target_compile_options(relational_topo_heal_unit PRIVATE /EHsc)
+endif()
+if(COMMAND stl2step_adhoc_sign)
+    stl2step_adhoc_sign(relational_topo_heal_unit)
+endif()
+add_test(NAME relational_topo_heal_unit COMMAND relational_topo_heal_unit)
+set_tests_properties(relational_topo_heal_unit PROPERTIES
+    LABELS "unit;fc-contract"
+    TIMEOUT 60)
+
+# fc/fx-t2-holes2 (D-fc-6.10): chord vertex, one-vertex cover, rim certificate.
+add_executable(relational_ringwall_unit relational_ringwall_unit.cpp)
+target_compile_features(relational_ringwall_unit PRIVATE cxx_std_17)
+set_target_properties(relational_ringwall_unit PROPERTIES
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+target_link_libraries(relational_ringwall_unit PRIVATE stl2step::core)
+target_include_directories(relational_ringwall_unit PRIVATE
+    "${_stl2step_root}/include"
+    "${_stl2step_root}/src")
+if(MSVC)
+    target_compile_definitions(relational_ringwall_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
+    target_compile_options(relational_ringwall_unit PRIVATE /EHsc)
+endif()
+if(COMMAND stl2step_adhoc_sign)
+    stl2step_adhoc_sign(relational_ringwall_unit)
+endif()
+add_test(NAME relational_ringwall_unit COMMAND relational_ringwall_unit)
+set_tests_properties(relational_ringwall_unit PROPERTIES
+    LABELS "unit;fc-contract"
+    TIMEOUT 60)
+
+# fc/fx-t2-walls (D-fc-6.8 RQ-1, RQ-3): closed coaxial walls over I + cover and
+# partial walls anchored by a tangent parallel cylinder.
+add_executable(relational_coax_closed_unit relational_coax_closed_unit.cpp)
+target_compile_features(relational_coax_closed_unit PRIVATE cxx_std_17)
+set_target_properties(relational_coax_closed_unit PROPERTIES
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+target_link_libraries(relational_coax_closed_unit PRIVATE stl2step::core)
+target_include_directories(relational_coax_closed_unit PRIVATE
+    "${_stl2step_root}/include"
+    "${_stl2step_root}/src")
+if(MSVC)
+    target_compile_definitions(relational_coax_closed_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
+    target_compile_options(relational_coax_closed_unit PRIVATE /EHsc)
+endif()
+if(COMMAND stl2step_adhoc_sign)
+    stl2step_adhoc_sign(relational_coax_closed_unit)
+endif()
+add_test(NAME relational_coax_closed_unit COMMAND relational_coax_closed_unit)
+set_tests_properties(relational_coax_closed_unit PROPERTIES
+    LABELS "unit;fc-contract"
+    TIMEOUT 60)
+
+# fc/fx-pk-rehost (D-fc-7.3 RQ-HUB-5): a short arc within tau of a certified
+# coaxial member takes that member's surface; one vertex outside keeps its own.
+add_executable(relational_rehost_unit relational_rehost_unit.cpp)
+target_compile_features(relational_rehost_unit PRIVATE cxx_std_17)
+set_target_properties(relational_rehost_unit PROPERTIES
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+target_link_libraries(relational_rehost_unit PRIVATE stl2step::core)
+target_include_directories(relational_rehost_unit PRIVATE
+    "${_stl2step_root}/include"
+    "${_stl2step_root}/src")
+if(MSVC)
+    target_compile_definitions(relational_rehost_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
+    target_compile_options(relational_rehost_unit PRIVATE /EHsc)
+endif()
+if(COMMAND stl2step_adhoc_sign)
+    stl2step_adhoc_sign(relational_rehost_unit)
+endif()
+add_test(NAME relational_rehost_unit COMMAND relational_rehost_unit)
+set_tests_properties(relational_rehost_unit PROPERTIES
+    LABELS "unit;fc-contract"
+    TIMEOUT 60)
+
+# D-gid-2.1: unify free-edge guard, dropped-face rebuild, written-body retally.
+add_executable(unify_guard_unit unify_guard_unit.cpp)
+target_compile_features(unify_guard_unit PRIVATE cxx_std_17)
+set_target_properties(unify_guard_unit PROPERTIES
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+target_link_libraries(unify_guard_unit PRIVATE stl2step::core)
+target_include_directories(unify_guard_unit PRIVATE
+    "${_stl2step_root}/include"
+    "${_stl2step_root}/src")
+if(MSVC)
+    target_compile_definitions(unify_guard_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
+    target_compile_options(unify_guard_unit PRIVATE /EHsc)
+endif()
+if(COMMAND stl2step_adhoc_sign)
+    stl2step_adhoc_sign(unify_guard_unit)
+endif()
+add_test(NAME unify_guard_unit COMMAND unify_guard_unit)
+set_tests_properties(unify_guard_unit PROPERTIES
+    LABELS "unit"
+    TIMEOUT 60)
+
+# gid/gx-torus28 (D-gid-2.6): anchored quarter-round certificate on synthetic
+# profiles -- 4 stations certify with tangent anchors, refuse as a free round.
+add_executable(relational_anchored_round_unit relational_anchored_round_unit.cpp)
+target_compile_features(relational_anchored_round_unit PRIVATE cxx_std_17)
+set_target_properties(relational_anchored_round_unit PROPERTIES
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+target_link_libraries(relational_anchored_round_unit PRIVATE stl2step::core)
+target_include_directories(relational_anchored_round_unit PRIVATE
+    "${_stl2step_root}/include"
+    "${_stl2step_root}/src")
+if(MSVC)
+    target_compile_definitions(relational_anchored_round_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
+    target_compile_options(relational_anchored_round_unit PRIVATE /EHsc)
+endif()
+if(COMMAND stl2step_adhoc_sign)
+    stl2step_adhoc_sign(relational_anchored_round_unit)
+endif()
+add_test(NAME relational_anchored_round_unit COMMAND relational_anchored_round_unit)
+set_tests_properties(relational_anchored_round_unit PROPERTIES
+    LABELS "unit;fc-contract"
+    TIMEOUT 60)
+
+# D-gid-8.18: drafted wall about a certified plane normal on
+# synthetic points (certify / refuse cases), the partial-band chord volume with
+# its rim term, and the anchored round on a cone's profile line.
+add_executable(relational_drafted_cone_unit relational_drafted_cone_unit.cpp)
+target_compile_features(relational_drafted_cone_unit PRIVATE cxx_std_17)
+set_target_properties(relational_drafted_cone_unit PROPERTIES
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+target_link_libraries(relational_drafted_cone_unit PRIVATE stl2step::core)
+target_include_directories(relational_drafted_cone_unit PRIVATE
+    "${_stl2step_root}/include"
+    "${_stl2step_root}/src")
+if(MSVC)
+    target_compile_definitions(relational_drafted_cone_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
+    target_compile_options(relational_drafted_cone_unit PRIVATE /EHsc)
+endif()
+if(COMMAND stl2step_adhoc_sign)
+    stl2step_adhoc_sign(relational_drafted_cone_unit)
+endif()
+add_test(NAME relational_drafted_cone_unit COMMAND relational_drafted_cone_unit)
+set_tests_properties(relational_drafted_cone_unit PROPERTIES
+    LABELS "unit;fc-contract"
+    TIMEOUT 60)
+
+# gid2/gy-honest (D-gid-7.6): RESULT census of the written shape -- face
+# provenance through the guarded unify, counting, describeShippedFaces.
+add_executable(written_census_unit written_census_unit.cpp)
+target_compile_features(written_census_unit PRIVATE cxx_std_17)
+set_target_properties(written_census_unit PROPERTIES
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+target_link_libraries(written_census_unit PRIVATE stl2step::core)
+target_include_directories(written_census_unit PRIVATE
+    "${_stl2step_root}/include"
+    "${_stl2step_root}/src")
+if(MSVC)
+    target_compile_definitions(written_census_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
+    target_compile_options(written_census_unit PRIVATE /EHsc)
+endif()
+if(COMMAND stl2step_adhoc_sign)
+    stl2step_adhoc_sign(written_census_unit)
+endif()
+add_test(NAME written_census_unit COMMAND written_census_unit)
+set_tests_properties(written_census_unit PROPERTIES
+    LABELS "unit"
+    TIMEOUT 60)
+# D-gid-4.1: mixed FilletStrip splits per mesh-component.
+# Synthetic two-piece strip on one cylinder. No training mesh.
+add_executable(fillet_strip_split_unit fillet_strip_split_test.cpp)
+target_compile_features(fillet_strip_split_unit PRIVATE cxx_std_17)
+set_target_properties(fillet_strip_split_unit PROPERTIES
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+target_link_libraries(fillet_strip_split_unit PRIVATE stl2step::harness stl2step::core)
+target_include_directories(fillet_strip_split_unit PRIVATE
+    "${_stl2step_root}/src"
+    "${_stl2step_root}/tests/harness"
+    "${_stl2step_root}/tests/support")
+if(MSVC)
+    target_compile_definitions(fillet_strip_split_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
+endif()
+if(COMMAND stl2step_adhoc_sign)
+    stl2step_adhoc_sign(fillet_strip_split_unit)
+endif()
+add_test(NAME fillet_strip_split_unit COMMAND fillet_strip_split_unit)
+set_tests_properties(fillet_strip_split_unit PROPERTIES
+    LABELS "unit;gid-fillet-strip"
+    TIMEOUT 180)
+# gid2/gy-pktori (D-gid-7.12): same-surface growth of a certified torus --
+# adjacent unclaimed tau-triangles join the band, an uncertified B1 chip wholly
+# on the torus becomes one face of it; heal-not-revert names a band's growth.
+add_executable(relational_torus_grow_unit relational_torus_grow_unit.cpp)
+target_compile_features(relational_torus_grow_unit PRIVATE cxx_std_17)
+set_target_properties(relational_torus_grow_unit PROPERTIES
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+target_link_libraries(relational_torus_grow_unit PRIVATE stl2step::core stl2step::harness)
+target_include_directories(relational_torus_grow_unit PRIVATE
+    "${_stl2step_root}/include"
+    "${_stl2step_root}/src"
+    "${_stl2step_root}/tests/support"
+    "${_stl2step_root}/tests/harness")
+if(MSVC)
+    target_compile_definitions(relational_torus_grow_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
+    target_compile_options(relational_torus_grow_unit PRIVATE /EHsc)
+endif()
+if(COMMAND stl2step_adhoc_sign)
+    stl2step_adhoc_sign(relational_torus_grow_unit)
+endif()
+add_test(NAME relational_torus_grow_unit COMMAND relational_torus_grow_unit)
+set_tests_properties(relational_torus_grow_unit PROPERTIES
+    LABELS "unit;fc-contract"
+    TIMEOUT 60)
+# D-gid-7.6: exact dVolPredicted of FilletStrip cylinders and tori (synthetic).
+add_executable(relational_dvol_exact_unit relational_dvol_exact_unit.cpp)
+target_compile_features(relational_dvol_exact_unit PRIVATE cxx_std_17)
+set_target_properties(relational_dvol_exact_unit PROPERTIES
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+target_link_libraries(relational_dvol_exact_unit PRIVATE stl2step::core)
+target_include_directories(relational_dvol_exact_unit PRIVATE
+    "${_stl2step_root}/include"
+    "${_stl2step_root}/src")
+if(MSVC)
+    target_compile_definitions(relational_dvol_exact_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
+    target_compile_options(relational_dvol_exact_unit PRIVATE /EHsc)
+endif()
+if(COMMAND stl2step_adhoc_sign)
+    stl2step_adhoc_sign(relational_dvol_exact_unit)
+endif()
+add_test(NAME relational_dvol_exact_unit COMMAND relational_dvol_exact_unit)
+set_tests_properties(relational_dvol_exact_unit PROPERTIES
+    LABELS "unit;fc-contract"
+    TIMEOUT 60)
+# D-gid-8.8 / D-gid-8.6: exact chord volume of apex cones and ring-certified walls (synthetic).
+add_executable(apex_cone_dvol_unit apex_cone_dvol_unit.cpp)
+target_compile_features(apex_cone_dvol_unit PRIVATE cxx_std_17)
+set_target_properties(apex_cone_dvol_unit PROPERTIES
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+target_link_libraries(apex_cone_dvol_unit PRIVATE stl2step::core)
+target_include_directories(apex_cone_dvol_unit PRIVATE
+    "${_stl2step_root}/include"
+    "${_stl2step_root}/src")
+if(MSVC)
+    target_compile_definitions(apex_cone_dvol_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
+    target_compile_options(apex_cone_dvol_unit PRIVATE /EHsc)
+endif()
+if(COMMAND stl2step_adhoc_sign)
+    stl2step_adhoc_sign(apex_cone_dvol_unit)
+endif()
+add_test(NAME apex_cone_dvol_unit COMMAND apex_cone_dvol_unit)
+set_tests_properties(apex_cone_dvol_unit PROPERTIES
+    LABELS "unit;fc-contract"
+    TIMEOUT 60)
+
+# D-gid-8.3 (R-k31-2): a cylinder region within tau of both its own cylinder and
+# a sphere corner's sphere is owned by the sphere (synthetic).
+add_executable(relational_sphere_owns_unit relational_sphere_owns_unit.cpp)
+target_compile_features(relational_sphere_owns_unit PRIVATE cxx_std_17)
+set_target_properties(relational_sphere_owns_unit PROPERTIES
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+target_link_libraries(relational_sphere_owns_unit PRIVATE stl2step::core)
+target_include_directories(relational_sphere_owns_unit PRIVATE
+    "${_stl2step_root}/include"
+    "${_stl2step_root}/src")
+if(MSVC)
+    target_compile_definitions(relational_sphere_owns_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
+    target_compile_options(relational_sphere_owns_unit PRIVATE /EHsc)
+endif()
+if(COMMAND stl2step_adhoc_sign)
+    stl2step_adhoc_sign(relational_sphere_owns_unit)
+endif()
+add_test(NAME relational_sphere_owns_unit COMMAND relational_sphere_owns_unit)
+set_tests_properties(relational_sphere_owns_unit PROPERTIES
+    LABELS "unit;fc-contract"
+    TIMEOUT 60)
+
+# D-gid-8.2 (gz-capown): only a lateral facet can be part of a wall --
+# releaseCapTriangles on synthetic quarter-round walls with a cap fan.
+add_executable(relational_capown_unit relational_capown_unit.cpp)
+target_compile_features(relational_capown_unit PRIVATE cxx_std_17)
+set_target_properties(relational_capown_unit PROPERTIES
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+target_link_libraries(relational_capown_unit PRIVATE stl2step::core)
+target_include_directories(relational_capown_unit PRIVATE
+    "${_stl2step_root}/include"
+    "${_stl2step_root}/src")
+if(MSVC)
+    target_compile_definitions(relational_capown_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
+    target_compile_options(relational_capown_unit PRIVATE /EHsc)
+endif()
+if(COMMAND stl2step_adhoc_sign)
+    stl2step_adhoc_sign(relational_capown_unit)
+endif()
+add_test(NAME relational_capown_unit COMMAND relational_capown_unit)
+set_tests_properties(relational_capown_unit PROPERTIES
+    LABELS "unit;fc-contract"
+    TIMEOUT 60)
+
+# D-gid-8.4: tess-law decision for a folded closed ring band (synthetic).
+add_executable(relational_ringlaw_unit relational_ringlaw_unit.cpp)
+target_compile_features(relational_ringlaw_unit PRIVATE cxx_std_17)
+set_target_properties(relational_ringlaw_unit PROPERTIES
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+target_link_libraries(relational_ringlaw_unit PRIVATE stl2step::core)
+target_include_directories(relational_ringlaw_unit PRIVATE
+    "${_stl2step_root}/include"
+    "${_stl2step_root}/src")
+if(MSVC)
+    target_compile_definitions(relational_ringlaw_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
+    target_compile_options(relational_ringlaw_unit PRIVATE /EHsc)
+endif()
+if(COMMAND stl2step_adhoc_sign)
+    stl2step_adhoc_sign(relational_ringlaw_unit)
+endif()
+add_test(NAME relational_ringlaw_unit COMMAND relational_ringlaw_unit)
+set_tests_properties(relational_ringlaw_unit PROPERTIES
+    LABELS "unit;fc-contract"
+    TIMEOUT 60)
+
+# D-gid-8.7: the fallback projection keeps the face chart's periodic branch (synthetic).
+add_executable(pcurve_chart_branch_unit pcurve_chart_branch_unit.cpp)
+target_compile_features(pcurve_chart_branch_unit PRIVATE cxx_std_17)
+set_target_properties(pcurve_chart_branch_unit PROPERTIES
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+target_link_libraries(pcurve_chart_branch_unit PRIVATE stl2step::core)
+target_include_directories(pcurve_chart_branch_unit PRIVATE
+    "${_stl2step_root}/include"
+    "${_stl2step_root}/src")
+if(MSVC)
+    target_compile_definitions(pcurve_chart_branch_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
+    target_compile_options(pcurve_chart_branch_unit PRIVATE /EHsc)
+endif()
+if(COMMAND stl2step_adhoc_sign)
+    stl2step_adhoc_sign(pcurve_chart_branch_unit)
+endif()
+add_test(NAME pcurve_chart_branch_unit COMMAND pcurve_chart_branch_unit)
+set_tests_properties(pcurve_chart_branch_unit PROPERTIES
+    LABELS "unit;fc-contract"
+    TIMEOUT 60)
+
+# D-gid-8.4: the late ring-frustum closure (cylinder or cone between two certified
+# coaxial rims) and its profile line (synthetic).
+add_executable(relational_ringfrustum_unit relational_ringfrustum_unit.cpp)
+target_compile_features(relational_ringfrustum_unit PRIVATE cxx_std_17)
+set_target_properties(relational_ringfrustum_unit PROPERTIES
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+target_link_libraries(relational_ringfrustum_unit PRIVATE stl2step::core)
+target_include_directories(relational_ringfrustum_unit PRIVATE
+    "${_stl2step_root}/include"
+    "${_stl2step_root}/src")
+if(MSVC)
+    target_compile_definitions(relational_ringfrustum_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
+    target_compile_options(relational_ringfrustum_unit PRIVATE /EHsc)
+endif()
+if(COMMAND stl2step_adhoc_sign)
+    stl2step_adhoc_sign(relational_ringfrustum_unit)
+endif()
+add_test(NAME relational_ringfrustum_unit COMMAND relational_ringfrustum_unit)
+set_tests_properties(relational_ringfrustum_unit PROPERTIES
+    LABELS "unit;fc-contract"
+    TIMEOUT 60)
+
+# D-gid-8.13: a cone/cylinder pair between certified coaxial rims shares its
+# junction circle and one seam half-plane (stagger predicates + a synthetic
+# chamfered through-hole converted end to end).
+add_executable(cone_bore_seam_unit cone_bore_seam_unit.cpp)
+target_compile_features(cone_bore_seam_unit PRIVATE cxx_std_17)
+set_target_properties(cone_bore_seam_unit PROPERTIES
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+target_link_libraries(cone_bore_seam_unit PRIVATE stl2step::core)
+target_include_directories(cone_bore_seam_unit PRIVATE
+    "${_stl2step_root}/include"
+    "${_stl2step_root}/src"
+    "${_stl2step_root}/tests/support")
+if(MSVC)
+    target_compile_definitions(cone_bore_seam_unit PRIVATE _USE_MATH_DEFINES NOMINMAX)
+    target_compile_options(cone_bore_seam_unit PRIVATE /EHsc)
+endif()
+if(COMMAND stl2step_adhoc_sign)
+    stl2step_adhoc_sign(cone_bore_seam_unit)
+endif()
+add_test(NAME cone_bore_seam_unit COMMAND cone_bore_seam_unit)
+set_tests_properties(cone_bore_seam_unit PROPERTIES
+    LABELS "unit;fc-contract"
+    TIMEOUT 180)
+
+unset(_stl2step_root)
+unset(_anat)
+unset(_stl)
+unset(_mis)
+unset(_lab)
+unset(_body11)
+unset(_neg)

@@ -1,0 +1,317 @@
+cmake_minimum_required(VERSION 3.16)
+
+# Ad-hoc codesign built executables on macOS: a freshly built unsigned binary
+# doing heavy test I/O trips SentinelOne behavioral remediation (2026-08-25).
+function(stl2step_adhoc_sign tgt)
+  if(APPLE)
+    add_custom_command(TARGET ${tgt} POST_BUILD
+      COMMAND codesign --force --sign - $<TARGET_FILE:${tgt}>
+      COMMENT "ad-hoc codesign ${tgt}" VERBATIM)
+  endif()
+endfunction()
+
+
+project(stl2step
+    VERSION 1.11.0
+    DESCRIPTION "Universal STL (mesh) -> STEP (B-Rep solid) conversion engine"
+    LANGUAGES CXX)
+
+# ---------------------------------------------------------------------------
+# Options
+# ---------------------------------------------------------------------------
+option(STL2STEP_BUILD_CLI      "Build the stl2step command-line tool" ON)
+option(STL2STEP_BUILD_EXAMPLES "Build the integration examples"       OFF)
+option(STL2STEP_BUILD_TESTS    "Register the smoke test with CTest"
+       ${PROJECT_IS_TOP_LEVEL})
+option(STL2STEP_INSTALL        "Generate install + package-config rules"
+       ${PROJECT_IS_TOP_LEVEL})
+
+# Default to an optimised build when the caller did not pick one.
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "" FORCE)
+endif()
+
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+
+find_package(Threads REQUIRED)
+find_package(OpenCASCADE REQUIRED)
+
+# D-I-5 / #8 — expose OCCT version to calibrated tests (one range: >= 7.9.x).
+include("${CMAKE_CURRENT_SOURCE_DIR}/tests/support/occt_calibrated.cmake")
+set(STL2STEP_OCCT_GENERATED_DIR "${CMAKE_BINARY_DIR}/generated")
+file(MAKE_DIRECTORY "${STL2STEP_OCCT_GENERATED_DIR}")
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/support/occt_calibrated.hpp.in"
+    "${STL2STEP_OCCT_GENERATED_DIR}/occt_calibrated.hpp"
+    @ONLY)
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/support/occt_calibrated.py.in"
+    "${STL2STEP_OCCT_GENERATED_DIR}/occt_calibrated.py"
+    @ONLY)
+
+# ---------------------------------------------------------------------------
+# Engine library
+# ---------------------------------------------------------------------------
+add_library(stl2step_core
+    src/stl2step.cpp
+    src/parallel.cpp
+    src/stl_quant.cpp
+    src/mesh.cpp
+    src/refit_math.cpp
+    src/refit_cone_math.cpp
+    src/refit_torus_math.cpp
+    src/refit_ellipse_math.cpp
+    src/refit_cone_bind.cpp
+    src/refit_union_census.cpp
+    src/refit_ellipse_bind.cpp
+    src/refit_grow.cpp
+    src/refit_fillet.cpp
+    src/refit_chains.cpp
+    src/refit_island_absorb.cpp
+    src/refit_segment.cpp
+    src/refit_build.cpp
+    src/refit_lawband.cpp
+    src/refit_ngon.cpp
+    src/refit_chamfer_cone.cpp
+    src/refit_torus.cpp
+    src/refit_profile_cert.cpp
+    src/refit_anchored_round.cpp
+    src/refit_drafted_cone.cpp
+    src/refit_relational_extrude.cpp
+    src/refit_relational_revolve.cpp
+    src/refit_relational_reclaim.cpp
+    src/refit_relational_sphere.cpp
+    src/refit_relational_ruled.cpp
+    src/refit_tesslaw.cpp
+    src/refit_plane_circle.cpp
+    src/refit_prism.cpp
+    src/refit_profile.cpp
+    src/refit_prism_build.cpp
+    src/dxf_export.cpp)
+add_library(stl2step::core ALIAS stl2step_core)
+
+target_compile_features(stl2step_core PUBLIC cxx_std_17)
+set_target_properties(stl2step_core PROPERTIES
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    POSITION_INDEPENDENT_CODE ON)
+
+# On Windows an executable named `stl2step` also emits an import `stl2step.lib`,
+# which collides with the static library's `stl2step.lib` (LNK1149). Keep the
+# tidy `libstl2step.{a,so,dylib}` name on Unix; fall back to the target name
+# (`stl2step_core.lib`) on Windows. CMake consumers link the `stl2step::core`
+# target, so the on-disk name is transparent to them either way.
+if(NOT WIN32)
+    set_target_properties(stl2step_core PROPERTIES OUTPUT_NAME stl2step)
+endif()
+
+target_include_directories(stl2step_core PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>)
+
+target_link_libraries(stl2step_core
+    PUBLIC  OpenCASCADE::OpenCASCADE
+    PRIVATE Threads::Threads)
+
+# ---------------------------------------------------------------------------
+# Name every OpenCASCADE toolkit the sources actually use.
+#
+# `OpenCASCADE::OpenCASCADE` is our own INTERFACE target (cmake/FindOpenCASCADE.cmake),
+# so it carries only the toolkits that finder happens to list. Anything it misses
+# has to arrive by luck: some other toolkit's INTERFACE_LINK_LIBRARIES dragging it
+# in, or a linker that keeps libraries nothing asked for. Debian/Ubuntu remove both
+# crutches -- `ld --as-needed` is the distro default, and an OCCT laid out without a
+# CMake package config (source install, $CASROOT/{inc,lib}, a vendored tree) reduces
+# the finder to bare find_library results that carry no interface deps at all. The
+# link line is then literally the list below, and a toolkit missing from it is a
+# missing DSO: `BRepAlgoAPI_Fuse` -> TKBO and `BRepPrimAPI_MakePrism` -> TKPrim were
+# both reached only transitively before, which is what github issue #1 reported.
+#
+# The list is the measured minimal cover of libstl2step.a's undefined symbols over
+# all 51 OCCT toolkits -- nothing missing, no spares. Ordered most-dependent-first so
+# a static OCCT resolves in one pass. OCCT >= 7.8 renamed the data-exchange toolkits
+# (TKSTL -> TKDESTL; TKSTEP/TKSTEPBase/TKSTEPAttr/TKSTEP209 -> TKDESTEP); the old
+# spellings are kept as alternates and only what this OCCT ships is linked.
+# ---------------------------------------------------------------------------
+set(_occt_toolkits
+    TKDESTL      # StlAPI_Writer, RWStl
+    TKDESTEP     # STEPControl_Reader / STEPControl_Writer
+    TKXSBase     # Interface_Static, IFSelect_ReturnStatus
+    TKMesh       # BRepMesh_IncrementalMesh, IMeshTools_Parameters (--mesh mode)
+    TKShHealing  # ShapeFix_*, ShapeUpgrade_UnifySameDomain
+    TKBO         # BRepAlgoAPI_Fuse, BOPAlgo_GlueEnum
+    TKPrim       # BRepPrimAPI_MakePrism
+    TKTopAlgo    # BRepBuilderAPI_*, BRepCheck_*, BRepClass3d_*, BRepGProp
+    TKGeomAlgo   # GeomAPI_ProjectPointOnSurf, BRepLib_ValidateEdge
+    TKBRep       # TopoDS_*, BRep_*, BRepTools*, BRepAdaptor_*, TopExp, TopTools
+    TKGeomBase   # GC_MakeArcOfCircle, GeomProjLib, IntAna_QuadQuadGeo
+    TKG3d        # Geom_*, Poly_*
+    TKG2d        # Geom2d_*
+    TKMath       # gp_*, TColgp_*, Bnd_Box, GProp_*, ElCLib, ElSLib
+    TKernel)     # Standard_*, TColStd_*, Message_*, OSD
+set(_occt_alt_TKDESTL  TKSTL)
+set(_occt_alt_TKDESTEP TKSTEP TKSTEPBase TKSTEPAttr TKSTEP209)
+
+foreach(_tk IN LISTS _occt_toolkits)
+    # The canonical name first, then the pre-7.8 spellings it replaced.
+    set(_occt_names ${_tk} ${_occt_alt_${_tk}})
+    set(_occt_found FALSE)
+    foreach(_name IN LISTS _occt_names)
+        if(TARGET ${_name})
+            target_link_libraries(stl2step_core PUBLIC ${_name})
+            set(_occt_found TRUE)
+        endif()
+    endforeach()
+    if(NOT _occt_found)
+        # No imported target: OCCT was found without its config package. Resolve
+        # by library name against the finder's own hints -- never a hard-coded path.
+        foreach(_name IN LISTS _occt_names)
+            find_library(STL2STEP_OCCT_${_name} NAMES ${_name}
+                HINTS
+                    "${OpenCASCADE_LIBRARY_DIR}"
+                    "${OpenCASCADE_BINARY_DIR}"
+                    ${OpenCASCADE_ROOT} $ENV{OpenCASCADE_ROOT} $ENV{CASROOT} ${CASROOT}
+                PATH_SUFFIXES lib lib64 win64/vc14/lib
+                PATHS
+                    /usr/lib /usr/local/lib /usr/lib/x86_64-linux-gnu
+                    /opt/homebrew/lib /opt/local/lib)
+            mark_as_advanced(STL2STEP_OCCT_${_name})
+            if(STL2STEP_OCCT_${_name})
+                target_link_libraries(stl2step_core PUBLIC "${STL2STEP_OCCT_${_name}}")
+            endif()
+        endforeach()
+    endif()
+endforeach()
+unset(_occt_toolkits)
+unset(_occt_alt_TKDESTL)
+unset(_occt_alt_TKDESTEP)
+unset(_occt_names)
+unset(_occt_found)
+
+if(MSVC)
+    target_compile_definitions(stl2step_core PRIVATE _USE_MATH_DEFINES NOMINMAX)
+    target_compile_options(stl2step_core PRIVATE /EHsc)
+endif()
+
+# Optional sanitizer instrumentation for the engine + anything that links it
+# (CLI smoke, unit tests). Clang: ASan+UBSan. MSVC: /fsanitize=address.
+# OCCT stays uninstrumented (we only add flags to our targets).
+option(STL2STEP_SANITIZE "Build with AddressSanitizer (and UBSan on Clang)" OFF)
+if(STL2STEP_SANITIZE)
+    if(MSVC)
+        target_compile_options(stl2step_core PUBLIC /fsanitize=address /Zi)
+        target_link_options(stl2step_core PUBLIC /INCREMENTAL:NO)
+    else()
+        target_compile_options(stl2step_core PUBLIC
+            -fsanitize=address,undefined -fno-omit-frame-pointer)
+        target_link_options(stl2step_core PUBLIC -fsanitize=address,undefined)
+    endif()
+endif()
+
+# ---------------------------------------------------------------------------
+# Command-line tool
+# ---------------------------------------------------------------------------
+if(STL2STEP_BUILD_CLI)
+    add_executable(stl2step src/main.cpp)
+    target_link_libraries(stl2step PRIVATE stl2step::core)
+    set_target_properties(stl2step PROPERTIES OUTPUT_NAME stl2step)
+    if(STL2STEP_SANITIZE)
+        if(MSVC)
+            target_compile_options(stl2step PRIVATE /fsanitize=address /Zi)
+            target_link_options(stl2step PRIVATE /INCREMENTAL:NO)
+        else()
+            target_compile_options(stl2step PRIVATE
+                -fsanitize=address,undefined -fno-omit-frame-pointer)
+            target_link_options(stl2step PRIVATE -fsanitize=address,undefined)
+        endif()
+    endif()
+endif()
+
+# ---------------------------------------------------------------------------
+# Smoke test (converts the committed cube and expects a clean exit 0)
+# ---------------------------------------------------------------------------
+if(STL2STEP_BUILD_TESTS AND STL2STEP_BUILD_CLI)
+    enable_testing()
+    add_test(NAME convert_cube
+        COMMAND stl2step "${CMAKE_CURRENT_SOURCE_DIR}/tests/cube.stl"
+                         "${CMAKE_CURRENT_BINARY_DIR}/cube.step")
+    set_tests_properties(convert_cube PROPERTIES
+        PASS_REGULAR_EXPRESSION "\"ok\":true.*\"solids\":1.*\"volumeDeltaPct\":0")
+    # Guard: CLI --version must equal the CMake project version (catches
+    # STL2STEP_VERSION_* macros drifting from project(VERSION ...)).
+    add_test(NAME version_matches_project
+        COMMAND stl2step --version)
+    string(REPLACE "." "\\." _stl2step_version_re "${PROJECT_VERSION}")
+    set_tests_properties(version_matches_project PROPERTIES
+        PASS_REGULAR_EXPRESSION "^stl2step ${_stl2step_version_re}[\r\n]*$")
+    unset(_stl2step_version_re)
+endif()
+
+# ---------------------------------------------------------------------------
+# Test / gate tree (corpus generator, censuses, region dumps, gate harnesses).
+# Each tool owns its own CMakeLists so the lanes that add them never collide
+# in this file.
+# ---------------------------------------------------------------------------
+if(STL2STEP_BUILD_TESTS)
+    add_subdirectory(tests)
+endif()
+
+# ---------------------------------------------------------------------------
+# Examples
+# ---------------------------------------------------------------------------
+if(STL2STEP_BUILD_EXAMPLES)
+    add_executable(convert_min examples/convert_min.cpp)
+    target_link_libraries(convert_min PRIVATE stl2step::core)
+endif()
+
+# ---------------------------------------------------------------------------
+# Install + package config  (lets downstream projects find_package(stl2step))
+# ---------------------------------------------------------------------------
+if(STL2STEP_INSTALL)
+    include(GNUInstallDirs)
+    include(CMakePackageConfigHelpers)
+
+    set(_targets stl2step_core)
+    if(STL2STEP_BUILD_CLI)
+        list(APPEND _targets stl2step)
+    endif()
+
+    install(TARGETS ${_targets}
+        EXPORT stl2stepTargets
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
+
+    install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+
+    install(EXPORT stl2stepTargets
+        NAMESPACE stl2step::
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/stl2step)
+
+    # Ship the OCCT finder so downstream find_package(stl2step) can locate OCCT.
+    install(FILES cmake/FindOpenCASCADE.cmake
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/stl2step)
+
+    configure_package_config_file(
+        cmake/stl2stepConfig.cmake.in
+        "${CMAKE_CURRENT_BINARY_DIR}/stl2stepConfig.cmake"
+        INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/stl2step)
+
+    write_basic_package_version_file(
+        "${CMAKE_CURRENT_BINARY_DIR}/stl2stepConfigVersion.cmake"
+        VERSION ${PROJECT_VERSION}
+        COMPATIBILITY SameMajorVersion)
+
+    install(FILES
+        "${CMAKE_CURRENT_BINARY_DIR}/stl2stepConfig.cmake"
+        "${CMAKE_CURRENT_BINARY_DIR}/stl2stepConfigVersion.cmake"
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/stl2step)
+endif()
+
+# ad-hoc signing (see root helper)
+if(TARGET stl2step)
+  stl2step_adhoc_sign(stl2step)
+endif()
+if(TARGET convert_min)
+  stl2step_adhoc_sign(convert_min)
+endif()

@@ -1,0 +1,413 @@
+// stl2step internal surface-refit contract (P1 <-> P2).
+// Not part of the public API. Never installed, never included from
+// include/stl2step/stl2step.hpp.
+//
+// SPDX-License-Identifier: MIT
+
+#ifndef STL2STEP_REFIT_HPP
+#define STL2STEP_REFIT_HPP
+
+#include <algorithm>
+#include <array>
+#include <cstdint>
+#include <functional>
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include <gp_Ax3.hxx>
+#include <gp_XYZ.hxx>
+#include <TopoDS_Face.hxx>
+#include <TopoDS_Vertex.hxx>
+
+// P1 guarantees (invariants P2 may rely on without re-checking).
+// I1-I6, I8, I9 from DECISION-insertion §3.1. I7 amended and I7b added
+// from DECISION-p1-math §3.4.
+//
+// I1. triRegion[t] >= 0 XOR triIsland[t] >= 0 for every local triangle — a
+//     total, non-overlapping partition.
+// I2. A mesh edge whose two triangles are in different regions/islands
+//     appears in exactly one chain; a mesh edge interior to a region
+//     appears in none.
+// I3. Chains are ordered and oriented so that walking meshVerts keeps
+//     regA on the left.
+// I4. Every vertex of every triangle of an accepted region satisfies
+//     dev <= maxVertexDev <= eps for that region's fitted surface.
+// I5. Region ids, chain ids and island ids are byte-for-byte independent
+//     of --threads.
+// I6. No accepted region contains a triangle from a dirty component
+//     (P1 is never called on one).
+// I7 (amended). For a region with closed360 == false, Region::loops is complete
+// and closed: exactly one loop with role == LoopRole::Outer, plus zero or more with
+// role == LoopRole::Inner. Every chain touching that region appears in exactly one of its
+// loops.
+// I7b (new). For a region with closed360 == true, Region::loops contains exactly
+// one LoopRole::CapLow (at vMin) and exactly one LoopRole::CapHigh (at vMax), plus
+// zero or more LoopRole::Inner, and no LoopRole::Outer. Every chain touching that
+// region appears in exactly one of its loops. No loop corresponds to the seam.
+// I8. Chains are split at every vertex incident to >=3 distinct
+//     regions/islands, and at every vertex touching a non-manifold or
+//     open mesh edge. (§2.2 — the collapse-safety linchpin.)
+// I9. dVolPredicted is signed and physically meaningful: positive where
+//     the analytic surface bulges outward relative to the chords (bosses),
+//     negative for holes.
+
+namespace stl2step { namespace refit {
+
+// Progress/diagnostic sink. Binds to the engine's Conv::warn(const std::string&).
+// MAY BE NULL - always null-check. P1 calls this ONLY when segment() is about to
+// return false (R3). Every reject/NYI/faceted outcome is silent and counted, because
+// a warning becomes Result::warnings and therefore exit code 2.
+using WarnFn = std::function<void(const std::string& msg)>;
+
+struct SegmentParams {
+    // --- tolerances, mm; 0 => auto-derive from MeshView -------------------
+    double epsMesh       = 0.0;   // 0 -> max(mv.weldTol, 1e-4*mv.diag, 1e-3)
+    double epsPlane      = 0.0;   // 0 -> max(epsMesh, mv.sewTol, 0.02)   [Options::smoothTolMM]
+    // --- angles, DEGREES --------------------------------------------------
+    double thetaPlaneDeg = 2.0;   // Phase A normal gate               [Options::smoothAngleDeg]
+    double thetaSharpDeg = 30.0;  // chart / growth hard stop
+    double thetaCylLoDeg = 5.0;   // Phase B seed band, INCLUSIVE
+    double thetaCylHiDeg = 60.0;  // Phase B seed band, INCLUSIVE       (D5.4)
+    double thetaBinDeg   = 0.25;  // nSides band-clustering floor       (D2.2)
+    // --- switches ---------------------------------------------------------
+    bool   doFillets     = true;  // Phase C                           [Options::smoothFillets]
+    // --- determinism (I5): every iterative step is hard-capped ------------
+    int    maxRefineIters = 8;    // geometric (c,R) refinement cap
+    // D-142-1: 0 = all cores (same as Options.threads). Thread construction
+    // goes through detail::runPool; this field is the budget segment() installs.
+    int    requestedThreads = 0;
+    // --- U-3 per torus (D-fc-4.11 (a)) -----------------------------------
+    // Local triangles of torus faces a previous buildFaces of this component
+    // could not ship. A relational torus band that holds one of them is
+    // withheld: it is gathered as a claim but not emitted, so its triangles and
+    // the atoms it would absorb keep their pre-T state. Empty = no withholding.
+    std::vector<int> torusWithheldTris;
+};
+
+// D-fc-5.9: BSpline / RuledQuad is the degree-(1,1) doubly ruled patch spanned
+// by four certified straight lines (Region::ruledPoles); no other origin is a
+// B-spline.
+enum class SurfType : uint8_t { Plane, Cylinder, /* v2 */ Cone, Sphere, Torus, BSpline };
+enum class Origin   : uint8_t { PlaneGrow, CylGrow, FilletStrip, NgonWall, ChamferCone,
+                                TorusBlend, RuledQuad,
+                                // D-fc-5.11 F8: a sphere tangent to three certified
+                                // rounds meeting at a corner (SurfType::Sphere).
+                                SphereCorner };
+enum class BuiltAs  : uint8_t { NotBuilt, Single, Seamed360, TwoHalves, ExplodedToFacets };
+enum class Reject   : uint8_t { None, GaussPlanarity, VertexResidual, ChordConsistency,
+                                RadiusSanity, Span, FilletConsensus, NeighborNotAnalytic,
+                                StripWidth, TorusNYI, ConeNYI, SphereNYI, DirtyComponent,
+                                FaceBuildFailed, ChainUnstable };
+
+enum class LoopRole : uint8_t {
+    Outer,    // the single outer boundary of a region with closed360 == false
+    Inner,    // an inner (hole) boundary; legal on closed360 regions too (cross-hole)
+    CapLow,   // closed360 only: the cap loop at v == vMin
+    CapHigh   // closed360 only: the cap loop at v == vMax
+};
+
+// --- the engine fills this from its existing arrays; refit owns nothing. -------
+struct MeshView {
+    const gp_XYZ*                        pts;        // global welded points (post-scale, mm)
+    const int (*tris)[3];                            // global triangles (a,b,c)
+    const int*                           compTris;   // local tri -> global tri id
+    const int*                           compVtx;    // local vtx -> global point id
+    const std::pair<int,int>*            compEdges;  // local edge -> (local vLo, vHi)
+    const std::array<int,3>*             triEdges;   // local tri -> 3 local edge ids
+    const uint8_t*                       triDirs;    // local tri -> direction bits
+    size_t nTri, nVtx, nEdge;
+    double diag, weldTol, sewTol;                    // derived tolerance inputs
+    // D-130-12: the mesh FILE's coordinate quantization, in the same mm as pts[]
+    // (radial half-ulp bound at the mesh's own largest |coordinate|, times the
+    // unit scale). 0 when it could not be measured -- then it certifies nothing
+    // and max(bandResid, quantFloor) is the band's own residual. Measured by
+    // stl2step::stlQuantFloor(); never derived from the bounding box.
+    double quantFloor = 0;
+};
+
+struct Loop {                       // a face boundary loop, in order
+    std::vector<int>     chainIdx;  // indices into RegionSet::chains
+    std::vector<uint8_t> reversed;  // 1 = traverse that chain backwards
+    LoopRole             role;      // see I7 / I7b; NOT a bool - closed360 has two caps
+};
+
+struct Region {
+    int      id;                    // dense; deterministic (area desc, then min local tri id)
+    SurfType type;
+    Origin   origin;                // which stage committed the region:
+                                    //   PlaneGrow   - Phase A3 (provisional region unclaimed)
+                                    //   CylGrow     - Phase B1 (provisional-region merge)
+                                    //   FilletStrip - Phase C1 (<=3 bands, two neighbours)
+                                    // Phase A produces a PROVISIONAL oversegmentation; B and
+                                    // C claim whole provisional regions; A3 commits the rest.
+                                    // G3 runs on CylGrow ONLY.
+    // geometry, mm, same frame as pts[]
+    gp_Ax3   ax;                    // Plane: point+normal. Cylinder: axis placement, Loc on axis
+                                    // Cylinder: Location() = axis point nearest the
+                                    // area-weighted vertex centroid; XDirection() is set to
+                                    // a REAL MESH VERTEX azimuth (the region vertex with the
+                                    // lowest local id), so a 360° seam at u=0 lands on a
+                                    // facet generator instead of bisecting a facet.
+    double   radius = 0;            // Cylinder only; Torus: R_major; Sphere: radius
+                                    // (SphereCorner: ax.Location() is the centre)
+    double   radius2 = 0;           // Torus only: R_minor (D-140-6 §3(1))
+    double   uMin = 0, uMax = 0;    // Cylinder: angular start + end from ax.XDirection().
+                                    // closed360 => exactly 0 and 2*pi. Partial => the
+                                    // complement of the largest vertex-azimuth gap.
+    double   vMin = 0, vMax = 0;    // axial extent: min/max of (p_i - ax.Location()).a
+    bool     closed360 = false;     // nBands >= 3 AND largest vertex-azimuth gap
+                                    // <= 1.5*(2*pi/nBands). Drives the §2.4 seam ladder.
+    bool     outwardNormal = true;  // false => face must be Reversed() (hole/concave fillet).
+                                    // Definition: the material lies on the AXIS side.
+                                    // Computed as sign of sum_t area(t)*(n_t . rho_hat(cent_t)),
+                                    // rho_hat = unit radial direction from the axis.
+                                    // This is exactly the sigma of dVolPredicted (I9).
+    bool     lawBand = false;
+    // membership
+    std::vector<int> tris;          // LOCAL triangle indices
+    std::vector<Loop> loops;        // P1 owns loop extraction (mesh topology work).
+                                    // closed360 == false: exactly one Outer + N Inner (I7).
+                                    // closed360 == true : exactly one CapLow (at vMin) and
+                                    //   one CapHigh (at vMax) + N Inner, and NO Outer (I7b).
+                                    // No loop is ever the seam - P2 constructs that.
+    // quality / budget
+    double maxVertexDev = 0, rmsVertexDev = 0;   // region vertices -> fitted surface
+    double chordSagitta = 0;        // delta = R * (1 - cos(pi / nSides)); 0 for planes.
+                                    // G3's reference length (Origin::CylGrow only).
+    int    nSides = 0;              // tessellation count around a FULL circle:
+                                    //   nSides = round(2*pi * nBands / span)
+                                    // nBands from facet-normal azimuth clustering,
+                                    // span from VERTEX azimuths (see DECISION-p1-math D2).
+                                    // NEVER round(2*pi / median_dihedral) - that estimator
+                                    // is withdrawn (it doubles on quad-split cylinders).
+                                    // 0 for planes. For FilletStrip it is the equivalent
+                                    // full-circle count, so chordSagitta/dVolPredicted are
+                                    // one formula for Phase B and Phase C alike.
+    double dVolPredicted = 0;       // SIGNED mm^3 the analytic surface adds vs the chords.
+                                    // Cylinder/fillet (exact circular-segment prism):
+                                    //   gamma = 2*pi/nSides
+                                    //   sigma * A_reg * R * (gamma - sin gamma)
+                                    //                     / (4 * sin(gamma/2))
+                                    //   sigma = outwardNormal ? +1 : -1
+                                    // Plane: -sum_t A_t * (h_a + h_b + h_c)/3, h along
+                                    //   ax.Direction(). NOT pi*R^2*H*(delta/R) - that
+                                    //   approximation is 0.75x low and is withdrawn.
+                                    // Cone (D-130-11(2), exact segment integral):
+                                    //   sigma * sum_t A_t * kappa(rho_cone(centroid_t)),
+                                    //   kappa(rho) = rho * (gamma - sin gamma) * |h|
+                                    //                / (4 * sin(gamma/2) * fh),
+                                    //   fh = hypot(h, (R_hi-R_lo)*cos(gamma/2)) is the
+                                    //   facet's own height (chord to chord), not the
+                                    //   generator. Over the complete
+                                    //   N-gon skin this is
+                                    //   N*(gamma - sin gamma)/2 * |h| *
+                                    //   (R_lo^2 + R_lo*R_hi + R_hi^2)/3, and it collapses
+                                    //   to the cylinder formula at R_lo == R_hi.
+                                    //   NEVER 0 on a built cone - the cascade budget and
+                                    //   the D4 guard read 0 as zero area.
+    double maxVertexSnap = 0;       // max distance a shared vertex was moved (0 if none)
+    // diagnostics
+    Reject  reject  = Reject::None; // != None => never built; reported only
+    BuiltAs builtAs = BuiltAs::NotBuilt;   // written by P2
+    int     filletNbrA = -1, filletNbrB = -1;  // Origin::FilletStrip ONLY; -1 otherwise.
+                                    // Provenance, not a build instruction: P2 keys the
+                                    // constructed-generator rule off BoundaryChain::tangent.
+    int     torusPending = -1;      // Origin::TorusBlend: index into RegionSet::torusPending
+    // Origin::RuledQuad ONLY (D-fc-5.9): the four corner poles of the
+    // degree-(1,1) patch S(u,v) = (1-u)(1-v)P00 + u(1-v)P10 + (1-u)v P01 + uv P11,
+    // stored {P00, P10, P01, P11}; u, v in [0, 1]. The face is bounded by its
+    // iso-lines: v = 0 / v = 1 lie in the cap planes, u = 0 / u = 1 on the rails.
+    std::array<gp_XYZ, 4> ruledPoles{};
+    // D-fc-7.6 (T): the round was refit with its tangency to a committed coaxial
+    // wall held exact (D-fc-1.4 anchored mode). The wall surface it is tangent to,
+    // as it stood at that fit: the builder's tangency-point junction (RQ-HUB-3 b)
+    // applies only between this round and that same surface.
+    bool   tangentExact = false;
+    gp_XYZ tangentWallOrigin{0, 0, 0}, tangentWallAxis{0, 0, 0};
+    double tangentWallRadius = 0;
+    // Anchored quarter-round only. Its tangent circle is published before the
+    // partner plane builds, so the plane appends that edge instead of a
+    // polyline. Other closed tori keep id order.
+    bool   publishRimFirst = false;
+    // Anchored quarter-round only (D-gid-5.15). A cap of the closed torus runs
+    // against the facets its tau-preimage left; that cap is the mesh polyline.
+    bool   meshPolylineCap = false;
+    // D-gid-7.6. closeRingWalls committed this cylinder on the ring
+    // certificate (D-fc-6.10 C-1/C-3, owned chart or free annulus): both rims
+    // tau-certified circles, every corner and interior vertex within tau of
+    // the surface, every chord vertex covered. Its maxVertexDev holds the
+    // chord sagitta the certificate excuses, so maxVertexDev > tau does not
+    // make it uncertified. Cleared by any refit of the cylinder's fields.
+    bool   ringCertified = false;
+    // Origin::TorusBlend only (D-gid-7.12): the triangles the same-surface stage
+    // (claimTorusSameSurface) added to this torus, sorted. Empty otherwise.
+    std::vector<int> torusGrowTris;
+};
+
+// D-gid-7.12 heal-not-revert. The triangles a torus face that failed to ship
+// names for the U-3 retry (RegionSet::torusFailedTris). A band that grew by the
+// same-surface stage (torusGrowTris a strict subset of its triangles) names only
+// what it grew, so the retry ships the band as it was certified; any other torus
+// (a piece that is all growth included) names every one of its triangles.
+inline const std::vector<int>& torusFailedTrisOf(const Region& tor) {
+    const bool grewBand = !tor.torusGrowTris.empty() && tor.torusGrowTris.size() < tor.tris.size();
+    return grewBand ? tor.torusGrowTris : tor.tris;
+}
+
+// The U-3 retry with `withheld` (sorted) held back keeps a torus only when none
+// of the triangles it would keep is withheld: its band, when it grew
+// (torusFailedTrisOf named the growth), else all of its triangles. True when
+// the torus does not survive the retry. A torus that did not grow is held as
+// soon as any of its triangles is withheld.
+inline bool torusBandHeld(const Region& tor, const std::vector<int>& withheld) {
+    const bool grewBand = !tor.torusGrowTris.empty() && tor.torusGrowTris.size() < tor.tris.size();
+    for (int t : tor.tris) {
+        if (grewBand && std::binary_search(tor.torusGrowTris.begin(), tor.torusGrowTris.end(), t))
+            continue;
+        if (std::binary_search(withheld.begin(), withheld.end(), t)) return true;
+    }
+    return false;
+}
+
+struct BoundaryChain {
+    int  regA = -1, regB = -1;      // region ids; -1 => faceted island
+    int  islandA = -1, islandB = -1;// island ids when the corresponding reg* == -1
+    bool tangent    = false;        // G1 => construct the generator, never intersect.
+                                    // Geometric test, independent of Origin: both sides are
+                                    // accepted analytic regions AND
+                                    //   plane|cyl : |dist(axis,plane) - R| <= epsPlane
+                                    //               and |a . n_plane| <= sin(3 deg)
+                                    //   cyl|cyl   : axes parallel within 3 deg and
+                                    //               |dist(axes) - |R1 +/- R2|| <= epsPlane
+                                    //   plane|pln : n_L . n_R >= cos(3 deg)
+                                    //   any|island: false
+    bool closedLoop = false;        // e.g. a hole cap ring
+    std::vector<int> meshEdges;     // ordered LOCAL edge ids
+    std::vector<int> meshVerts;     // ordered LOCAL vertex ids; size == meshEdges+1 (open) or == meshEdges (closed)
+};
+
+struct RefitStats {
+    int planes = 0, cylinders = 0, fillets = 0, tori = 0, rejected = 0;
+    int facetIslands = 0, facetTriangles = 0;
+    int distinctRadii = 0;
+    double maxVertexDev = 0, maxEdgeTol = 0, dVolPredicted = 0;
+    // D-130-2 edge-class census, measured on the SHIPPED shell (not on the
+    // bind site's bookkeeping): every edge shared by two analytic faces is
+    // classified by exactMaxAtBind against the tolerance the edge carries and
+    // the region's meshTolCap.  analytic + polylineTier2 + unhandled partition
+    // the shared-edge set; overTol / overCap count the same set again.
+    int edgeAnalytic = 0;        // tier 1: closed-form supremum on every side
+    int edgePolylineTier2 = 0;   // tier 2: the mesh polyline, counted not absorbed
+    int edgeUnhandled = 0;       // no class, or an unshared analytic seam edge
+    int edgeOverTol = 0;         // deviation > the tolerance the edge records
+    int edgeOverCap = 0;         // recorded tolerance > meshTolCap
+    // Radius truth census (SPEC-130-bind addendum): every built cylinder's
+    // shipped radius against the least-squares radius of its own claimed
+    // vertices about its own axis.  Measurement only; no red line yet.
+    int    radiusN = 0;
+    double radiusMaxAbs = 0;     // max |R_built - R_lsq| (mm)
+    double radiusMaxRel = 0;     // max |R_built - R_lsq| / R_lsq
+};
+
+struct TorusPendingReclaim {
+    std::vector<Region> stashedCylinders;
+    std::vector<int> reclaimAccIdx;
+    std::vector<int> denseCylIds;
+    std::vector<int> provIdx;
+    bool committed = false;
+};
+
+struct TorusTopologySnapshot {
+    std::vector<Region>        regions;
+    std::vector<Region>        rejected;
+    std::vector<BoundaryChain> chains;
+    std::vector<int>           triRegion;
+    std::vector<int>           triIsland;
+    int                        nIslands = 0;
+    // Construction census of the pre-T RegionSet (planes/cylinders/fillets/…).
+    // Restored with the topology so RESULT keys count the shipped pass, not the
+    // discarded U-3 probe (D-140-6, D-140-11).
+    RefitStats                 stats;
+};
+
+struct SegmentWork;  // refit_internal.hpp; opaque here (RegionSet::preTorusWork)
+
+struct ClassBRegionMetric {
+    int rid = -1;
+    double area = 0;
+    double swept = 0;
+    double maxVertexDev = 0;
+    double dVolPredicted = 0;
+    bool shippedAnalytic = false;
+    bool ringCertified = false;  // Region::ringCertified (D-gid-7.13)
+};
+
+struct RegionSet {                  // exactly one per CLEAN component
+    int compRoot = -1;
+    std::vector<Region>        regions;   // accepted only (reject == None)
+    std::vector<Region>        rejected;  // diagnostics; never built
+    std::vector<BoundaryChain> chains;
+    std::vector<int>           triRegion; // local tri -> region id, else -1
+    std::vector<int>           triIsland; // local tri -> island id, else -1
+    int                        nIslands = 0;
+    RefitStats                 stats;
+    std::vector<TorusPendingReclaim> torusPending;
+    // Pre-stage-T topology; restored when U-3 fails to ship a torus face (D-140-6).
+    bool torusRevertValid = false;
+    bool torusRevertApplied = false;
+    TorusTopologySnapshot torusRevert;
+    // Filled by buildFaces when it returns false for U-3: the local triangles of
+    // every torus region that failed to ship (D-fc-4.11 (a)). The driver retries
+    // with them withheld (resegmentTorus) before it takes the pre-T snapshot.
+    std::vector<int> torusFailedTris;
+    // Opaque: segment()'s working state just before stage T, kept when a torus was
+    // admitted, so resegmentTorus() re-runs only the stages from T on.
+    std::shared_ptr<const SegmentWork> preTorusWork;
+    // D-fc-6.7: caller sets region ids to explode before build; buildFaces clears
+    // after applying. classBMetrics is filled on each successful buildFaces return.
+    std::vector<int> classBExplode;
+    std::vector<ClassBRegionMetric> classBMetrics;
+    // D-gid-7.6: provenance of each face buildFaces returned, parallel to its
+    // `out` (set only when it returns true). shipFaceRid = the region the face
+    // was built for (-1: an island facet, an R2-fallback facet or a stage-P
+    // face); shipFaceFacet = 1 when the face is one mesh triangle (makeFacet),
+    // including the triangles of exploded and E′-filled regions, which keep
+    // their region id. The caller counts RESULT off these, not off `stats`.
+    std::vector<int> shipFaceRid;
+    std::vector<uint8_t> shipFaceFacet;
+};
+
+// P1 entry point. Pure math. Links no OCCT topology: gp_ value types and math_ solvers
+// ONLY. Banned in refit_segment.cpp: TopoDS_*, BRep*, ShapeFix_*, ShapeUpgrade_*,
+// ShapeAnalysis_* (incl. ShapeAnalysis_Geom), IntAna_*, Geom_*/Geom2d_* handles,
+// GeomAPI_*, GeomConvert_*, GProp_*, Poly_*, STEPControl_*. PCA/Jacobi and both circle
+// fits are written in-TU; no Eigen. P0 greps the include list against this rule.
+bool segment(const MeshView& mv, const SegmentParams& p, RegionSet& out, WarnFn warn);
+
+// U-3 per torus (D-fc-4.11 (a)): the stages from T on (stage T, H1, A3, topology)
+// re-run on `from`'s pre-T working state with p.torusWithheldTris; the pre-T
+// snapshot is `from`'s own. The result equals segment(mv, p, out) exactly: the
+// stages before T do not read torusWithheldTris. False when `from` kept no pre-T
+// state (no torus was admitted).
+bool resegmentTorus(const MeshView& mv, const SegmentParams& p, const RegionSet& from,
+                    RegionSet& out, WarnFn warn);
+
+// P2 entry point. Consumes RegionSet, produces the SAME vector<TopoDS_Face> the
+// per-triangle loop produces today. Returns false => caller falls back to R2 (§5).
+bool buildFaces(const MeshView& mv, RegionSet& rs,
+                const std::vector<TopoDS_Vertex>& verts,   // engine's existing slot array
+                std::vector<TopoDS_Face>& out, WarnFn warn);
+
+// D-gid-8.2 (gz-capown): cap-ownership census of the shipped cylinders. DIAG
+// ONLY, default off: STL2STEP_DIAG_CAPOWN=1 (2 = also one line per triangle).
+// It reads the final state of a successful buildFaces and changes nothing;
+// the caller prints the lines of the build it ships. Never read from product.
+bool capOwnDiagEnabled();
+// Moves out the lines (tagged comp=<comp>) the most recent successful
+// buildFaces on this thread left (empty when none), and clears them.
+void capOwnTake(int comp, std::string& lines);
+}}  // namespace stl2step::refit
+
+#endif  // STL2STEP_REFIT_HPP

@@ -1,0 +1,16 @@
+# Lane p0-golden. Never commit the 187ead0 checkout, the build tree,
+# the reference binary, or golden STEP/RESULT bytes. Loosening this
+# ignore set to "keep a .step around" is a defect, not a convenience.
+*
+!.gitignore
+!README.md
+!build_baseline.sh
+!canonicalize.py
+!hl-ratchet.json
+!law-ratchet.json
+!collapse-ratchet.json
+!fillet-e0-ratchet.json
+!plane-census-ratchet.json
+!prg-ratchet.json
+!edge-class-ratchet.json
+!expected-red.json

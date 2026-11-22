@@ -1,0 +1,30 @@
+*.stl
+*.expected.json
+*.exact.step
+corpus.stamp
+
+# Committed real CAD exports (not generator output) — targeted un-ignore.
+!Body11.stl
+!Body11.expected.json
+!Body28.stl
+!Body28.expected.json
+!handle-lock.stl
+!handle-lock.expected.json
+# Handle pickup live stress case (Fusion export) — not generator output.
+!handle-pickup.stl
+!handle-pickup.expected.json
+# S09 loft: OCCT BRepMesh tessellation is not byte-stable across platforms.
+!S09.stl
+!S09.expected.json
+# A9 negative control (oblique chamfer + two holes) — not generator output.
+!nonprismatic-control.stl
+!nonprismatic-control.expected.json
+!nonprismatic-control.PROVENANCE.md
+# Mastercam linkage plate (1.3.0 N-gon bores + chamfer cone) — not generator output.
+!linkage_bores_chamfer.stl
+!linkage_bores_chamfer.expected.json
+# Real CAD exports joined in 1.4.0 (D-140-4 §3) — not generator output.
+!shelf_bracket.stl
+!shelf_bracket.expected.json
+!Body244.stl
+!Body244.expected.json

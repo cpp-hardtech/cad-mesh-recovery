@@ -1,0 +1,110 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+# NOTE: This workflow is provided as a starting point. Linux and macOS install
+# OpenCASCADE from system package managers and are fast. Windows builds OCCT via
+# vcpkg, which can take a long time on a cold cache.
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Full history: the gate suite builds the canonical baseline from a
+          # pinned ancestor commit; a shallow clone makes build_baseline.sh
+          # fail (git exit 128) and G0.1/G0.3 lose their twin comparison.
+          fetch-depth: 0
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake g++
+      # Ubuntu 24.04's system OCCT is 7.6.3; the TrueForm engine and its gate
+      # expectations are calibrated against OCCT 7.9 (what Homebrew and vcpkg
+      # ship). On 7.6 the recognizer's numbers legitimately differ (S09 comp1
+      # finds 0 cylinders), so CI pins the calibrated version instead.
+      - name: Install OpenCASCADE 7.9 (conda-forge)
+        uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-name: occt
+          create-args: >-
+            -c conda-forge
+            occt=7.9
+      - name: Point CMake and the loader at the pinned OCCT
+        # Exported via GITHUB_ENV so the gate suite's nested baseline
+        # configure (build_baseline.sh) picks the same OCCT up from the
+        # environment, not just the top-level configure.
+        run: |
+          echo "CMAKE_PREFIX_PATH=$MAMBA_ROOT_PREFIX/envs/occt" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$MAMBA_ROOT_PREFIX/envs/occt/lib" >> "$GITHUB_ENV"
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+                   -DSTL2STEP_BUILD_EXAMPLES=ON -DSTL2STEP_BUILD_TESTS=ON
+      - name: Build
+        run: cmake --build build -j
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Full history: the gate suite builds the canonical baseline from a
+          # pinned ancestor commit; a shallow clone makes build_baseline.sh
+          # fail (git exit 128) and G0.1/G0.3 lose their twin comparison.
+          fetch-depth: 0
+      - name: Install OpenCASCADE
+        run: brew install opencascade
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+                   -DSTL2STEP_BUILD_EXAMPLES=ON -DSTL2STEP_BUILD_TESTS=ON
+      - name: Build
+        run: cmake --build build -j
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  windows:
+    runs-on: windows-latest
+    env:
+      # cp1252 console encoding crashes the gate runner (it prints U+2264)
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Full history: the gate suite builds the canonical baseline from a
+          # pinned ancestor commit; a shallow clone makes build_baseline.sh
+          # fail (git exit 128) and G0.1/G0.3 lose their twin comparison.
+          fetch-depth: 0
+      # OCCT via vcpkg is a ~3.5h source build cold. Cache vcpkg's binary
+      # archives keyed on the runner image so only image updates pay it.
+      # Explicit restore/save (not actions/cache) so a later test failure
+      # still saves the archives — the save step runs right after install.
+      - name: Restore vcpkg binary archives
+        id: vcpkg-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~\AppData\Local\vcpkg\archives
+          key: vcpkg-occt-${{ runner.os }}-${{ env.ImageVersion }}
+      - name: Install OpenCASCADE (vcpkg)
+        run: vcpkg install opencascade
+      - name: Save vcpkg binary archives
+        if: steps.vcpkg-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~\AppData\Local\vcpkg\archives
+          key: vcpkg-occt-${{ runner.os }}-${{ env.ImageVersion }}
+      - name: Use Git Bash for bash
+        run: echo "C:\Program Files\Git\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Configure
+        run: cmake -S . -B build
+                   -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+                   -DSTL2STEP_BUILD_EXAMPLES=ON -DSTL2STEP_BUILD_TESTS=ON
+      - name: Build
+        run: cmake --build build --config Release -j
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure

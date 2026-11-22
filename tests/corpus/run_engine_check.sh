@@ -1,0 +1,277 @@
+#!/usr/bin/env bash
+# Convert every corpus fixture and assert the sidecar's expectedExit /
+# expectedSolids / expectedOpenShells (smooth off). When smoothExpectedExit is
+# set, also run --smooth and check warning/volume/solids never-get-worse bounds.
+set -euo pipefail
+STL2STEP="$1"
+CENSUS="${CENSUS:-}"
+CORPUS="${CORPUS:-tests/corpus}"
+# Prefer CMake-injected PYTHON (real interpreter). Git Bash `python3` on
+# Windows is often the Store alias (.../WindowsApps/python3) — Permission denied.
+if [[ -z "${PYTHON:-}" ]]; then
+  for _c in python3 python; do
+    _resolved=$(command -v "$_c" 2>/dev/null || true)
+    case "$_resolved" in
+      *WindowsApps*) continue ;;
+    esac
+    if [[ -n "$_resolved" ]] && "$_c" -c "import sys" >/dev/null 2>&1; then
+      PYTHON=$_c
+      break
+    fi
+  done
+fi
+if [[ -z "${PYTHON:-}" ]]; then
+  echo "FAIL: no usable Python (set PYTHON=... or install CPython)" >&2
+  exit 1
+fi
+T=$(mktemp -d "${TMPDIR:-/tmp}/stl2step-run_engine_check.XXXXXX")
+trap 'rm -rf "$T"' EXIT
+FAIL=0
+for stl in "$CORPUS"/*.stl; do
+  [[ -f "$stl" ]] || continue
+  id=$(basename "$stl" .stl)
+  sidecar="$CORPUS/${id}.expected.json"
+  out="$T/${id}.step"
+  set +e
+  "$STL2STEP" "$stl" "$out" --quiet --no-verify >"$T/${id}_result.json" 2>"$T/${id}_stderr.txt"
+  rc=$?
+  set -e
+  if [[ ! -f "$sidecar" ]]; then
+    echo "FAIL $id: missing sidecar"
+    FAIL=1
+    continue
+  fi
+  "$PYTHON" - "$id" "$rc" "$sidecar" "$T/${id}_result.json" <<'PY' || { FAIL=1; continue; }
+import json, sys
+id, rc, sc_path, res_path = sys.argv[1], int(sys.argv[2]), sys.argv[3], sys.argv[4]
+sc = json.load(open(sc_path))
+text = open(res_path).read().strip()
+if text.startswith("RESULT "):
+    text = text[len("RESULT "):]
+r = json.loads(text.splitlines()[-1])
+exp_rc = int(sc.get("expectedExit", 0))
+exp_sol = int(sc.get("expectedSolids", 1))
+exp_open = int(sc.get("expectedOpenShells", 0))
+ok = True
+if rc != exp_rc:
+    print(f"FAIL {id}: exit {rc} != expectedExit {exp_rc}")
+    ok = False
+if not r.get("ok", False):
+    print(f"FAIL {id}: ok!=true")
+    ok = False
+if int(r.get("solids", -1)) != exp_sol:
+    print(f"FAIL {id}: solids {r.get('solids')} != expectedSolids {exp_sol}")
+    ok = False
+if int(r.get("openShells", -1)) != exp_open:
+    print(f"FAIL {id}: openShells {r.get('openShells')} != expectedOpenShells {exp_open}")
+    ok = False
+if ok:
+    print(f"OK {id} exit={rc} solids={exp_sol} openShells={exp_open}")
+sys.exit(0 if ok else 1)
+PY
+
+  smooth_exit=$("$PYTHON" -c "import json; print(json.load(open('$sidecar')).get('smoothExpectedExit', -1))")
+  if [[ "$smooth_exit" != "-1" ]]; then
+    sout="$T/${id}_smooth.step"
+    set +e
+    if grep -q '"demotedSeedsShipped"' "$sidecar" 2>/dev/null; then
+      STL2STEP_EPRIME_DIAG=1 "$STL2STEP" "$stl" "$sout" --quiet --smooth >"$T/${id}_smooth_result.json" 2>"$T/${id}_smooth_stderr.txt"
+    else
+      "$STL2STEP" "$stl" "$sout" --quiet --smooth >"$T/${id}_smooth_result.json" 2>"$T/${id}_smooth_stderr.txt"
+    fi
+    src=$?
+    set -e
+    "$PYTHON" - "$id" "$src" "$sidecar" "$T/${id}_smooth_result.json" <<'PY' || { FAIL=1; continue; }
+import json, sys
+id, rc, sc_path, res_path = sys.argv[1], int(sys.argv[2]), sys.argv[3], sys.argv[4]
+sc = json.load(open(sc_path))
+text = open(res_path).read().strip()
+if text.startswith("RESULT "):
+    text = text[len("RESULT "):]
+r = json.loads(text.splitlines()[-1])
+exp_rc = int(sc["smoothExpectedExit"])
+exp_sol = int(sc.get("expectedSolids", 1))
+exp_open = int(sc.get("expectedOpenShells", 0))
+warn_max = int(sc.get("smoothWarningCountMax", -1))
+vol_max = float(sc.get("smoothVolumeDeltaPctMax", -1))
+rec_cyl = int(sc.get("smoothRecognisedCylinders", -1))
+ok = True
+if rc != exp_rc:
+    print(f"FAIL {id} smooth: exit {rc} != smoothExpectedExit {exp_rc}")
+    ok = False
+if not r.get("ok", False):
+    print(f"FAIL {id} smooth: ok!=true")
+    ok = False
+nw = len(r.get("warnings") or [])
+if warn_max >= 0 and nw > warn_max:
+    print(f"FAIL {id} smooth: warnings {nw} > smoothWarningCountMax {warn_max}")
+    ok = False
+if vol_max >= 0:
+    vd = float(r.get("volumeDeltaPct", -1))
+    if vd < 0 or vd > vol_max + 1e-9:
+        print(f"FAIL {id} smooth: volumeDeltaPct {vd} > smoothVolumeDeltaPctMax {vol_max}")
+        ok = False
+if int(r.get("solids", -1)) != exp_sol:
+    print(f"FAIL {id} smooth: solids {r.get('solids')} != expectedSolids {exp_sol}")
+    ok = False
+if int(r.get("openShells", -1)) != exp_open:
+    print(f"FAIL {id} smooth: openShells {r.get('openShells')} != expectedOpenShells {exp_open}")
+    ok = False
+if not r.get("watertight", False):
+    print(f"FAIL {id} smooth: watertight!=true")
+    ok = False
+# File-truth census: built cylinders must meet every live[] floor.
+live = sc.get("live") or []
+floor = max((int(row.get("builtCylindersFloor", 0)) for row in live), default=0)
+smooth_cyl = int(r.get("smoothCylinders", 0))
+if rec_cyl >= 0 and smooth_cyl != rec_cyl:
+    print(f"NOTE {id} smooth: smoothCylinders shipped cylinder regions={smooth_cyl} (sidecar smoothRecognisedCylinders {rec_cyl})")
+if ok:
+    print(f"OK {id} smooth exit={rc} warnings={nw} solids={exp_sol} shippedCylRegions={smooth_cyl} floor={floor}")
+sys.exit(0 if ok else 1)
+PY
+    if [[ -n "$CENSUS" && -x "$CENSUS" ]]; then
+      "$PYTHON" - "$id" "$sidecar" "$sout" "$CENSUS" "$T/${id}_smooth_stderr.txt" <<'PY' || { FAIL=1; continue; }
+import json, re, subprocess, sys
+id, sc_path, step, census = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+stderr_path = sys.argv[5] if len(sys.argv) > 5 else ""
+sc = json.load(open(sc_path))
+out = subprocess.check_output([census, step], text=True)
+c = json.loads(out)
+built_cyl = int(c["surfaces"]["cylinder"])
+live = sc.get("live") or []
+floor = max((int(row.get("builtCylindersFloor", 0)) for row in live), default=0)
+# censusValidExpected defaults true when absent. False is the R2-stop
+# allowance: never skip — flip to never-worse IFF invalid-but-closed.
+allowance = any(row.get("censusValidExpected") is False for row in live)
+valid = bool(c.get("valid"))
+closed = bool(c.get("closed"))
+want_demoted = None
+for row in live:
+    if isinstance(row, dict) and "demotedSeedsShipped" in row:
+        want_demoted = int(row.get("demotedSeedsShipped") or 0)
+        break
+
+def census_radii(doc):
+    out = []
+    for face in doc.get("cylinders") or []:
+        try:
+            out.append(float(face["radius"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+    if out:
+        return out
+    for grp in doc.get("cylinderGroups") or []:
+        try:
+            n = int(grp.get("nFaces") or 1)
+            out.extend([float(grp["radius"])] * max(1, n))
+        except (KeyError, TypeError, ValueError):
+            continue
+    return out
+
+def match_gt_radius(radius, gt_radii, rel=0.003):
+    best = None
+    best_err = None
+    for g in gt_radii:
+        denom = abs(g)
+        if denom == 0.0:
+            if abs(radius) == 0.0:
+                return 0.0
+            continue
+        err = abs(radius - g) / denom
+        if err <= rel and (best_err is None or err < best_err):
+            best, best_err = g, err
+    return best
+
+def greedy_assign(built, pool):
+    remaining = list(pool)
+    leftover = []
+    n = 0
+    for r in built:
+        g = match_gt_radius(float(r), remaining)
+        if g is None:
+            leftover.append(r)
+            continue
+        popped = False
+        best_i, best_err = None, None
+        for i, p in enumerate(remaining):
+            denom = abs(p) or 1.0
+            err = abs(float(r) - p) / denom
+            if err <= 0.003 and (best_err is None or err < best_err):
+                best_i, best_err = i, err
+        if best_i is None:
+            leftover.append(r)
+        else:
+            remaining.pop(best_i)
+            n += 1
+            popped = True
+        del popped
+    return n, leftover
+
+if want_demoted is not None:
+    try:
+        err_text = open(stderr_path, errors="replace").read() if stderr_path else ""
+    except OSError:
+        err_text = ""
+    pat = re.compile(
+        r"DIAG_EPRIME rid=(\d+) R=([0-9.eE+-]+) nTri=(\d+) closed360=(\d+) "
+        r"sinVsDom=([0-9.eE+-]+) demoted=(\d+)"
+    )
+    demoted_rs, kept_rs = [], []
+    for m in pat.finditer(err_text):
+        radius = float(m.group(2))
+        if int(m.group(6)) == 1:
+            demoted_rs.append(radius)
+        else:
+            kept_rs.append(radius)
+    shipped = census_radii(c)
+    _n_kept, leftover = greedy_assign(shipped, kept_rs)
+    n_demoted_shipped, _ = greedy_assign(leftover, demoted_rs)
+    if n_demoted_shipped != want_demoted:
+        print(
+            f"FAIL {id} census: demoted seeds shipped {n_demoted_shipped} "
+            f"!= demotedSeedsShipped {want_demoted} "
+            f"(DIAG_EPRIME demoted={len(demoted_rs)} kept={len(kept_rs)})"
+        )
+        sys.exit(1)
+    print(
+        f"OK {id} sibling demotedSeedsShipped={n_demoted_shipped} "
+        f"eprime_demoted={len(demoted_rs)} kept={len(kept_rs)}"
+    )
+
+if allowance and (not valid) and closed:
+    exp_sol = int(sc.get("expectedSolids", 1))
+    exp_open = int(sc.get("expectedOpenShells", 0))
+    got_sol = int(c.get("solids", -1))
+    got_open = int(c.get("openShells", -1))
+    if got_sol != exp_sol:
+        print(f"FAIL {id} census: solids {got_sol} != expectedSolids {exp_sol} (never-worse)")
+        sys.exit(1)
+    if got_open != exp_open:
+        print(f"FAIL {id} census: openShells {got_open} != expectedOpenShells {exp_open} (never-worse)")
+        sys.exit(1)
+    if built_cyl < floor:
+        print(f"FAIL {id} census: built cylinders {built_cyl} < floor {floor} (never-worse)")
+        sys.exit(1)
+    reason = next(
+        (str(row.get("censusValidReason") or "") for row in live
+         if row.get("censusValidExpected") is False),
+        "",
+    )
+    print(
+        f"OK {id} census cylinders={built_cyl} planes={c['surfaces']['plane']} "
+        f"closed never-worse valid=false floor={floor} reason={reason!r}"
+    )
+    sys.exit(0)
+if built_cyl < floor:
+    print(f"FAIL {id} census: built cylinders {built_cyl} < floor {floor}")
+    sys.exit(1)
+if not valid or not closed:
+    print(f"FAIL {id} census: valid={c.get('valid')} closed={c.get('closed')}")
+    sys.exit(1)
+print(f"OK {id} census cylinders={built_cyl} planes={c['surfaces']['plane']} valid closed floor={floor}")
+PY
+    fi
+  fi
+done
+exit $FAIL

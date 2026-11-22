@@ -1,0 +1,16 @@
+NOTICE
+
+This repository is a derivative work of the stl2step project, originally
+published at https://github.com/BlinkingSun/stl2step and licensed under the
+MIT License.
+
+The original copyright notice and permission notice are retained unmodified in
+the LICENSE file: Copyright (c) 2026 stl2step contributors.
+
+Modifications in this repository (documentation, project naming, repository
+branding, removal of upstream CI configuration) and any future contributions
+are Copyright (c) 2026 cpp-hardtech.
+
+This software links against Open CASCADE Technology (OCCT), which is licensed
+under LGPL-2.1 with an additional exception. OCCT is a separate dependency and
+is not bundled with this source tree.

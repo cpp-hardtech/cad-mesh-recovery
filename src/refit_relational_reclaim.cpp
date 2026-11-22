@@ -1,0 +1,4531 @@
+// Relational reclaim (D-fc-1.11(ii), D-fc-4.4, D-fc-4.5, D-fc-4.6). One entry,
+// reclaimRelational, dispatches on mode: Line mode runs at H0, right after
+// claimRelRevolve(Line); Torus mode runs at H1, right after claimRelRevolve(Torus).
+// SPDX-License-Identifier: MIT
+//
+// Line mode, in order:
+//   1. Narrow donor heal (D-fc-4.5). An accepted CylGrow region that the revolve
+//      donor test refuses on its vertices (own LS residual > tau) is re-certified
+//      on its tau-inliers I; every other triangle of it must be chord-bounded
+//      cover. It then grows over free triangles from the region (its inliers
+//      chain, its cover is traversed), refitting and regrowing to a fixed point,
+//      and takes a same-surface partial reached only through the healed gap. A
+//      healed band that is one edge-component bounded by two cycles, each winding
+//      once about the axis, is a closed wall by construction (D-fc-5.7 O-1).
+//   2. Same-surface closure (D-fc-4.4, D-fc-7.4 Fix 1). Certified partial
+//      CylGrow regions that are one surface at tau merge greedily to a fixed
+//      point; the Unclaimed I/Cover triangles inside the group's extent fill
+//      the gap (D-fc-3.2.7). A single certified partial (maxVertexDev <= tau)
+//      runs that same fill. The group commits only if the result is ONE
+//      edge-component and a disk. A single region whose fill adds no triangle
+//      is left unchanged.
+//   3. Ring-wall closure (D-fc-6.10). An A1 chart that already holds one or
+//      more CylGrow or FilletStrip pieces, and is not already one region,
+//      becomes one closed cylinder when its two boundary cycles are
+//      chord-certified rings and one joint fit certifies every corner.
+//      A chart with no accepted piece, and a chart held whole by one region,
+//      are left untouched.
+// Torus mode (D-fc-4.6): atoms join the tori stages T and H1 certified (F2),
+// then every torus takes its closure from its own rails (F4). Never throws.
+// Every threshold is tau = 2q or a quantity measured on the certified set.
+
+#include "refit_axis_seam.hpp"
+#include "refit_band_volume.hpp"
+#include "refit_profile_cert.hpp"
+#include "refit_relational.hpp"
+#include "refit_relational_arc.hpp"
+#include "refit_relational_torus.hpp"
+#include "refit_ringwall.hpp"
+
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <limits>
+#include <map>
+#include <set>
+#include <utility>
+#include <vector>
+
+#include <Standard_Failure.hxx>
+#include <gp.hxx>
+#include <gp_Ax3.hxx>
+#include <gp_Dir.hxx>
+#include <gp_Pnt.hxx>
+#include <gp_XYZ.hxx>
+
+namespace stl2step {
+namespace refit {
+namespace {
+
+constexpr double kPi = 3.14159265358979323846;
+constexpr double kTwoPi = 2.0 * kPi;
+constexpr double kTiny = 1e-30;
+
+// D-fc-1.6(2): a free fit needs >= 2 axial levels.
+constexpr int kMinAxialLevels = 2;
+// D-fc-4.5: a cover triangle has >= 2 vertices within tau (the third within sDev).
+constexpr int kCoverOnVertices = 2;
+
+bool diagOn() {
+    const char* e = std::getenv("STL2STEP_DIAG_REL");
+    return e && e[0] && e[0] != '0';
+}
+
+int minTriOf(const std::vector<int>& tris) {
+    if (tris.empty()) return std::numeric_limits<int>::max();
+    return *std::min_element(tris.begin(), tris.end());
+}
+
+gp_XYZ vtxOf(const MeshView& mv, int lt, int k) {
+    const int gt = mv.compTris ? mv.compTris[lt] : lt;
+    return mv.pts[mv.tris[gt][k]];
+}
+
+double triArea(const MeshView& mv, int lt) {
+    const gp_XYZ a = vtxOf(mv, lt, 0), b = vtxOf(mv, lt, 1), c = vtxOf(mv, lt, 2);
+    return 0.5 * (b - a).Crossed(c - a).Modulus();
+}
+
+gp_XYZ triCentroid(const MeshView& mv, int lt) {
+    return (vtxOf(mv, lt, 0) + vtxOf(mv, lt, 1) + vtxOf(mv, lt, 2)) / 3.0;
+}
+
+gp_Dir triNormal(const MeshView& mv, int lt) {
+    const gp_XYZ a = vtxOf(mv, lt, 0), b = vtxOf(mv, lt, 1), c = vtxOf(mv, lt, 2);
+    gp_XYZ n = (b - a).Crossed(c - a);
+    const double m = n.Modulus();
+    if (m < kTiny) return gp_Dir(0, 0, 1);
+    n /= m;
+    return gp_Dir(n.X(), n.Y(), n.Z());
+}
+
+double wrapPi(double t) {
+    while (t <= -kPi) t += kTwoPi;
+    while (t > kPi) t -= kTwoPi;
+    return t;
+}
+
+// A cylinder surface: axis point C, unit axis A, radius R.
+struct Cyl {
+    gp_XYZ C, A;
+    double R = 0;
+};
+
+Cyl cylOf(const Region& r) {
+    return {r.ax.Location().XYZ(), r.ax.Direction().XYZ(), r.radius};
+}
+
+double radialDev(const gp_XYZ& p, const Cyl& s) {
+    return std::abs(s.A.Crossed(p - s.C).Modulus() - s.R);
+}
+
+double triDev(const MeshView& mv, int t, const Cyl& s) {
+    double m = 0;
+    for (int k = 0; k < 3; ++k) m = std::max(m, radialDev(vtxOf(mv, t, k), s));
+    return m;
+}
+
+double setDev(const MeshView& mv, const std::vector<int>& ts, const Cyl& s) {
+    double m = 0;
+    for (int t : ts) m = std::max(m, triDev(mv, t, s));
+    return m;
+}
+
+void axialRange(const MeshView& mv, const std::vector<int>& ts, const Cyl& s, double& lo,
+                double& hi) {
+    lo = std::numeric_limits<double>::infinity();
+    hi = -std::numeric_limits<double>::infinity();
+    for (int t : ts)
+        for (int k = 0; k < 3; ++k) {
+            const double v = (vtxOf(mv, t, k) - s.C).Dot(s.A);
+            lo = std::min(lo, v);
+            hi = std::max(hi, v);
+        }
+}
+
+// Axial levels of one triangle's three vertices at tau (D-fc-3.2.1 section ear).
+int triLevels(const MeshView& mv, int t, const Cyl& s, double tau) {
+    double v[3];
+    for (int k = 0; k < 3; ++k) v[k] = (vtxOf(mv, t, k) - s.C).Dot(s.A);
+    std::sort(v, v + 3);
+    int n = 1;
+    for (int k = 1; k < 3; ++k)
+        if (v[k] - v[k - 1] > tau) ++n;
+    return n;
+}
+
+// Mesh adjacency shared by both passes.
+struct RMesh {
+    const MeshView* mv = nullptr;
+    std::vector<std::array<int, 2>> edgeTri;  // local edge -> two local tris
+    std::vector<int> g2l;                     // global vertex -> local vertex
+
+    int nbr(int t, int s) const {
+        const int e = mv->triEdges[t][s];
+        if (e < 0 || (std::size_t)e >= edgeTri.size()) return -1;
+        return edgeTri[(std::size_t)e][0] == t ? edgeTri[(std::size_t)e][1]
+                                               : edgeTri[(std::size_t)e][0];
+    }
+    int localVtx(int t, int k) const {
+        const int gt = mv->compTris ? mv->compTris[t] : t;
+        const int g = mv->tris[gt][k];
+        return (g >= 0 && (std::size_t)g < g2l.size()) ? g2l[(std::size_t)g] : -1;
+    }
+};
+
+RMesh makeRMesh(const MeshView& mv) {
+    RMesh rm;
+    rm.mv = &mv;
+    const int nTri = (int)mv.nTri;
+    rm.edgeTri.assign(mv.nEdge, std::array<int, 2>{{-1, -1}});
+    for (int t = 0; t < nTri; ++t)
+        for (int s = 0; s < 3; ++s) {
+            const int e = mv.triEdges[t][s];
+            if (e < 0 || (std::size_t)e >= mv.nEdge) continue;
+            auto& et = rm.edgeTri[(std::size_t)e];
+            if (et[0] < 0) et[0] = t;
+            else if (et[0] != t) et[1] = t;
+        }
+    if (mv.compVtx) {
+        int gMax = -1;
+        for (std::size_t i = 0; i < mv.nVtx; ++i) gMax = std::max(gMax, mv.compVtx[i]);
+        rm.g2l.assign((std::size_t)(gMax + 1), -1);
+        for (std::size_t i = 0; i < mv.nVtx; ++i) {
+            const int g = mv.compVtx[i];
+            if (g >= 0 && rm.g2l[(std::size_t)g] < 0) rm.g2l[(std::size_t)g] = (int)i;
+        }
+    }
+    return rm;
+}
+
+// Distinct vertex points of a triangle set, ascending local vertex id.
+std::vector<std::pair<int, gp_XYZ>> uniqueVerts(const RMesh& rm, const std::vector<int>& tris) {
+    std::vector<std::pair<int, gp_XYZ>> u;
+    u.reserve(tris.size() * 3);
+    for (int t : tris)
+        for (int k = 0; k < 3; ++k) {
+            const int lv = rm.localVtx(t, k);
+            if (lv < 0) continue;
+            u.emplace_back(lv, vtxOf(*rm.mv, t, k));
+        }
+    std::sort(u.begin(), u.end(),
+              [](const auto& a, const auto& b) { return a.first < b.first; });
+    u.erase(std::unique(u.begin(), u.end(),
+                        [](const auto& a, const auto& b) { return a.first == b.first; }),
+            u.end());
+    return u;
+}
+
+// D-fc-1.4 over-determination of a partial cylinder: azimuth columns and axial
+// levels of the set's vertices, merged at tau (the revolve donor test's counts).
+void stationsOf(const RMesh& rm, const std::vector<int>& tris, const Cyl& s, double tau,
+                int& cols, int& levels) {
+    const auto u = uniqueVerts(rm, tris);
+    gp_XYZ e1 = std::abs(s.A.X()) < 0.9 ? gp_XYZ(1, 0, 0).Crossed(s.A)
+                                       : gp_XYZ(0, 1, 0).Crossed(s.A);
+    e1 /= e1.Modulus();
+    const gp_XYZ e2 = s.A.Crossed(e1);
+    std::vector<double> ps, rs, zs;
+    for (const auto& v : u) {
+        const gp_XYZ d = v.second - s.C;
+        const double x = d.Dot(e1), y = d.Dot(e2);
+        double psi = std::atan2(y, x);
+        if (psi < 0.0) psi += kTwoPi;
+        ps.push_back(psi);
+        rs.push_back(std::hypot(x, y));
+        zs.push_back(d.Dot(s.A));
+    }
+    cols = countColumns(ps, rs, tau);
+    levels = countLevels(zs, tau);
+}
+
+bool overDetermined(int cols, int levels) {
+    return cols >= minStations(kParamsCircle) && levels >= kMinAxialLevels;
+}
+
+// Region fields by the existing rules (D-fc-1.6(13)): B1's D2 metrics (normal-azimuth
+// bands, vertex-azimuth span, closed360, nSides), the sigma of computeOutwardCylinder,
+// chordSagitta and dVolCylinderSector over the region's own triangles.
+struct CylFields {
+    gp_Ax3 ax;
+    double uMin = 0, uMax = 0, vMin = 0, vMax = 0;
+    bool closed360 = false;
+    int nSides = 0;
+    int nBands = 0;
+    bool outward = true;
+    double area = 0;
+    double maxDev = 0, rmsDev = 0;
+};
+
+double percentile75(std::vector<double> v) {
+    if (v.empty()) return 0.0;
+    std::sort(v.begin(), v.end());
+    return v[(std::size_t)std::floor(0.75 * (double)(v.size() - 1))];
+}
+
+// closedByConstruction: the set is an annulus about the axis (annulusAboutAxis), a
+// closed wall whatever D2's band count reads; its span is then 2*pi.
+bool cylFields(const RMesh& rm, const DerivedTols& tol, const std::vector<int>& tris,
+               const Cyl& s, CylFields& f, bool closedByConstruction = false) {
+    const MeshView& mv = *rm.mv;
+    if (tris.empty()) return false;
+    const gp_XYZ aw = s.A;
+    gp_XYZ centroid(0, 0, 0);
+    double totalArea = 0.0;
+    for (int lt : tris) {
+        const double ar = triArea(mv, lt);
+        centroid += triCentroid(mv, lt) * ar;
+        totalArea += ar;
+    }
+    if (totalArea > kTiny) centroid /= totalArea;
+    const gp_XYZ loc = s.C + aw * (centroid - s.C).Dot(aw);
+
+    const auto uniq = uniqueVerts(rm, tris);
+    if (uniq.size() < 2) return false;
+    // XDirection: the region vertex with the lowest local id (refit.hpp Region::ax).
+    gp_XYZ xDir = uniq.front().second - loc;
+    xDir -= aw * xDir.Dot(aw);
+    if (xDir.Modulus() < 1e-12)
+        xDir = aw.Crossed((std::abs(aw.X()) < 0.9) ? gp_XYZ(1, 0, 0) : gp_XYZ(0, 1, 0));
+    xDir /= xDir.Modulus();
+    f.ax = gp_Ax3(gp_Pnt(loc), gp_Dir(aw), gp_Dir(xDir));
+    const gp_XYZ xAx = f.ax.XDirection().XYZ(), yAx = f.ax.YDirection().XYZ();
+
+    std::vector<double> psi;
+    psi.reserve(tris.size());
+    for (int lt : tris) {
+        const gp_Dir n = triNormal(mv, lt);
+        psi.push_back(wrapPi(std::atan2(n.XYZ().Dot(yAx), n.XYZ().Dot(xAx))));
+    }
+    std::sort(psi.begin(), psi.end());
+    int nBands = 1;
+    if (psi.size() >= 2) {
+        std::vector<double> gaps;
+        for (std::size_t i = 1; i < psi.size(); ++i) gaps.push_back(psi[i] - psi[i - 1]);
+        gaps.push_back(kTwoPi - psi.back() + psi.front());
+        gaps.erase(std::max_element(gaps.begin(), gaps.end()));
+        const double thetaBin = std::max(tol.thetaBin, 0.5 * percentile75(gaps));
+        for (std::size_t i = 1; i < psi.size(); ++i)
+            if (psi[i] - psi[i - 1] > thetaBin) ++nBands;
+    }
+
+    std::vector<double> chi;
+    chi.reserve(uniq.size());
+    for (const auto& uv : uniq) {
+        const gp_XYZ d = uv.second - loc;
+        chi.push_back(wrapPi(std::atan2(d.Dot(yAx), d.Dot(xAx))));
+    }
+    std::sort(chi.begin(), chi.end());
+    const std::size_t m = chi.size();
+    int jmax = 0;
+    double maxGap = chi[1] - chi[0];
+    for (std::size_t j = 1; j + 1 < m; ++j) {
+        const double g = chi[j + 1] - chi[j];
+        if (g > maxGap) {
+            maxGap = g;
+            jmax = (int)j;
+        }
+    }
+    const double wrapGap = kTwoPi - chi.back() + chi.front();
+    if (wrapGap > maxGap) {
+        maxGap = wrapGap;
+        jmax = (int)m - 1;
+    }
+    const double bandArc = kTwoPi / (double)nBands;
+    f.closed360 = (nBands >= 3 && maxGap <= 1.5 * bandArc) || closedByConstruction;
+    f.nBands = nBands;
+    const double span = f.closed360 ? kTwoPi : (kTwoPi - maxGap);
+    if (!(span > 0)) return false;
+    f.nSides = (int)std::llround(kTwoPi * nBands / span);
+    if (f.closed360) {
+        f.uMin = 0.0;
+        f.uMax = kTwoPi;
+    } else {
+        f.uMin = wrapPi(chi[(std::size_t)(jmax + 1) % m]);
+        f.uMax = f.uMin + span;
+    }
+    f.vMin = std::numeric_limits<double>::infinity();
+    f.vMax = -std::numeric_limits<double>::infinity();
+    double mx = 0, s2 = 0;
+    for (const auto& uv : uniq) {
+        const double v = (uv.second - loc).Dot(aw);
+        f.vMin = std::min(f.vMin, v);
+        f.vMax = std::max(f.vMax, v);
+    }
+    int nv = 0;
+    for (int lt : tris)
+        for (int k = 0; k < 3; ++k) {
+            const double d = radialDev(vtxOf(mv, lt, k), s);
+            mx = std::max(mx, d);
+            s2 += d * d;
+            ++nv;
+        }
+    f.maxDev = mx;
+    f.rmsDev = nv ? std::sqrt(s2 / nv) : 0.0;
+
+    double sigma = 0.0;
+    for (int lt : tris) {
+        const gp_XYZ d = triCentroid(mv, lt) - loc;
+        gp_XYZ radial = d - aw * d.Dot(aw);
+        const double rmod = radial.Modulus();
+        if (rmod < kTiny) continue;
+        radial /= rmod;
+        sigma += triArea(mv, lt) * triNormal(mv, lt).XYZ().Dot(radial);
+    }
+    f.outward = sigma > 0.0;
+    f.area = totalArea;
+    return true;
+}
+
+// A ring closed by its rails (D-fc-4.6 F4) takes the D2 rule's closed-360 fields:
+// the whole turn, nSides from its normal-azimuth bands over that turn.
+void closeRingFields(CylFields& f) {
+    f.closed360 = true;
+    f.uMin = 0.0;
+    f.uMax = kTwoPi;
+    f.nSides = f.nBands;
+}
+
+void applyCylFields(Region& r, const Cyl& s, const CylFields& f) {
+    r.type = SurfType::Cylinder;
+    r.ax = f.ax;
+    r.radius = s.R;
+    r.uMin = f.uMin;
+    r.uMax = f.uMax;
+    r.vMin = f.vMin;
+    r.vMax = f.vMax;
+    r.closed360 = f.closed360;
+    r.nSides = f.nSides;
+    r.chordSagitta = chordSagitta(s.R, f.nSides);
+    r.outwardNormal = f.outward;
+    r.dVolPredicted = dVolCylinderSector(f.area, s.R, f.nSides, f.outward);
+    r.maxVertexDev = f.maxDev;
+    r.rmsVertexDev = f.rmsDev;
+    r.ringCertified = false;  // a new fit carries its own certificate (D-gid-7.6)
+}
+
+std::vector<std::vector<int>> edgeComponents(const RMesh& rm, const std::vector<int>& ts);
+
+// A2 plane fields of a provisional from its own triangles (PCA plane, area, vertex
+// residuals), as the straddle trim of the other relational stages does.
+void refitProvisional(const RMesh& rm, Provisional& pr) {
+    const MeshView& mv = *rm.mv;
+    std::sort(pr.tris.begin(), pr.tris.end());
+    gp_Ax3 pl = pr.plane;
+    if (pcaPlane(mv, pr.tris, pl)) pr.plane = pl;
+    double area = 0;
+    for (int t : pr.tris) area += triArea(mv, t);
+    pr.area = area;
+    const gp_XYZ n = pr.plane.Direction().XYZ(), o = pr.plane.Location().XYZ();
+    double mx = 0, s2 = 0;
+    const auto u = uniqueVerts(rm, pr.tris);
+    for (const auto& v : u) {
+        const double d = std::abs((v.second - o).Dot(n));
+        mx = std::max(mx, d);
+        s2 += d * d;
+    }
+    pr.maxVertexDev = mx;
+    pr.rmsVertexDev = u.empty() ? 0.0 : std::sqrt(s2 / (double)u.size());
+}
+
+// D-fc-1.6(12) straddle trim: claimed triangles leave the Unclaimed provisionals.
+// An emptied provisional is consumed; a remainder is split into edge-connected
+// components (the first keeps the provisional, the rest are new Unclaimed
+// provisionals), each refit on its own triangles. Returns the straddle count.
+int trimClaimed(const RMesh& rm, SegmentWork& work, const std::vector<char>& inC) {
+    int straddle = 0;
+    const int nProv = (int)work.provisionals.size();
+    for (int i = 0; i < nProv; ++i) {
+        Provisional& pr = work.provisionals[(std::size_t)i];
+        if (pr.claim != ProvClaim::Unclaimed) continue;
+        std::vector<int> keep;
+        bool drop = false;
+        for (int t : pr.tris) {
+            if (t >= 0 && (std::size_t)t < inC.size() && inC[(std::size_t)t]) drop = true;
+            else keep.push_back(t);
+        }
+        if (!drop) continue;
+        if (keep.empty()) {
+            pr.claim = ProvClaim::ConsumedCylinder;
+            continue;
+        }
+        ++straddle;
+        auto comps = edgeComponents(rm, keep);
+        std::sort(comps.begin(), comps.end(), [](const std::vector<int>& a,
+                                                 const std::vector<int>& b) {
+            return minTriOf(a) < minTriOf(b);
+        });
+        pr.tris = comps[0];
+        refitProvisional(rm, pr);
+        for (std::size_t c = 1; c < comps.size(); ++c) {
+            Provisional np = work.provisionals[(std::size_t)i];
+            np.tris = comps[c];
+            np.claim = ProvClaim::Unclaimed;
+            refitProvisional(rm, np);
+            work.provisionals.push_back(std::move(np));
+        }
+    }
+    return straddle;
+}
+
+std::vector<std::vector<int>> edgeComponents(const RMesh& rm, const std::vector<int>& ts) {
+    const int nTri = (int)rm.mv->nTri;
+    std::vector<char> in((std::size_t)nTri, 0), seen((std::size_t)nTri, 0);
+    for (int t : ts) in[(std::size_t)t] = 1;
+    std::vector<std::vector<int>> out;
+    for (int t0 : ts) {
+        if (seen[(std::size_t)t0]) continue;
+        std::vector<int> c, st{t0};
+        seen[(std::size_t)t0] = 1;
+        while (!st.empty()) {
+            const int x = st.back();
+            st.pop_back();
+            c.push_back(x);
+            for (int s = 0; s < 3; ++s) {
+                const int u = rm.nbr(x, s);
+                if (u < 0 || !in[(std::size_t)u] || seen[(std::size_t)u]) continue;
+                seen[(std::size_t)u] = 1;
+                st.push_back(u);
+            }
+        }
+        std::sort(c.begin(), c.end());
+        out.push_back(std::move(c));
+    }
+    return out;
+}
+
+// Connected components of the boundary-edge graph of a triangle set; -1 when the
+// mesh view carries no edge endpoints.
+int boundaryLoops(const RMesh& rm, const std::vector<int>& ts) {
+    const MeshView& mv = *rm.mv;
+    if (!mv.compEdges) return -1;
+    std::map<int, int> cnt;
+    for (int t : ts)
+        for (int s = 0; s < 3; ++s) ++cnt[mv.triEdges[t][s]];
+    std::map<int, std::vector<int>> adj;
+    for (const auto& kv : cnt) {
+        if (kv.second != 1) continue;
+        const auto& e = mv.compEdges[kv.first];
+        adj[e.first].push_back(e.second);
+        adj[e.second].push_back(e.first);
+    }
+    std::set<int> seen;
+    int loops = 0;
+    for (const auto& kv : adj) {
+        if (seen.count(kv.first)) continue;
+        ++loops;
+        std::vector<int> st{kv.first};
+        seen.insert(kv.first);
+        while (!st.empty()) {
+            const int x = st.back();
+            st.pop_back();
+            for (int y : adj[x])
+                if (seen.insert(y).second) st.push_back(y);
+        }
+    }
+    return loops;
+}
+
+// The boundary cycles of a triangle set, each as local vertex ids in traversal order.
+// False when a boundary vertex is not of degree 2 (a pinch is not one cycle).
+bool boundaryCycles(const RMesh& rm, const std::vector<int>& ts,
+                    std::vector<std::vector<int>>& out) {
+    const MeshView& mv = *rm.mv;
+    out.clear();
+    if (!mv.compEdges) return false;
+    std::map<int, int> cnt;
+    for (int t : ts)
+        for (int s = 0; s < 3; ++s) ++cnt[mv.triEdges[t][s]];
+    std::map<int, std::vector<int>> g;
+    for (const auto& kv : cnt) {
+        if (kv.second != 1) continue;
+        const auto& e = mv.compEdges[kv.first];
+        g[e.first].push_back(e.second);
+        g[e.second].push_back(e.first);
+    }
+    std::set<int> used;
+    for (const auto& kv : g) {
+        if (kv.second.size() != 2) return false;
+        if (used.count(kv.first)) continue;
+        std::vector<int> cyc{kv.first};
+        used.insert(kv.first);
+        int prev = -1, cur = kv.first;
+        for (;;) {
+            const auto& nb = g[cur];
+            const int nx = nb[0] != prev ? nb[0] : nb[1];
+            prev = cur;
+            cur = nx;
+            if (cur == kv.first) break;
+            if (!used.insert(cur).second) return false;
+            cyc.push_back(cur);
+        }
+        out.push_back(std::move(cyc));
+    }
+    return true;
+}
+
+// D-fc-5.7 O-1: the set is a closed wall by construction (annulusAboutAxis).
+bool closedWallByConstruction(const RMesh& rm, const std::vector<int>& ts, const Cyl& s) {
+    const MeshView& mv = *rm.mv;
+    std::vector<std::vector<int>> cyc;
+    if (!mv.compVtx || !boundaryCycles(rm, ts, cyc)) return false;
+    gp_XYZ e1 = std::abs(s.A.X()) < 0.9 ? gp_XYZ(1, 0, 0).Crossed(s.A)
+                                       : gp_XYZ(0, 1, 0).Crossed(s.A);
+    e1 /= e1.Modulus();
+    const gp_XYZ e2 = s.A.Crossed(e1);
+    std::vector<int> windings;
+    for (const auto& c : cyc) {
+        std::vector<double> az;
+        az.reserve(c.size());
+        for (int lv : c) {
+            const gp_XYZ d = mv.pts[mv.compVtx[lv]] - s.C;
+            az.push_back(std::atan2(d.Dot(e2), d.Dot(e1)));
+        }
+        windings.push_back(windingNumber(az));
+    }
+    return annulusAboutAxis((int)edgeComponents(rm, ts).size(), windings);
+}
+
+double azimuthOf(const gp_XYZ& p, const Cyl& s, const gp_XYZ& xd);
+
+// The boundary loops of a triangle set (components of its boundary-edge graph, as
+// boundaryLoops counts them), each with its winding number about the cylinder's
+// axis and its vertices' azimuths. Every boundary edge is taken in its own
+// triangle's sense and its azimuth step wrapped to (-pi, pi]; a loop's steps sum
+// to 2pi times its winding. Loops come in ascending order of their lowest vertex.
+struct WindLoop {
+    int winding = 0;
+    std::vector<double> azimuths;
+};
+std::vector<WindLoop> windingLoops(const RMesh& rm, const std::vector<int>& ts, const Cyl& s,
+                                   const gp_XYZ& xd) {
+    const MeshView& mv = *rm.mv;
+    std::vector<WindLoop> out;
+    if (!mv.compEdges || !mv.compVtx) return out;
+    std::map<int, int> cnt;
+    for (int t : ts)
+        for (int k = 0; k < 3; ++k) ++cnt[mv.triEdges[t][k]];
+    std::map<int, std::vector<int>> adj;
+    std::vector<std::pair<int, int>> directed;
+    for (int t : ts)
+        for (int k = 0; k < 3; ++k) {
+            const int e = mv.triEdges[t][k];
+            if (cnt[e] != 1) continue;
+            const auto& ev = mv.compEdges[e];
+            int a = ev.first, b = ev.second;
+            for (int c = 0; c < 3; ++c)
+                if (rm.localVtx(t, c) == ev.second && rm.localVtx(t, (c + 1) % 3) == ev.first)
+                    std::swap(a, b);
+            directed.emplace_back(a, b);
+            adj[a].push_back(b);
+            adj[b].push_back(a);
+        }
+    std::map<int, int> comp;
+    for (const auto& kv : adj) {
+        if (comp.count(kv.first)) continue;
+        const int id = (int)out.size();
+        out.emplace_back();
+        std::vector<int> st{kv.first};
+        comp[kv.first] = id;
+        while (!st.empty()) {
+            const int x = st.back();
+            st.pop_back();
+            out[(std::size_t)id].azimuths.push_back(azimuthOf(mv.pts[mv.compVtx[x]], s, xd));
+            for (int y : adj[x])
+                if (comp.emplace(y, id).second) st.push_back(y);
+        }
+    }
+    std::vector<double> turn(out.size(), 0.0);
+    for (const auto& d : directed) {
+        const double ua = azimuthOf(mv.pts[mv.compVtx[d.first]], s, xd);
+        const double ub = azimuthOf(mv.pts[mv.compVtx[d.second]], s, xd);
+        turn[(std::size_t)comp[d.first]] += wrapPi(ub - ua);
+    }
+    for (std::size_t i = 0; i < out.size(); ++i)
+        out[i].winding = (int)std::lround(turn[i] / kTwoPi);
+    return out;
+}
+
+// Partial-arc membership with the largest-gap convention of Region::uMin/uMax.
+bool inArc(double chi, double uMin, double uMax, double slack) {
+    double x = chi;
+    while (x < uMin - slack) x += kTwoPi;
+    while (x > uMin - slack + kTwoPi) x -= kTwoPi;
+    return x <= uMax + slack;
+}
+
+double azimuthOf(const gp_XYZ& p, const Cyl& s, const gp_XYZ& xd) {
+    const gp_XYZ d = p - s.C;
+    return std::atan2(d.Dot(s.A.Crossed(xd)), d.Dot(xd));
+}
+
+struct BandDiag {
+    const char* mode = "";
+    int seed = -1, nTri = 0, nV = 0, stations = 0, levels = 0, members = 0;
+    int nI = 0, nCover = 0, comps = 0, loops = 0, nSides = 0, straddle = 0;
+    double dVol = 0;
+    double radius = 0, maxDev = 0, maxDevTau = 0, certDevTau = 0, sTau = 0;
+    gp_XYZ axis{0, 0, 0};
+    const char* why = "";
+};
+
+void printBand(const BandDiag& d) {
+    if (!diagOn()) return;
+    std::fprintf(stderr,
+                 "DIAG_REL_BAND stage=reclaim mode=%s seed=%d nTri=%d nV=%d stations=%d "
+                 "levels=%d params=%d fit=free radii=%.9g axis=%.6g,%.6g,%.6g maxDev=%.6g "
+                 "maxDevTau=%.4f certDevTau=%.4f sTau=%.4f members=%d nI=%d nCover=%d "
+                 "comps=%d loops=%d nSides=%d dVol=%.6g straddle=%d why=%s\n",
+                 d.mode, d.seed, d.nTri, d.nV, d.stations, d.levels, kParamsCircle + kParamsAxisDir,
+                 d.radius, d.axis.X(), d.axis.Y(), d.axis.Z(), d.maxDev, d.maxDevTau,
+                 d.certDevTau, d.sTau, d.members, d.nI, d.nCover, d.comps, d.loops, d.nSides,
+                 d.dVol, d.straddle, d.why);
+}
+
+// Erase the accepted regions this stage absorbed, highest index first.
+void eraseRegions(SegmentWork& work, std::vector<int> idx) {
+    std::sort(idx.begin(), idx.end());
+    idx.erase(std::unique(idx.begin(), idx.end()), idx.end());
+    for (auto it = idx.rbegin(); it != idx.rend(); ++it)
+        work.accepted.erase(work.accepted.begin() + *it);
+}
+
+bool isCylGrowCylinder(const Region& r) {
+    return r.type == SurfType::Cylinder && r.origin == Origin::CylGrow && !r.tris.empty();
+}
+
+// ---- D-fc-4.5: narrow donor heal ------------------------------------------------
+int healRefusedDonors(const RMesh& rm, const SegmentParams& p, const DerivedTols& tol,
+                      double tau, SegmentWork& work) {
+    const MeshView& mv = *rm.mv;
+    const int nTri = (int)mv.nTri;
+    const int maxIt = std::max(1, p.maxRefineIters);
+    std::vector<int> owner((std::size_t)nTri, -1), triProv((std::size_t)nTri, -1);
+    for (int i = 0; i < (int)work.accepted.size(); ++i)
+        for (int t : work.accepted[(std::size_t)i].tris)
+            if (t >= 0 && t < nTri) owner[(std::size_t)t] = i;
+    for (int i = 0; i < (int)work.provisionals.size(); ++i)
+        for (int t : work.provisionals[(std::size_t)i].tris)
+            if (t >= 0 && t < nTri) triProv[(std::size_t)t] = i;
+    auto isFree = [&](int t) {
+        if (t < 0 || t >= nTri || owner[(std::size_t)t] >= 0) return false;
+        const int pi = triProv[(std::size_t)t];
+        return pi >= 0 && work.provisionals[(std::size_t)pi].claim == ProvClaim::Unclaimed;
+    };
+    std::vector<int> order;
+    for (int i = 0; i < (int)work.accepted.size(); ++i)
+        if (isCylGrowCylinder(work.accepted[(std::size_t)i])) order.push_back(i);
+    std::sort(order.begin(), order.end(), [&](int a, int b) {
+        return minTriOf(work.accepted[(std::size_t)a].tris) <
+               minTriOf(work.accepted[(std::size_t)b].tris);
+    });
+
+    int healed = 0;
+    std::vector<int> absorbedRegions;
+    std::vector<char> inSet((std::size_t)nTri, 0);
+    for (int ri : order) {
+        Region& R = work.accepted[(std::size_t)ri];
+        if (R.tris.empty()) continue;
+        gp_Dir ax;
+        gp_Pnt c;
+        double rad = 0, mres = 0;
+        if (!cylinderFitLS(mv, R.tris, R.ax.Direction(), ax, c, rad, mres, maxIt)) continue;
+        // Narrow trigger: the donor test refuses this region on its vertices.
+        // A region that certifies is never touched (the broad variant is refused).
+        if (mres <= tau) continue;
+
+        BandDiag dg;
+        dg.mode = "heal";
+        dg.seed = minTriOf(R.tris);
+        Cyl S{c.XYZ(), ax.XYZ(), rad};
+        auto inliersOf = [&](const Cyl& s, double& mI) {
+            std::vector<int> I;
+            mI = 0;
+            for (int t : R.tris) {
+                const double d = triDev(mv, t, s);
+                if (d <= tau) {
+                    I.push_back(t);
+                    mI = std::max(mI, d);
+                }
+            }
+            return I;
+        };
+        double mI = 0;
+        std::vector<int> I = inliersOf(S, mI);
+        if (I.empty() || !cylinderFitLS(mv, I, ax, ax, c, rad, mres, maxIt)) {
+            dg.why = "underdetermined";
+            printBand(dg);
+            continue;
+        }
+        S = {c.XYZ(), ax.XYZ(), rad};
+        I = inliersOf(S, mI);
+        int cols = 0, levels = 0;
+        stationsOf(rm, I, S, tau, cols, levels);
+        dg.stations = cols;
+        dg.levels = levels;
+        dg.radius = rad;
+        dg.axis = S.A;
+        dg.nI = (int)I.size();
+        dg.certDevTau = mI / tau;
+        if (I.empty() || !overDetermined(cols, levels)) {
+            dg.why = "underdetermined";
+            printBand(dg);
+            continue;
+        }
+        // Chord bound of the certified band: the max mid-edge radial deviation of
+        // I's own edges (D-fc-3.2.7).
+        auto chordBound = [&](const Cyl& s, const std::vector<int>& set) {
+            double sd = 0;
+            for (int t : set)
+                for (int k = 0; k < 3; ++k)
+                    sd = std::max(sd, radialDev(0.5 * (vtxOf(mv, t, k) + vtxOf(mv, t, (k + 1) % 3)), s));
+            return sd;
+        };
+        const double sDev = chordBound(S, I);
+        dg.sTau = sDev / tau;
+        auto coverOk = [&](int t, const Cyl& s) {
+            int on = 0;
+            for (int k = 0; k < 3; ++k) {
+                const double d = radialDev(vtxOf(mv, t, k), s);
+                if (d <= tau) ++on;
+                if (d > std::max(sDev, tau)) return false;
+            }
+            return on >= kCoverOnVertices;
+        };
+        std::fill(inSet.begin(), inSet.end(), 0);
+        for (int t : I) inSet[(std::size_t)t] = 1;
+        int nCov = 0;
+        bool covered = true;
+        for (int t : R.tris) {
+            if (inSet[(std::size_t)t]) continue;
+            if (!coverOk(t, S)) {
+                covered = false;
+                break;
+            }
+            ++nCov;
+        }
+        dg.nCover = nCov;
+        if (!covered) {
+            dg.why = "vertex-off";
+            printBand(dg);
+            continue;
+        }
+
+        // Grow over free triangles from I (inliers chain, chord-bounded cover is
+        // traversed); refit on I + grown inliers and regrow until the set is stable.
+        std::vector<int> absorbed, cov;
+        std::vector<char> seen((std::size_t)nTri, 0);
+        bool stable = false;
+        for (int it = 0; it < maxIt; ++it) {
+            std::fill(seen.begin(), seen.end(), 0);
+            for (int t : R.tris) seen[(std::size_t)t] = 1;
+            // The region seeds the growth: its inliers chain, its cover is traversed.
+            std::vector<int> stack = R.tris, ab, cv;
+            while (!stack.empty()) {
+                const int u = stack.back();
+                stack.pop_back();
+                for (int s = 0; s < 3; ++s) {
+                    const int w = rm.nbr(u, s);
+                    if (w < 0 || seen[(std::size_t)w] || !isFree(w)) continue;
+                    if (triDev(mv, w, S) <= tau) {
+                        seen[(std::size_t)w] = 1;
+                        ab.push_back(w);
+                        stack.push_back(w);
+                    } else if (coverOk(w, S)) {
+                        seen[(std::size_t)w] = 1;
+                        cv.push_back(w);
+                        stack.push_back(w);
+                    }
+                }
+            }
+            std::sort(ab.begin(), ab.end());
+            std::sort(cv.begin(), cv.end());
+            const bool same = (ab == absorbed && cv == cov);
+            absorbed.swap(ab);
+            cov.swap(cv);
+            if (same || absorbed.empty()) {
+                stable = true;
+                break;
+            }
+            std::vector<int> fitSet(I);
+            fitSet.insert(fitSet.end(), absorbed.begin(), absorbed.end());
+            gp_Dir ax2;
+            gp_Pnt c2;
+            double r2 = 0, m2 = 0;
+            if (!cylinderFitLS(mv, fitSet, ax, ax2, c2, r2, m2, maxIt)) {
+                stable = true;
+                break;
+            }
+            const Cyl S2{c2.XYZ(), ax2.XYZ(), r2};
+            // The refit must certify the whole fit set, else the current fit stands.
+            if (!(setDev(mv, fitSet, S2) <= tau)) {
+                stable = true;
+                break;
+            }
+            ax = ax2;
+            c = c2;
+            rad = r2;
+            S = S2;
+            I = inliersOf(S, mI);
+        }
+        if (!stable) {
+            dg.why = "unstable";
+            printBand(dg);
+            continue;
+        }
+        if (absorbed.empty()) {
+            dg.why = "not-joined";
+            printBand(dg);
+            continue;
+        }
+
+        // A same-surface partial reached only through the healed gap joins (D-130-14).
+        std::fill(inSet.begin(), inSet.end(), 0);
+        for (int t : R.tris)
+            for (int s = 0; s < 3; ++s) {
+                const int w = rm.nbr(t, s);
+                if (w >= 0) inSet[(std::size_t)w] = 1;
+            }
+        std::vector<int> partners;
+        for (int u : absorbed)
+            for (int s = 0; s < 3; ++s) {
+                const int w = rm.nbr(u, s);
+                if (w < 0 || owner[(std::size_t)w] < 0 || owner[(std::size_t)w] == ri) continue;
+                const int qi = owner[(std::size_t)w];
+                const Region& Q = work.accepted[(std::size_t)qi];
+                if (!isCylGrowCylinder(Q)) continue;
+                if (std::find(partners.begin(), partners.end(), qi) != partners.end()) continue;
+                bool adjBefore = false;
+                for (int t : Q.tris)
+                    if (inSet[(std::size_t)t]) {
+                        adjBefore = true;
+                        break;
+                    }
+                if (adjBefore) continue;
+                std::vector<int> qIn;
+                bool ok = true;
+                for (int t : Q.tris) {
+                    if (triDev(mv, t, S) <= tau) qIn.push_back(t);
+                    else if (!coverOk(t, S)) {
+                        ok = false;
+                        break;
+                    }
+                }
+                if (!ok) continue;
+                int qc = 0, ql = 0;
+                stationsOf(rm, qIn, S, tau, qc, ql);
+                if (overDetermined(qc, ql)) partners.push_back(qi);
+            }
+
+        std::vector<int> grown = R.tris;
+        grown.insert(grown.end(), absorbed.begin(), absorbed.end());
+        grown.insert(grown.end(), cov.begin(), cov.end());
+        int nPartTris = 0;
+        for (int qi : partners) {
+            const auto& qt = work.accepted[(std::size_t)qi].tris;
+            nPartTris += (int)qt.size();
+            grown.insert(grown.end(), qt.begin(), qt.end());
+        }
+        std::sort(grown.begin(), grown.end());
+        grown.erase(std::unique(grown.begin(), grown.end()), grown.end());
+        CylFields f;
+        const bool closedWall = closedWallByConstruction(rm, grown, S);
+        if (!cylFields(rm, tol, grown, S, f, closedWall)) {
+            dg.why = "degenerate";
+            printBand(dg);
+            continue;
+        }
+        std::vector<char> inAdd((std::size_t)nTri, 0);
+        for (int t : absorbed) inAdd[(std::size_t)t] = 1;
+        for (int t : cov) inAdd[(std::size_t)t] = 1;
+        dg.straddle = trimClaimed(rm, work, inAdd);
+        for (int qi : partners) {
+            work.accepted[(std::size_t)qi].tris.clear();
+            absorbedRegions.push_back(qi);
+        }
+        for (int t : grown) owner[(std::size_t)t] = ri;
+        R.tris = std::move(grown);
+        applyCylFields(R, S, f);
+        ++healed;
+        dg.nTri = (int)R.tris.size();
+        dg.nV = (int)uniqueVerts(rm, R.tris).size();
+        dg.members = 1 + (int)partners.size();
+        dg.nI = (int)I.size() + (int)absorbed.size();
+        dg.nCover = nCov + (int)cov.size();
+        dg.maxDev = R.maxVertexDev;
+        dg.maxDevTau = R.maxVertexDev / tau;
+        dg.nSides = R.nSides;
+        dg.dVol = R.dVolPredicted;
+        dg.certDevTau = mI / tau;
+        dg.radius = rad;
+        dg.axis = S.A;
+        dg.comps = (int)edgeComponents(rm, R.tris).size();
+        dg.loops = boundaryLoops(rm, R.tris);
+        dg.why = "accept";
+        printBand(dg);
+        if (diagOn())
+            std::fprintf(stderr, "DIAG_REL_HEAL seed=%d absorbed=%d absorbCover=%d partners=%d "
+                                 "partnerTris=%d closed360=%d annulus=%d\n",
+                         dg.seed, (int)absorbed.size(), (int)cov.size(), (int)partners.size(),
+                         nPartTris, (int)R.closed360, (int)closedWall);
+    }
+    eraseRegions(work, absorbedRegions);
+    return healed;
+}
+
+// D-fc-4.4 fill and commit of one same-surface group: the Unclaimed I/Cover
+// triangles inside the group's extent fill it, and it commits only as ONE
+// edge-component that is a disk (one boundary loop); members[0] takes the
+// result, the others go to `erase`. False (deferred, unchanged) otherwise.
+bool closeGroup(const RMesh& rm, const DerivedTols& tol, double tau, int maxIt,
+                SegmentWork& work, const std::vector<int>& members,
+                const std::vector<int>& gtris, const Cyl& gs, std::vector<char>& unclaimed,
+                const char* mode, std::vector<int>& erase) {
+    const MeshView& mv = *rm.mv;
+    const int nTri = (int)mv.nTri;
+    const Cyl S = gs;
+    const Region& R0 = work.accepted[(std::size_t)members.front()];
+    gp_XYZ xd = R0.ax.XDirection().XYZ();
+    xd -= S.A * xd.Dot(S.A);
+    xd /= xd.Modulus();
+    // The group's own angular extent (largest-gap convention) and axial extent.
+    std::vector<double> chi;
+    double vlo, vhi;
+    axialRange(mv, gtris, S, vlo, vhi);
+    for (int t : gtris)
+        for (int k = 0; k < 3; ++k) chi.push_back(azimuthOf(vtxOf(mv, t, k), S, xd));
+    std::sort(chi.begin(), chi.end());
+    double maxGap = 0;
+    std::size_t gapAt = 0;
+    for (std::size_t i = 0; i + 1 < chi.size(); ++i)
+        if (chi[i + 1] - chi[i] > maxGap) {
+            maxGap = chi[i + 1] - chi[i];
+            gapAt = i;
+        }
+    const double wrap = chi.front() + kTwoPi - chi.back();
+    if (wrap > maxGap) {
+        maxGap = wrap;
+        gapAt = chi.size() - 1;
+    }
+    const double u0 = wrapPi(chi[(gapAt + 1) % chi.size()]);
+    const double u1 = u0 + (kTwoPi - maxGap);
+    const double s = claimChordSagitta(mv, gtris, gp_Ax1(gp_Pnt(S.C), gp_Dir(S.A)), S.R);
+
+    std::vector<int> I, Cv;
+    for (int t = 0; t < nTri; ++t) {
+        if (!unclaimed[(std::size_t)t]) continue;
+        int nin = 0;
+        double md = 0;
+        bool inside = true;
+        for (int k = 0; k < 3 && inside; ++k) {
+            const gp_XYZ pt = vtxOf(mv, t, k);
+            const double d = radialDev(pt, S);
+            md = std::max(md, d);
+            if (d <= tau) ++nin;
+            const double v = (pt - S.C).Dot(S.A);
+            if (v < vlo - tau || v > vhi + tau) inside = false;
+            if (!inArc(azimuthOf(pt, S, xd), u0, u1, tau / S.R)) inside = false;
+        }
+        if (!inside) continue;
+        if (nin == 3 && triLevels(mv, t, S, tau) >= kMinAxialLevels) I.push_back(t);
+        else if (nin >= 1 && md <= s) Cv.push_back(t);
+    }
+    std::vector<int> C = gtris;
+    C.insert(C.end(), I.begin(), I.end());
+    C.insert(C.end(), Cv.begin(), Cv.end());
+    std::sort(C.begin(), C.end());
+    C.erase(std::unique(C.begin(), C.end()), C.end());
+    std::vector<int> cert = gtris;
+    cert.insert(cert.end(), I.begin(), I.end());
+    std::sort(cert.begin(), cert.end());
+    gp_Dir fa;
+    gp_Pnt fc;
+    double fr = 0, fres = 0;
+    const bool fitOk = cylinderFitLS(mv, cert, gp_Dir(S.A), fa, fc, fr, fres, maxIt);
+    const auto cc = edgeComponents(rm, C);
+    const int loops = cc.size() == 1 ? boundaryLoops(rm, C) : -1;
+
+    BandDiag dg;
+    dg.mode = mode;
+    dg.seed = minTriOf(gtris);
+    dg.members = (int)members.size();
+    dg.nTri = (int)C.size();
+    dg.nV = (int)uniqueVerts(rm, C).size();
+    dg.nI = (int)I.size();
+    dg.nCover = (int)Cv.size();
+    dg.comps = (int)cc.size();
+    dg.loops = loops;
+    dg.sTau = s / tau;
+    dg.radius = fitOk ? fr : S.R;
+    dg.axis = fitOk ? fa.XYZ() : S.A;
+    dg.certDevTau = fres / tau;
+    int cols = 0, levels = 0;
+    stationsOf(rm, cert, fitOk ? Cyl{fc.XYZ(), fa.XYZ(), fr} : S, tau, cols, levels);
+    dg.stations = cols;
+    dg.levels = levels;
+    if (!fitOk || fres > tau) {
+        dg.why = "vertex-off";
+        printBand(dg);
+        return false;
+    }
+    // A result whose pieces the fill does not join stays separate faces (D-130-14);
+    // a result with an inner loop is the Seamed360/inner-wire build (owner seam).
+    if (cc.size() != 1) {
+        dg.why = "not-joined";
+        printBand(dg);
+        return false;
+    }
+    if (loops != 1) {
+        dg.why = "domain-not-disk";
+        printBand(dg);
+        return false;
+    }
+    const Cyl N{fc.XYZ(), fa.XYZ(), fr};
+    CylFields f;
+    if (!cylFields(rm, tol, C, N, f)) {
+        dg.why = "degenerate";
+        printBand(dg);
+        return false;
+    }
+    Region nr = R0;
+    nr.tris = C;
+    applyCylFields(nr, N, f);
+    std::vector<char> inC((std::size_t)nTri, 0);
+    for (int t : C) {
+        inC[(std::size_t)t] = 1;
+        unclaimed[(std::size_t)t] = 0;
+    }
+    dg.straddle = trimClaimed(rm, work, inC);
+    dg.maxDev = nr.maxVertexDev;
+    dg.maxDevTau = nr.maxVertexDev / tau;
+    dg.nSides = nr.nSides;
+    dg.dVol = nr.dVolPredicted;
+    if (diagOn())
+        for (int m : members)
+            std::fprintf(stderr, "DIAG_REL_CLOSURE_MEMBER seed=%d member=%d nTri=%zu nSides=%d dVol=%.6g\n",
+                         dg.seed, minTriOf(work.accepted[(std::size_t)m].tris),
+                         work.accepted[(std::size_t)m].tris.size(),
+                         work.accepted[(std::size_t)m].nSides,
+                         work.accepted[(std::size_t)m].dVolPredicted);
+    work.accepted[(std::size_t)members.front()] = std::move(nr);
+    for (std::size_t k = 1; k < members.size(); ++k) erase.push_back(members[k]);
+    dg.why = "accept";
+    printBand(dg);
+    return true;
+}
+
+// ---- D-fc-4.4: same-surface closure ---------------------------------------------
+int closeSameSurface(const RMesh& rm, const SegmentParams& p, const DerivedTols& tol,
+                     double tau, SegmentWork& work, int& deferred) {
+    const MeshView& mv = *rm.mv;
+    const int nTri = (int)mv.nTri;
+    const int maxIt = std::max(1, p.maxRefineIters);
+    std::vector<int> cand;
+    for (int i = 0; i < (int)work.accepted.size(); ++i) {
+        const Region& r = work.accepted[(std::size_t)i];
+        if (!isCylGrowCylinder(r) || r.closed360 || !(r.maxVertexDev <= tau)) continue;
+        int cols = 0, levels = 0;
+        stationsOf(rm, r.tris, cylOf(r), tau, cols, levels);
+        if (overDetermined(cols, levels)) cand.push_back(i);
+    }
+    struct Group {
+        std::vector<int> members;  // accepted indices
+        std::vector<int> tris;
+        Cyl s;
+    };
+    std::vector<Group> groups;
+    for (int i : cand) groups.push_back({{i}, work.accepted[(std::size_t)i].tris,
+                                         cylOf(work.accepted[(std::size_t)i])});
+    // Greedy in ascending order to a fixed point: mutual vertex containment at tau,
+    // strictly overlapping axial extents (stacked coaxial walls stay apart), joint
+    // LS residual at tau.
+    bool merged = true;
+    while (merged) {
+        merged = false;
+        for (std::size_t i = 0; i < groups.size() && !merged; ++i) {
+            if (groups[i].members.empty()) continue;
+            for (std::size_t j = i + 1; j < groups.size(); ++j) {
+                if (groups[j].members.empty()) continue;
+                Group& gi = groups[i];
+                Group& gj = groups[j];
+                if (setDev(mv, gj.tris, gi.s) > tau || setDev(mv, gi.tris, gj.s) > tau) continue;
+                double li, hi, lj, hj;
+                axialRange(mv, gi.tris, gi.s, li, hi);
+                axialRange(mv, gj.tris, gi.s, lj, hj);
+                if (!(li < hj && lj < hi)) continue;
+                std::vector<int> trial = gi.tris;
+                trial.insert(trial.end(), gj.tris.begin(), gj.tris.end());
+                std::sort(trial.begin(), trial.end());
+                gp_Dir fa;
+                gp_Pnt fc;
+                double fr = 0, fres = 0;
+                if (!cylinderFitLS(mv, trial, gp_Dir(gi.s.A), fa, fc, fr, fres, maxIt) ||
+                    fres > tau)
+                    continue;
+                gi.members.insert(gi.members.end(), gj.members.begin(), gj.members.end());
+                gi.tris = std::move(trial);
+                gi.s = {fc.XYZ(), fa.XYZ(), fr};
+                gj.members.clear();
+                gj.tris.clear();
+                merged = true;
+                break;
+            }
+        }
+    }
+
+    std::vector<char> unclaimed((std::size_t)nTri, 0);
+    for (const Provisional& pr : work.provisionals)
+        if (pr.claim == ProvClaim::Unclaimed)
+            for (int t : pr.tris)
+                if (t >= 0 && t < nTri) unclaimed[(std::size_t)t] = 1;
+    for (const Region& r : work.accepted)
+        for (int t : r.tris)
+            if (t >= 0 && t < nTri) unclaimed[(std::size_t)t] = 0;
+
+    int committed = 0;
+    std::vector<int> erase;
+    for (Group& g : groups) {
+        // An empty slot is a group already absorbed by the greedy merge.
+        if (g.members.empty()) continue;
+        // D-fc-7.4 Fix 1. A single certified partial CylGrow (the candidate
+        // filter is maxVertexDev <= tau, not closed) runs the same fill as a
+        // merged group. Cover is unchanged: >= 1 vertex within tau, every
+        // vertex within the certified set's own chord sagitta s.
+        const bool solo = g.members.size() == 1;
+        const Cyl S = g.s;
+        const Region& R0 = work.accepted[(std::size_t)g.members.front()];
+        gp_XYZ xd = R0.ax.XDirection().XYZ();
+        xd -= S.A * xd.Dot(S.A);
+        xd /= xd.Modulus();
+        // The group's own angular extent (largest-gap convention) and axial extent.
+        std::vector<double> chi;
+        double vlo, vhi;
+        axialRange(mv, g.tris, S, vlo, vhi);
+        for (int t : g.tris)
+            for (int k = 0; k < 3; ++k) chi.push_back(azimuthOf(vtxOf(mv, t, k), S, xd));
+        std::sort(chi.begin(), chi.end());
+        double maxGap = 0;
+        std::size_t gapAt = 0;
+        for (std::size_t i = 0; i + 1 < chi.size(); ++i)
+            if (chi[i + 1] - chi[i] > maxGap) {
+                maxGap = chi[i + 1] - chi[i];
+                gapAt = i;
+            }
+        const double wrap = chi.front() + kTwoPi - chi.back();
+        if (wrap > maxGap) {
+            maxGap = wrap;
+            gapAt = chi.size() - 1;
+        }
+        const double u0 = wrapPi(chi[(gapAt + 1) % chi.size()]);
+        const double u1 = u0 + (kTwoPi - maxGap);
+        const double s = claimChordSagitta(mv, g.tris, gp_Ax1(gp_Pnt(S.C), gp_Dir(S.A)), S.R);
+
+        // The fill: Unclaimed I/Cover triangles inside the group's axial extent and,
+        // for a partial result, inside its angular extent (D-fc-3.2.7). A ring has
+        // no angular extent to exceed: its extent is the whole turn.
+        std::vector<int> I, Cv, C, cert;
+        auto fill = [&](bool wholeTurn) {
+            I.clear();
+            Cv.clear();
+            for (int t = 0; t < nTri; ++t) {
+                if (!unclaimed[(std::size_t)t]) continue;
+                int nin = 0;
+                double md = 0;
+                bool inside = true;
+                for (int k = 0; k < 3 && inside; ++k) {
+                    const gp_XYZ pt = vtxOf(mv, t, k);
+                    const double d = radialDev(pt, S);
+                    md = std::max(md, d);
+                    if (d <= tau) ++nin;
+                    const double v = (pt - S.C).Dot(S.A);
+                    if (v < vlo - tau || v > vhi + tau) inside = false;
+                    if (!wholeTurn && !inArc(azimuthOf(pt, S, xd), u0, u1, tau / S.R))
+                        inside = false;
+                }
+                if (!inside) continue;
+                if (nin == 3 && triLevels(mv, t, S, tau) >= kMinAxialLevels) I.push_back(t);
+                else if (nin >= 1 && md <= s) Cv.push_back(t);
+            }
+            C = g.tris;
+            C.insert(C.end(), I.begin(), I.end());
+            C.insert(C.end(), Cv.begin(), Cv.end());
+            std::sort(C.begin(), C.end());
+            C.erase(std::unique(C.begin(), C.end()), C.end());
+            cert = g.tris;
+            cert.insert(cert.end(), I.begin(), I.end());
+            std::sort(cert.begin(), cert.end());
+        };
+        fill(false);
+        gp_Dir fa;
+        gp_Pnt fc;
+        double fr = 0, fres = 0;
+        bool fitOk = cylinderFitLS(mv, cert, gp_Dir(S.A), fa, fc, fr, fres, maxIt);
+        auto cc = edgeComponents(rm, C);
+        int loops = cc.size() == 1 ? boundaryLoops(rm, C) : -1;
+        // Ring closure: a partial result may be a closed wall -- one that is not one
+        // disk, or (D-fc-7.3 F-F) one disk whose missing arc is a window and the
+        // cover round it (the pickup bore behind its cross hole: the partial fill
+        // stops at the group's own angular extent). The whole-turn fill is taken
+        // only when its result is one edge-component,
+        // re-certified at tau on members + I, closed by the D2 rule or by its own
+        // rails (D-fc-4.6 F4: no vertex-azimuth gap wider than one of its boundary
+        // edges), and its loops are the two rims plus windows that one seam
+        // generator clears (the Seamed360 build with inner wires). Otherwise the
+        // partial result stands and is deferred below.
+        bool ring = false;
+        int windows = 0;
+        if (fitOk && fres <= tau) {
+            const std::vector<int> I0 = I, Cv0 = Cv, C0 = C, cert0 = cert;
+            fill(true);
+            gp_Dir ra;
+            gp_Pnt rc;
+            double rr = 0, rres = 0;
+            const bool rOk = C.size() > C0.size() &&
+                             cylinderFitLS(mv, cert, gp_Dir(S.A), ra, rc, rr, rres, maxIt) &&
+                             rres <= tau;
+            const Cyl RN{rc.XYZ(), ra.XYZ(), rr};
+            CylFields rf;
+            auto rcc = rOk ? edgeComponents(rm, C) : decltype(cc){};
+            bool closedWall = false;
+            double seamU = 0;
+            TorusRails rails;
+            if (rOk && rcc.size() == 1 && cylFields(rm, tol, C, RN, rf)) {
+                Region probe;
+                probe.ax = rf.ax;
+                probe.tris = C;
+                rails = torusRails(mv, probe);
+            }
+            if (rOk && rcc.size() == 1 && (rf.closed360 || rails.full)) {
+                const gp_XYZ rx = rf.ax.XDirection().XYZ();
+                std::vector<int> wind;
+                std::vector<std::vector<double>> winU;
+                for (const WindLoop& wl : windingLoops(rm, C, RN, rx)) {
+                    wind.push_back(wl.winding);
+                    if (wl.winding == 0) winU.push_back(wl.azimuths);
+                }
+                closedWall = closedWallWithWindows(wind) && seamClearOfWindows(winU, seamU);
+                windows = (int)winU.size();
+                if (diagOn())
+                    std::fprintf(stderr,
+                                 "DIAG_REL_RING_CLOSURE seed=%d nTri=%zu loops=%zu windows=%d "
+                                 "seamU=%.6f certDevTau=%.4f d2Closed=%d railGap=%.6f "
+                                 "railStep=%.6f closedWall=%d\n",
+                                 minTriOf(g.tris), C.size(), wind.size(), windows, seamU,
+                                 rres / tau, (int)rf.closed360, rails.gap, rails.maxStep,
+                                 (int)closedWall);
+            }
+            if (closedWall) {
+                ring = true;
+                fa = ra;
+                fc = rc;
+                fr = rr;
+                fres = rres;
+                cc = std::move(rcc);
+                loops = boundaryLoops(rm, C);
+            } else {
+                I = I0;
+                Cv = Cv0;
+                C = C0;
+                cert = cert0;
+            }
+        }
+        // A solo whose fill added nothing is already one face. Refitting it
+        // would rewrite the region and move telemetry on every partial cylinder.
+        if (solo && I.empty() && Cv.empty()) continue;
+        BandDiag dg;
+        dg.mode = "closure";
+        dg.seed = minTriOf(g.tris);
+        dg.members = (int)g.members.size();
+        dg.nTri = (int)C.size();
+        dg.nV = (int)uniqueVerts(rm, C).size();
+        dg.nI = (int)I.size();
+        dg.nCover = (int)Cv.size();
+        dg.comps = (int)cc.size();
+        dg.loops = loops;
+        dg.sTau = s / tau;
+        dg.radius = fitOk ? fr : S.R;
+        dg.axis = fitOk ? fa.XYZ() : S.A;
+        dg.certDevTau = fres / tau;
+        int cols = 0, levels = 0;
+        stationsOf(rm, cert, fitOk ? Cyl{fc.XYZ(), fa.XYZ(), fr} : S, tau, cols, levels);
+        dg.stations = cols;
+        dg.levels = levels;
+        if (!fitOk || fres > tau) {
+            dg.why = "vertex-off";
+            printBand(dg);
+            ++deferred;
+            continue;
+        }
+        // A result whose pieces the fill does not join stays separate faces (D-130-14);
+        // a result with an inner loop is the Seamed360/inner-wire build (owner seam).
+        if (cc.size() != 1) {
+            dg.why = "not-joined";
+            printBand(dg);
+            ++deferred;
+            continue;
+        }
+        if (loops != 1 && !ring) {
+            dg.why = "domain-not-disk";
+            printBand(dg);
+            ++deferred;
+            continue;
+        }
+        const Cyl N{fc.XYZ(), fa.XYZ(), fr};
+        CylFields f;
+        if (!cylFields(rm, tol, C, N, f)) {
+            dg.why = "degenerate";
+            printBand(dg);
+            ++deferred;
+            continue;
+        }
+        if (ring) closeRingFields(f);
+        Region nr = R0;
+        nr.tris = C;
+        applyCylFields(nr, N, f);
+        std::vector<char> inC((std::size_t)nTri, 0);
+        for (int t : C)
+            if (t >= 0 && t < nTri) inC[(std::size_t)t] = 1;
+        // A solo fill may consume a chart, and it may leave a one-triangle
+        // remainder (the dent the cover law does not take). It does not cut a
+        // multi-triangle chart in two: that remainder is still a face, and the
+        // certified cylinder stays as it shipped.
+        int chartCuts = 0;
+        for (const Provisional& pr : work.provisionals) {
+            if (pr.claim != ProvClaim::Unclaimed) continue;
+            std::vector<int> keep;
+            bool hit = false;
+            for (int t : pr.tris) {
+                if (t < 0 || (std::size_t)t >= inC.size()) continue;
+                if (inC[(std::size_t)t]) hit = true;
+                else keep.push_back(t);
+            }
+            if (!hit || keep.empty()) continue;
+            for (const std::vector<int>& comp : edgeComponents(rm, keep))
+                if (comp.size() > 1) ++chartCuts;
+        }
+        if (solo && chartCuts > 0) {
+            dg.straddle = chartCuts;
+            dg.why = "straddle";
+            printBand(dg);
+            ++deferred;
+            continue;
+        }
+        for (int t : C)
+            if (t >= 0 && t < nTri) unclaimed[(std::size_t)t] = 0;
+        dg.straddle = trimClaimed(rm, work, inC);
+        dg.maxDev = nr.maxVertexDev;
+        dg.maxDevTau = nr.maxVertexDev / tau;
+        dg.nSides = nr.nSides;
+        dg.dVol = nr.dVolPredicted;
+        if (diagOn())
+            for (int m : g.members)
+                std::fprintf(stderr, "DIAG_REL_CLOSURE_MEMBER seed=%d member=%d nTri=%zu nSides=%d dVol=%.6g\n",
+                             dg.seed, minTriOf(work.accepted[(std::size_t)m].tris),
+                             work.accepted[(std::size_t)m].tris.size(),
+                             work.accepted[(std::size_t)m].nSides,
+                             work.accepted[(std::size_t)m].dVolPredicted);
+        work.accepted[(std::size_t)g.members.front()] = std::move(nr);
+        for (std::size_t k = 1; k < g.members.size(); ++k) erase.push_back(g.members[k]);
+        ++committed;
+        dg.why = "accept";
+        printBand(dg);
+    }
+    eraseRegions(work, erase);
+    return committed;
+}
+
+// ---- Ring donor (lowfold F2): circular loops on identified planes ---------------
+// The closed boundary loops of one Unclaimed plane chart, in ascending vertex order.
+// A loop is a cycle of the chart's boundary-edge graph through vertices of degree 2.
+// nBoundary (optional) receives the number of vertices of the chart's boundary graph.
+std::vector<std::vector<int>> chartLoops(const RMesh& rm, const std::vector<int>& chartTris,
+                                         const std::vector<int>& triProv, int pi,
+                                         std::size_t* nBoundary = nullptr) {
+    const MeshView& mv = *rm.mv;
+    std::map<int, std::vector<int>> g;
+    for (int t : chartTris)
+        for (int s = 0; s < 3; ++s) {
+            const int o = rm.nbr(t, s);
+            if (o >= 0 && triProv[(std::size_t)o] == pi) continue;
+            const int e = mv.triEdges[t][s];
+            if (e < 0 || (std::size_t)e >= mv.nEdge) continue;
+            const auto& ev = mv.compEdges[e];
+            g[ev.first].push_back(ev.second);
+            g[ev.second].push_back(ev.first);
+        }
+    if (nBoundary) *nBoundary = g.size();
+    std::vector<std::vector<int>> loops;
+    std::set<int> used;
+    for (const auto& kv : g) {
+        const int st = kv.first;
+        if (used.count(st) || kv.second.size() != 2) continue;
+        std::vector<int> loop{st};
+        used.insert(st);
+        int prev = -1, cur = st;
+        bool ok = true;
+        for (;;) {
+            const auto& nb = g[cur];
+            if (nb.size() != 2) {
+                ok = false;
+                break;
+            }
+            const int nx = nb[0] != prev ? nb[0] : nb[1];
+            prev = cur;
+            cur = nx;
+            if (cur == st) break;
+            if (!used.insert(cur).second) {
+                ok = false;
+                break;
+            }
+            loop.push_back(cur);
+        }
+        if (ok) loops.push_back(std::move(loop));
+    }
+    return loops;
+}
+
+// Plane and circle of a loop's vertices (PCA plane, then the algebraic circle in it).
+// planeDev / circDev are the max vertex residuals of each fit.
+bool ringCircle(const std::vector<gp_XYZ>& pts, gp_XYZ& n, gp_XYZ& c, double& R,
+                double& planeDev, double& circDev) {
+    if (pts.size() < 3) return false;
+    gp_XYZ cm(0, 0, 0);
+    for (const gp_XYZ& q : pts) cm += q;
+    cm /= (double)pts.size();
+    std::array<std::array<double, 3>, 3> cov{{{0, 0, 0}, {0, 0, 0}, {0, 0, 0}}};
+    for (const gp_XYZ& q : pts) {
+        const gp_XYZ d = q - cm;
+        const double v[3] = {d.X(), d.Y(), d.Z()};
+        for (int a = 0; a < 3; ++a)
+            for (int b = 0; b < 3; ++b) cov[a][b] += v[a] * v[b];
+    }
+    std::array<double, 3> ev{};
+    std::array<std::array<double, 3>, 3> evec{};
+    if (!jacobiEigenSymmetric3(cov, ev, evec)) return false;
+    n = gp_XYZ(evec[0][0], evec[0][1], evec[0][2]);
+    if (n.Modulus() < kTiny) return false;
+    n /= n.Modulus();
+    planeDev = 0;
+    for (const gp_XYZ& q : pts) planeDev = std::max(planeDev, std::abs((q - cm).Dot(n)));
+    gp_XYZ e1 = std::abs(n.X()) < 0.9 ? gp_XYZ(1, 0, 0).Crossed(n) : gp_XYZ(0, 1, 0).Crossed(n);
+    e1 /= e1.Modulus();
+    const gp_XYZ e2 = n.Crossed(e1);
+    // x^2 + y^2 = a x + b y + k, least squares (3 x 3 normal equations).
+    double M[3][4] = {{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}};
+    for (const gp_XYZ& q : pts) {
+        const gp_XYZ d = q - cm;
+        const double x = d.Dot(e1), y = d.Dot(e2), z = x * x + y * y;
+        const double row[4] = {x, y, 1.0, z};
+        for (int i = 0; i < 3; ++i)
+            for (int j = 0; j < 4; ++j) M[i][j] += row[i] * row[j];
+    }
+    for (int col = 0; col < 3; ++col) {
+        int piv = col;
+        for (int r = col + 1; r < 3; ++r)
+            if (std::abs(M[r][col]) > std::abs(M[piv][col])) piv = r;
+        for (int k = 0; k < 4; ++k) std::swap(M[col][k], M[piv][k]);
+        if (std::abs(M[col][col]) < kTiny) return false;
+        for (int r = 0; r < 3; ++r) {
+            if (r == col) continue;
+            const double f = M[r][col] / M[col][col];
+            for (int k = 0; k < 4; ++k) M[r][k] -= f * M[col][k];
+        }
+    }
+    const double a = M[0][3] / M[0][0], b = M[1][3] / M[1][1], k = M[2][3] / M[2][2];
+    const double cx = 0.5 * a, cy = 0.5 * b;
+    R = std::sqrt(std::max(0.0, k + cx * cx + cy * cy));
+    c = cm + e1 * cx + e2 * cy;
+    circDev = 0;
+    for (const gp_XYZ& q : pts)
+        circDev = std::max(circDev, std::abs(n.Crossed(q - c).Modulus() - R));
+    return R > 0;
+}
+
+// Largest dihedral fold (radians) across the band's own interior edges.
+double bandMaxFold(const RMesh& rm, const std::vector<int>& band, const std::vector<char>& inB) {
+    double mx = 0;
+    for (int t : band)
+        for (int s = 0; s < 3; ++s) {
+            const int w = rm.nbr(t, s);
+            if (w < 0 || w < t || !inB[(std::size_t)w]) continue;
+            const double d = triNormal(*rm.mv, t).XYZ().Dot(triNormal(*rm.mv, w).XYZ());
+            mx = std::max(mx, std::acos(std::max(-1.0, std::min(1.0, d))));
+        }
+    return mx;
+}
+
+// A closed boundary loop of an Unclaimed plane chart whose vertices are planar and
+// circular within tau names an axis where no stage found a cylinder (TRAINING-REVIEW
+// #3; spike-fc3-lowfold F2). The band is the free triangles across the loop grown at
+// tau about that cylinder, refit and regrown to a fixed point (D-fc-1.6.9), certified
+// with every vertex within tau, over-determined like a donor (D-fc-1.4) and closed by
+// the D2 rule. A band that reaches an owned triangle on its own surface is the same
+// surface as that region (D-130-14; the heal / closure passes own it) and is refused.
+int claimRingCylinders(const RMesh& rm, const SegmentParams& p, const DerivedTols& tol,
+                       double tau, SegmentWork& work) {
+    const MeshView& mv = *rm.mv;
+    if (!mv.compEdges || !mv.compVtx) return 0;
+    const int nTri = (int)mv.nTri;
+    const int maxIt = std::max(1, p.maxRefineIters);
+    std::vector<int> owner((std::size_t)nTri, -1), triProv((std::size_t)nTri, -1);
+    for (int i = 0; i < (int)work.accepted.size(); ++i)
+        for (int t : work.accepted[(std::size_t)i].tris)
+            if (t >= 0 && t < nTri) owner[(std::size_t)t] = i;
+    for (int i = 0; i < (int)work.provisionals.size(); ++i)
+        for (int t : work.provisionals[(std::size_t)i].tris)
+            if (t >= 0 && t < nTri) triProv[(std::size_t)t] = i;
+    auto isFree = [&](int t) {
+        if (t < 0 || t >= nTri || owner[(std::size_t)t] >= 0) return false;
+        const int pi = triProv[(std::size_t)t];
+        return pi >= 0 && work.provisionals[(std::size_t)pi].claim == ProvClaim::Unclaimed;
+    };
+    auto lpt = [&](int lv) { return mv.pts[mv.compVtx[lv]]; };
+
+    int claimed = 0;
+    const int nProv0 = (int)work.provisionals.size();
+    std::vector<char> inB((std::size_t)nTri, 0);
+    // D-gid-8.4: the law samples of work.accepted, re-measured after each claim.
+    std::vector<TessLawSample> lawSamples;
+    bool lawSamplesValid = false;
+    for (int pi = 0; pi < nProv0; ++pi) {
+        const bool anchorFree = work.provisionals[(std::size_t)pi].claim == ProvClaim::Unclaimed;
+        if (!anchorFree && !diagOn()) continue;
+        const std::vector<int> chart = work.provisionals[(std::size_t)pi].tris;
+        for (const std::vector<int>& loop : chartLoops(rm, chart, triProv, pi)) {
+            // Over-determined loop: a circle in its plane needs minStations(kParamsCircle).
+            if ((int)loop.size() < minStations(kParamsCircle)) continue;
+            std::vector<gp_XYZ> lp;
+            for (int lv : loop) lp.push_back(lpt(lv));
+            gp_XYZ n, c0;
+            double R0 = 0, planeDev = 0, circDev = 0;
+            if (!ringCircle(lp, n, c0, R0, planeDev, circDev)) continue;
+            if (!(planeDev <= tau) || !(circDev <= tau) || !(R0 > tau)) continue;
+            if (!anchorFree) {
+                // Print-only: a circular loop on a chart another stage already claimed.
+                std::fprintf(stderr,
+                             "DIAG_REL_RING seed=%d loop=%zu R=%.9g planeTau=%.4f circTau=%.4f "
+                             "chartClaim=%d why=no-anchor\n",
+                             minTriOf(chart), loop.size(), R0, planeDev / tau, circDev / tau,
+                             (int)work.provisionals[(std::size_t)pi].claim);
+                continue;
+            }
+            Cyl S{c0, n, R0};
+            BandDiag dg;
+            dg.mode = "ring";
+            dg.seed = minTriOf(chart);
+            dg.radius = R0;
+            dg.axis = n;
+            const std::set<int> lset(loop.begin(), loop.end());
+            // Seeds: the triangles across the loop's own edges.
+            std::vector<int> seeds;
+            for (int t : chart)
+                for (int s = 0; s < 3; ++s) {
+                    const int e = mv.triEdges[t][s];
+                    if (e < 0 || (std::size_t)e >= mv.nEdge) continue;
+                    if (!lset.count(mv.compEdges[e].first) || !lset.count(mv.compEdges[e].second))
+                        continue;
+                    const int o = rm.nbr(t, s);
+                    if (o >= 0 && triProv[(std::size_t)o] != pi) seeds.push_back(o);
+                }
+            std::sort(seeds.begin(), seeds.end());
+            seeds.erase(std::unique(seeds.begin(), seeds.end()), seeds.end());
+            std::vector<int> band;
+            bool touchesOwned = false, stable = false;
+            auto grow = [&](const Cyl& s) {
+                std::fill(inB.begin(), inB.end(), 0);
+                std::vector<int> out, st;
+                touchesOwned = false;
+                auto visit = [&](int w) {
+                    if (w < 0 || inB[(std::size_t)w] || triProv[(std::size_t)w] == pi) return;
+                    // A wall triangle spans two axial levels (D-fc-3.2.1 section ear); one
+                    // whose vertices stand on one rim is a cap chord across it.
+                    if (triDev(mv, w, s) > tau || triLevels(mv, w, s, tau) < kMinAxialLevels)
+                        return;
+                    if (!isFree(w)) {
+                        touchesOwned = true;
+                        return;
+                    }
+                    inB[(std::size_t)w] = 1;
+                    out.push_back(w);
+                    st.push_back(w);
+                };
+                for (int w : seeds) visit(w);
+                while (!st.empty()) {
+                    const int u = st.back();
+                    st.pop_back();
+                    for (int k = 0; k < 3; ++k) visit(rm.nbr(u, k));
+                }
+                std::sort(out.begin(), out.end());
+                return out;
+            };
+            for (int it = 0; it < maxIt; ++it) {
+                std::vector<int> b = grow(S);
+                if (b.empty()) break;
+                gp_Dir fa;
+                gp_Pnt fc;
+                double fr = 0, fres = 0;
+                if (!cylinderFitLS(mv, b, gp_Dir(S.A), fa, fc, fr, fres, maxIt) || !(fres <= tau)) {
+                    band = std::move(b);
+                    dg.certDevTau = fres / tau;
+                    break;
+                }
+                const Cyl S2{fc.XYZ(), fa.XYZ(), fr};
+                const bool same = (b == band);
+                band = std::move(b);
+                S = S2;
+                dg.certDevTau = fres / tau;
+                if (same) {
+                    stable = true;
+                    break;
+                }
+            }
+            if (band.empty()) continue;
+            if (stable) band = grow(S);
+            std::fill(inB.begin(), inB.end(), 0);
+            for (int t : band) inB[(std::size_t)t] = 1;
+            dg.nTri = (int)band.size();
+            dg.nV = (int)uniqueVerts(rm, band).size();
+            dg.radius = S.R;
+            dg.axis = S.A;
+            int cols = 0, levels = 0;
+            stationsOf(rm, band, S, tau, cols, levels);
+            dg.stations = cols;
+            dg.levels = levels;
+            dg.maxDev = setDev(mv, band, S);
+            dg.maxDevTau = dg.maxDev / tau;
+            const double fold = bandMaxFold(rm, band, inB);
+            auto refuse = [&](const char* why) {
+                dg.why = why;
+                printBand(dg);
+                if (diagOn())
+                    std::fprintf(stderr,
+                                 "DIAG_REL_RING seed=%d loop=%zu R=%.9g planeTau=%.4f circTau=%.4f "
+                                 "band=%zu touchesOwned=%d stable=%d maxFoldDeg=%.4f why=%s\n",
+                                 dg.seed, loop.size(), R0, planeDev / tau, circDev / tau,
+                                 band.size(), (int)touchesOwned, (int)stable,
+                                 fold * 180.0 / kPi, why);
+            };
+            if (touchesOwned) {
+                refuse("same-surface");
+                continue;
+            }
+            // Scope: the ring names cylinders B1 cannot seed (every fold under its seed
+            // floor). A band that folds at or above it is B1 / NgonWall / tess-law's to
+            // decide: its vertices alone cannot tell a prism from a cylinder.
+            // D-gid-8.4: the band is free, so neither B1 nor NgonWall took it; the
+            // tessellation law (D-fc-2.1) decides here. A refuted band is an N-gon and
+            // its walls stay with the plane stages; with no law sample nothing changes
+            // (D-fc-1.9); a sampled circle goes on through the ring certificate below.
+            if (!(fold < tol.thetaCylLo)) {
+                if (!lawSamplesValid) {
+                    lawSamples = tessLawSamples(mv, p, tau, work);
+                    lawSamplesValid = true;
+                }
+                double lawStep = 0;
+                int lawK = 0;
+                TessLawDecision law;
+                if (tessLawBandStep(mv, band, gp_Dir(S.A), gp_Pnt(S.C), S.R, tau, lawStep, lawK))
+                    law = tessLawDecide(lawSamples, S.R, lawStep, tau);
+                if (diagOn())
+                    std::fprintf(stderr,
+                                 "DIAG_REL_RING_LAW seed=%d R=%.9g step=%.8g k=%d refRid=%d "
+                                 "refR=%.8g refK=%d refStep=%.8g bound=%.8g verdict=%s\n",
+                                 dg.seed, S.R, lawStep, lawK, law.refRid, law.refR, law.refK,
+                                 law.refStep, law.bound,
+                                 law.verdict == TessLawVerdict::Keep     ? "keep"
+                                 : law.verdict == TessLawVerdict::Refute ? "refute"
+                                                                         : "no-ref");
+                if (law.verdict != TessLawVerdict::Keep) {
+                    refuse("not-blend");
+                    continue;
+                }
+            }
+            if (!stable || !(dg.maxDev <= tau)) {
+                refuse("vertex-off");
+                continue;
+            }
+            if (!overDetermined(cols, levels)) {
+                refuse("underdetermined");
+                continue;
+            }
+            // A closed wall is one edge-connected annulus: two boundary loops, its rims.
+            // Triangles that only touch the loop each on their own (a polygon's corners
+            // are concyclic) are no wall.
+            dg.comps = (int)edgeComponents(rm, band).size();
+            dg.loops = boundaryLoops(rm, band);
+            if (dg.comps != 1) {
+                refuse("not-joined");
+                continue;
+            }
+            if (dg.loops != kAnnulusLoops) {
+                refuse("domain-not-annulus");
+                continue;
+            }
+            CylFields f;
+            if (!cylFields(rm, tol, band, S, f) || !f.closed360) {
+                refuse("degenerate");
+                continue;
+            }
+            Region r;
+            r.type = SurfType::Cylinder;
+            r.origin = Origin::CylGrow;
+            r.tris = band;
+            r.reject = Reject::None;
+            r.builtAs = BuiltAs::NotBuilt;
+            r.filletNbrA = r.filletNbrB = -1;
+            applyCylFields(r, S, f);
+            std::vector<char> inAdd((std::size_t)nTri, 0);
+            for (int t : band) inAdd[(std::size_t)t] = 1;
+            dg.straddle = trimClaimed(rm, work, inAdd);
+            for (int t : band) owner[(std::size_t)t] = (int)work.accepted.size();
+            // The trim moved straddle remainders into new provisionals; later charts'
+            // boundaries are read against the provisionals as they now stand.
+            if (dg.straddle > 0)
+                for (int i = 0; i < (int)work.provisionals.size(); ++i)
+                    for (int t : work.provisionals[(std::size_t)i].tris)
+                        if (t >= 0 && t < nTri) triProv[(std::size_t)t] = i;
+            dg.nSides = r.nSides;
+            dg.dVol = r.dVolPredicted;
+            work.accepted.push_back(std::move(r));
+            lawSamplesValid = false;
+            ++claimed;
+            refuse("accept");
+        }
+    }
+    return claimed;
+}
+
+// D-fc-6.10 C-1. One boundary cycle of an A1 chart, chord-aware.
+// A vertex within tau of the segment joining its two neighbours, foot on
+// that segment (D-fc-6.12 F1), is a chord vertex (RQ-H1) and is left out
+// of the circle. The corners must be concyclic and the whole cycle planar,
+// each within tau, with R > tau.
+struct RwcRing {
+    std::vector<int> verts;
+    std::vector<char> corner;
+    double planeDev = 0, circDev = 0, chordDev = 0, R = 0;
+    gp_XYZ n, c;
+    int corners = 0;
+};
+
+bool certifyRingCycle(const MeshView& mv, const std::vector<int>& cyc, double tau, RwcRing& out) {
+    out = RwcRing{};
+    out.verts = cyc;
+    const int n = (int)cyc.size();
+    if (n < 3 || !(tau > 0.0) || !mv.compVtx) return false;
+    std::vector<gp_XYZ> P((std::size_t)n);
+    for (int i = 0; i < n; ++i) P[(std::size_t)i] = mv.pts[mv.compVtx[cyc[(std::size_t)i]]];
+    out.corner.assign((std::size_t)n, 1);
+    for (int i = 0; i < n; ++i) {
+        const gp_XYZ& a = P[(std::size_t)((i + n - 1) % n)];
+        const gp_XYZ& b = P[(std::size_t)((i + 1) % n)];
+        const gp_XYZ& q = P[(std::size_t)i];
+        if (!isChordVertex(q, a, b, tau)) continue;
+        out.corner[(std::size_t)i] = 0;
+        out.chordDev = std::max(out.chordDev, chordLineDistance(q, a, b));
+    }
+    std::vector<gp_XYZ> corners;
+    for (int i = 0; i < n; ++i)
+        if (out.corner[(std::size_t)i]) corners.push_back(P[(std::size_t)i]);
+    out.corners = (int)corners.size();
+    if (out.corners < minStations(kParamsCircle)) return false;
+    double cornerPlane = 0;
+    if (!ringCircle(corners, out.n, out.c, out.R, cornerPlane, out.circDev)) return false;
+    out.planeDev = 0;
+    for (const gp_XYZ& q : P)
+        out.planeDev = std::max(out.planeDev, std::abs((q - out.c).Dot(out.n)));
+    return out.planeDev <= tau && out.circDev <= tau && out.R > tau;
+}
+
+// D-fc-6.10 C-1. The ring-wall vertex certificate of chart ch for a cylinder
+// between its two certified rims rg[0], rg[1] (certifyRingCycle): the cylinder
+// is the least-squares fit over the triangles whose three vertices are rim
+// corners, seeded on rg[0]'s normal; every chart vertex then certifies as a
+// corner, a chord vertex (RQ-H1) or an interior vertex within tau, and every
+// triangle is covered (RQ-H2). False when the fit itself fails.
+struct RingWallCyl {
+    std::set<int> cornerV, chordV, chartV;
+    std::vector<int> fitSet;
+    Cyl S;
+    double fr = 0, fres = 0, cornerDev = 0, otherDev = 0;
+    bool off = false;
+};
+
+bool ringWallCylinder(const RMesh& rm, const std::vector<int>& ch, const RwcRing* rg, double tau,
+                      int maxIt, RingWallCyl& o) {
+    const MeshView& mv = *rm.mv;
+    std::set<int>& cornerV = o.cornerV;
+    std::set<int>& chordV = o.chordV;
+    for (int k = 0; k < kAnnulusLoops; ++k) {
+        const int n = (int)rg[k].verts.size();
+        for (int i = 0; i < n; ++i) {
+            const int lv = rg[k].verts[(std::size_t)i];
+            if (rg[k].corner[(std::size_t)i]) cornerV.insert(lv);
+            else chordV.insert(lv);
+        }
+    }
+    std::vector<int>& fitSet = o.fitSet;
+    for (int t : ch) {
+        int nc = 0;
+        for (int k = 0; k < 3; ++k) nc += cornerV.count(rm.localVtx(t, k)) ? 1 : 0;
+        if (nc == 3) fitSet.push_back(t);
+    }
+    gp_Dir fa(0, 0, 1);
+    gp_Pnt fc(0, 0, 0);
+    double fr = 0, fres = 0;
+    const gp_XYZ seedA = rg[0].n;
+    if (!(seedA.Modulus() > 0.0) || fitSet.empty() ||
+        !cylinderFitLS(mv, fitSet, gp_Dir(seedA), fa, fc, fr, fres, maxIt))
+        return false;
+    const Cyl S{fc.XYZ(), fa.XYZ(), fr};
+    double cornerDev = 0, otherDev = 0;
+    bool off = false;
+    std::set<int>& chartV = o.chartV;
+    for (int t : ch)
+        for (int k = 0; k < 3; ++k) chartV.insert(rm.localVtx(t, k));
+    for (int lv : chartV) {
+        if (lv < 0) {
+            off = true;
+            continue;
+        }
+        const bool isCorner = cornerV.count(lv) != 0;
+        const bool isChord = !isCorner && chordV.count(lv) != 0;
+        const double d = radialDev(mv.pts[mv.compVtx[lv]], S);
+        if (isCorner) cornerDev = std::max(cornerDev, d);
+        const RingWallVert cls = classifyRingWallVertex(isCorner, isChord, d, tau);
+        if (cls == RingWallVert::Off) off = true;
+        else if (cls == RingWallVert::OnCylinder) otherDev = std::max(otherDev, d);
+    }
+    // RQ-H2 is the one-corner, two-chord case of the same vertex certificate.
+    for (int t : ch) {
+        RingWallVert tv[3];
+        for (int k = 0; k < 3; ++k) {
+            const int lv = rm.localVtx(t, k);
+            if (lv < 0) {
+                tv[k] = RingWallVert::Off;
+                continue;
+            }
+            const bool isCorner = cornerV.count(lv) != 0;
+            const bool isChord = !isCorner && chordV.count(lv) != 0;
+            const double d = radialDev(mv.pts[mv.compVtx[lv]], S);
+            tv[k] = classifyRingWallVertex(isCorner, isChord, d, tau);
+        }
+        const bool covered = oneVertexChordCover(tv[0], tv[1], tv[2]) ||
+                             ringWallTriangleCovered(tv[0], tv[1], tv[2]);
+        if (!covered) off = true;
+    }
+    o.S = S;
+    o.fr = fr;
+    o.fres = fres;
+    o.cornerDev = cornerDev;
+    o.otherDev = otherDev;
+    o.off = off;
+    return true;
+}
+
+// C-3. The seam generator of a ring-closed wall about axis aw through loc
+// (cornerPairSeamVertex): the region's XDirection is turned onto it. ax is left
+// as it was when no corner pair exists. Returns the picked vertex or -1.
+int ringWallSeam(const MeshView& mv, const RwcRing* rg, double tau, double radius,
+                 const gp_XYZ& aw, gp_Ax3& ax) {
+    const gp_XYZ loc = ax.Location().XYZ();
+    const gp_XYZ x0 = ax.XDirection().XYZ();
+    const gp_XYZ y0 = ax.YDirection().XYZ();
+    auto aziOf = [&](int lv) {
+        gp_XYZ d = mv.pts[mv.compVtx[lv]] - loc;
+        d -= aw * d.Dot(aw);
+        return std::atan2(d.Dot(y0), d.Dot(x0));
+    };
+    std::vector<double> az0(rg[0].verts.size()), az1(rg[1].verts.size());
+    for (std::size_t i = 0; i < rg[0].verts.size(); ++i) az0[i] = aziOf(rg[0].verts[i]);
+    for (std::size_t i = 0; i < rg[1].verts.size(); ++i) az1[i] = aziOf(rg[1].verts[i]);
+    const int pick = cornerPairSeamVertex(rg[0].verts, rg[0].corner, az0, rg[1].verts,
+                                          rg[1].corner, az1, tau, radius);
+    if (pick >= 0) {
+        gp_XYZ xd = mv.pts[mv.compVtx[pick]] - loc;
+        xd -= aw * xd.Dot(aw);
+        if (xd.Modulus() > 0.0 && xd.Crossed(aw).Modulus() > 0.0) {
+            xd /= xd.Modulus();
+            ax = gp_Ax3(ax.Location(), gp_Dir(aw), gp_Dir(xd));
+        }
+    }
+    return pick;
+}
+
+// D-fc-6.10 C-1 + C-3. Hooked from reclaimLine after closeSameSurface.
+// Scope (no new number): either the chart holds at least one accepted
+// cylinder of origin CylGrow or FilletStrip, every such region lies wholly
+// inside the chart, and every other triangle is an Unclaimed provisional;
+// or the chart has no owner, every triangle is an Unclaimed provisional, and
+// every triangle sits in a cylinder region B1 already refused (a free annulus
+// that was rolled back — the same ring certificate, a new region). A chart
+// held whole by one region is entered only when that region does not
+// certify its own surface (robbableUncertified: maxVertexDev > tau and no
+// ring certificate, D-fc-4.3 / D-gid-7.6): the ring certificate re-tests the
+// whole wall and, when it passes, replaces the uncertified fit (D-gid-8.4,
+// heal-not-revert); when it refuses, the region stays as it was. A region
+// within tau is never re-fit.
+int closeRingWalls(const RMesh& rm, const SegmentParams& p, const DerivedTols& tol, double tau,
+                   SegmentWork& work) {
+    const MeshView& mv = *rm.mv;
+    const int nTri = (int)mv.nTri;
+    if (!mv.compVtx || !mv.compEdges || (int)work.triChart.size() != nTri) return 0;
+    const int maxIt = std::max(1, p.maxRefineIters);
+    std::vector<int> owner((std::size_t)nTri, -1), triProv((std::size_t)nTri, -1);
+    for (int i = 0; i < (int)work.accepted.size(); ++i)
+        for (int t : work.accepted[(std::size_t)i].tris)
+            if (t >= 0 && t < nTri) owner[(std::size_t)t] = i;
+    for (int i = 0; i < (int)work.provisionals.size(); ++i)
+        for (int t : work.provisionals[(std::size_t)i].tris)
+            if (t >= 0 && t < nTri) triProv[(std::size_t)t] = i;
+    std::map<int, std::vector<int>> charts;
+    for (int t = 0; t < nTri; ++t) charts[work.triChart[(std::size_t)t]].push_back(t);
+    std::vector<std::vector<int>> order;
+    order.reserve(charts.size());
+    for (auto& kv : charts) order.push_back(std::move(kv.second));
+    std::sort(order.begin(), order.end(),
+              [](const std::vector<int>& a, const std::vector<int>& b) { return a.front() < b.front(); });
+    // Triangles a cylinder claim already refused (B1's rejected list). A free
+    // annulus is entered only when that refusal covers the whole chart: the
+    // wall was attempted and rolled back, not a surface no stage tried.
+    std::vector<char> b1Refused((std::size_t)nTri, 0);
+    for (const Region& rr : work.rejected) {
+        if (rr.type != SurfType::Cylinder) continue;
+        for (int t : rr.tris)
+            if (t >= 0 && t < nTri) b1Refused[(std::size_t)t] = 1;
+    }
+    int committed = 0;
+    std::vector<int> erase;
+    for (const std::vector<int>& ch : order) {
+        std::set<int> owners;
+        int nFree = 0;
+        bool foreign = false;
+        for (int t : ch) {
+            const int o = owner[(std::size_t)t];
+            if (o >= 0) owners.insert(o);
+            else {
+                const int pi = triProv[(std::size_t)t];
+                if (pi < 0 || work.provisionals[(std::size_t)pi].claim != ProvClaim::Unclaimed)
+                    foreign = true;
+                ++nFree;
+            }
+        }
+        // A free chart is entered only when every triangle is an Unclaimed
+        // provisional. The ring, fit and cover gates below are the owned-chart
+        // certificate; nothing is dropped by rank.
+        const bool freeChart = owners.empty();
+        if (freeChart) {
+            if (foreign || nFree != (int)ch.size()) continue;
+            bool refused = true;
+            for (int t : ch)
+                if (!b1Refused[(std::size_t)t]) {
+                    refused = false;
+                    break;
+                }
+            if (!refused) continue;
+        } else if (owners.size() == 1 && nFree == 0 &&
+                   !robbableUncertified(work.accepted[(std::size_t)*owners.begin()], tau)) {
+            continue;
+        }
+        std::set<int> chSet(ch.begin(), ch.end());
+        for (int o : owners) {
+            const Region& r = work.accepted[(std::size_t)o];
+            if (r.type != SurfType::Cylinder ||
+                (r.origin != Origin::CylGrow && r.origin != Origin::FilletStrip))
+                foreign = true;
+            for (int t : r.tris)
+                if (!chSet.count(t)) foreign = true;
+        }
+        BandDiag dg;
+        dg.mode = "ringwall";
+        dg.seed = ch.front();
+        dg.members = (int)owners.size();
+        dg.nTri = (int)ch.size();
+        auto report = [&](const char* why, const RwcRing* r0, const RwcRing* r1) {
+            dg.why = why;
+            printBand(dg);
+            if (!diagOn()) return;
+            std::fprintf(stderr,
+                         "DIAG_REL_RINGWALL seed=%d nTri=%zu members=%zu free=%d "
+                         "ring0=%d/%d R=%.9g plane=%.4ft circ=%.4ft chord=%.4ft "
+                         "ring1=%d/%d R=%.9g plane=%.4ft circ=%.4ft chord=%.4ft why=%s\n",
+                         ch.front(), ch.size(), owners.size(), nFree, r0 ? r0->corners : 0,
+                         r0 ? (int)r0->verts.size() : 0, r0 ? r0->R : 0.0,
+                         r0 && tau > 0.0 ? r0->planeDev / tau : 0.0,
+                         r0 && tau > 0.0 ? r0->circDev / tau : 0.0,
+                         r0 && tau > 0.0 ? r0->chordDev / tau : 0.0, r1 ? r1->corners : 0,
+                         r1 ? (int)r1->verts.size() : 0, r1 ? r1->R : 0.0,
+                         r1 && tau > 0.0 ? r1->planeDev / tau : 0.0,
+                         r1 && tau > 0.0 ? r1->circDev / tau : 0.0,
+                         r1 && tau > 0.0 ? r1->chordDev / tau : 0.0, why);
+        };
+        if (foreign) {
+            report("same-surface", nullptr, nullptr);
+            continue;
+        }
+        std::vector<std::vector<int>> cyc;
+        if (edgeComponents(rm, ch).size() != 1 || !boundaryCycles(rm, ch, cyc) ||
+            (int)cyc.size() != kAnnulusLoops) {
+            report("domain-not-annulus", nullptr, nullptr);
+            continue;
+        }
+        RwcRing rg[kAnnulusLoops];
+        bool ringsOk = true;
+        for (int k = 0; k < kAnnulusLoops; ++k)
+            if (!certifyRingCycle(mv, cyc[(std::size_t)k], tau, rg[k])) ringsOk = false;
+        if (!ringsOk) {
+            report("ring-off", &rg[0], &rg[1]);
+            continue;
+        }
+        RingWallCyl rw;
+        if (!ringWallCylinder(rm, ch, rg, tau, maxIt, rw)) {
+            report("underdetermined", &rg[0], &rg[1]);
+            continue;
+        }
+        const std::vector<int>& fitSet = rw.fitSet;
+        const std::set<int>& chartV = rw.chartV;
+        const double fr = rw.fr, fres = rw.fres;
+        const Cyl& S = rw.S;
+        const double cornerDev = rw.cornerDev, otherDev = rw.otherDev;
+        const bool off = rw.off;
+        dg.nV = (int)chartV.size();
+        dg.radius = fr;
+        dg.axis = S.A;
+        dg.certDevTau = tau > 0.0 ? std::max(cornerDev, otherDev) / tau : 0.0;
+        int cols = 0, levels = 0;
+        stationsOf(rm, fitSet, S, tau, cols, levels);
+        dg.stations = cols;
+        dg.levels = levels;
+        dg.nI = (int)fitSet.size();
+        dg.nCover = (int)(ch.size() - fitSet.size());
+        if (!(fres <= tau) || !(cornerDev <= tau) || off) {
+            report("vertex-off", &rg[0], &rg[1]);
+            continue;
+        }
+        if (!overDetermined(cols, levels)) {
+            report("underdetermined", &rg[0], &rg[1]);
+            continue;
+        }
+        const bool byCons = closedWallByConstruction(rm, ch, S);
+        CylFields f;
+        if (!byCons || !cylFields(rm, tol, ch, S, f, true)) {
+            report("not-closed", &rg[0], &rg[1]);
+            continue;
+        }
+        closeRingFields(f);
+        f.closed360 = true;
+        int r0 = -1;
+        Region nr;
+        if (freeChart) {
+            nr.id = 0;
+            nr.type = SurfType::Cylinder;
+            nr.origin = Origin::CylGrow;
+            nr.reject = Reject::None;
+            nr.builtAs = BuiltAs::NotBuilt;
+            nr.filletNbrA = nr.filletNbrB = -1;
+        } else {
+            r0 = *owners.begin();
+            nr = work.accepted[(std::size_t)r0];
+            nr.origin = Origin::CylGrow;
+            nr.filletNbrA = nr.filletNbrB = -1;
+        }
+        nr.tris = ch;
+        applyCylFields(nr, S, f);
+        // D-gid-7.6. Every gate above passed: the ring certificate holds for S
+        // over ch, whatever the chord sag in maxVertexDev.
+        nr.ringCertified = true;
+        dg.comps = ringWallSeam(mv, rg, tau, S.R, S.A, nr.ax);
+        std::vector<char> inC((std::size_t)nTri, 0);
+        for (int t : ch) inC[(std::size_t)t] = 1;
+        dg.straddle = trimClaimed(rm, work, inC);
+        dg.maxDev = nr.maxVertexDev;
+        dg.maxDevTau = tau > 0.0 ? nr.maxVertexDev / tau : 0.0;
+        dg.nSides = nr.nSides;
+        dg.dVol = nr.dVolPredicted;
+        dg.loops = kAnnulusLoops;
+        if (diagOn())
+            for (int o : owners)
+                std::fprintf(stderr,
+                             "DIAG_REL_RINGWALL_MEMBER seed=%d member=%d origin=%d nTri=%zu "
+                             "dev=%.4ft\n",
+                             ch.front(), minTriOf(work.accepted[(std::size_t)o].tris),
+                             (int)work.accepted[(std::size_t)o].origin,
+                             work.accepted[(std::size_t)o].tris.size(),
+                             tau > 0.0 ? work.accepted[(std::size_t)o].maxVertexDev / tau : 0.0);
+        if (freeChart) {
+            r0 = (int)work.accepted.size();
+            work.accepted.push_back(std::move(nr));
+        } else {
+            work.accepted[(std::size_t)r0] = std::move(nr);
+            for (int o : owners)
+                if (o != r0) erase.push_back(o);
+        }
+        for (int t : ch) owner[(std::size_t)t] = r0;
+        ++committed;
+        report("accept", &rg[0], &rg[1]);
+    }
+    eraseRegions(work, erase);
+    return committed;
+}
+
+// An orthonormal frame: origin o, axis a, radial directions e1, e2.
+struct Frame0 {
+    gp_XYZ o, a, e1, e2;
+};
+
+// D-gid-8.4. Late: after every family, before A3, on what they
+// left. A chart whose whole boundary is two rims that each certify as a ring
+// (certifyRingCycle, D-fc-6.10 C-1), and whose rims one axis certifies
+// (jointAxisCertifies, D-fc-4.8 (b)), is the surface its wall certifies as,
+// fewest parameters first:
+//   plane    every chart vertex within tau of both rims' planes: A3's, refused;
+//   cylinder the ring-wall cylinder certificate (ringWallCylinder, as
+//            closeRingWalls applies it);
+//   cone     the profile line about the axis of the certified closed cylinder
+//            across one of its rims, its donor (D-gid-2.5 / D-gid-3.6; profileLine,
+//            every corner and interior vertex within tau of it; chord vertices
+//            covered by RQ-H1/H2), rim radii apart by more than tau. No donor:
+//            refused, the wall stays as it is.
+// Scope: every triangle is an Unclaimed provisional or lies in an uncertified
+// cylinder wholly inside the chart (robbableUncertified, D-fc-4.3: the robbed
+// region dissolves), and at least one triangle is free (a chart held whole by
+// regions is RQ-H6's, not entered). Pass 0 closes cylinders, pass 1 cones, so a
+// cone finds the cylinder pass 0 closed beside it and names it (filletNbrA). No
+// new threshold: tau, minStations(kParamsCircle), kMinAxialLevels.
+int closeRingFrustums(const RMesh& rm, const SegmentParams& p, const DerivedTols& tol, double tau,
+                      SegmentWork& work) {
+    const MeshView& mv = *rm.mv;
+    const int nTri = (int)mv.nTri;
+    if (!mv.compVtx || !mv.compEdges || (int)work.triChart.size() != nTri) return 0;
+    const int maxIt = std::max(1, p.maxRefineIters);
+    std::map<int, std::vector<int>> charts;
+    for (int t = 0; t < nTri; ++t) charts[work.triChart[(std::size_t)t]].push_back(t);
+    std::vector<std::vector<int>> order;
+    order.reserve(charts.size());
+    for (auto& kv : charts) order.push_back(std::move(kv.second));
+    std::sort(order.begin(), order.end(),
+              [](const std::vector<int>& a, const std::vector<int>& b) { return a.front() < b.front(); });
+    std::vector<char> done(order.size(), 0);
+    int committed = 0;
+    for (int pass = 0; pass < 2; ++pass) {
+        std::vector<int> owner((std::size_t)nTri, -1), triProv((std::size_t)nTri, -1);
+        for (int i = 0; i < (int)work.accepted.size(); ++i)
+            for (int t : work.accepted[(std::size_t)i].tris)
+                if (t >= 0 && t < nTri) owner[(std::size_t)t] = i;
+        for (int i = 0; i < (int)work.provisionals.size(); ++i)
+            for (int t : work.provisionals[(std::size_t)i].tris)
+                if (t >= 0 && t < nTri) triProv[(std::size_t)t] = i;
+        std::vector<char> dead(work.accepted.size(), 0);
+        for (std::size_t ci = 0; ci < order.size(); ++ci) {
+            if (done[ci]) continue;
+            const std::vector<int>& ch = order[ci];
+            std::set<int> owners;
+            int nFree = 0;
+            bool foreign = false;
+            for (int t : ch) {
+                const int o = owner[(std::size_t)t];
+                if (o >= 0) {
+                    owners.insert(o);
+                    continue;
+                }
+                const int pi = triProv[(std::size_t)t];
+                if (pi < 0 || work.provisionals[(std::size_t)pi].claim != ProvClaim::Unclaimed)
+                    foreign = true;
+                ++nFree;
+            }
+            if (foreign || nFree == 0) {
+                done[ci] = 1;
+                continue;
+            }
+            const std::set<int> chSet(ch.begin(), ch.end());
+            for (int o : owners) {
+                const Region& r = work.accepted[(std::size_t)o];
+                if ((std::size_t)o < dead.size() && dead[(std::size_t)o]) foreign = true;
+                if (!robbableUncertified(r, tau)) foreign = true;
+                for (int t : r.tris)
+                    if (!chSet.count(t)) foreign = true;
+            }
+            std::vector<std::vector<int>> cyc;
+            if (foreign || edgeComponents(rm, ch).size() != 1 || !boundaryCycles(rm, ch, cyc) ||
+                (int)cyc.size() != kAnnulusLoops) {
+                done[ci] = 1;
+                continue;
+            }
+            RwcRing rg[kAnnulusLoops];
+            bool ringsOk = true;
+            for (int k = 0; k < kAnnulusLoops; ++k)
+                if (!certifyRingCycle(mv, cyc[(std::size_t)k], tau, rg[k])) ringsOk = false;
+            BandDiag dg;
+            dg.mode = pass == 0 ? "ringfrustum-cyl" : "ringfrustum-cone";
+            dg.seed = ch.front();
+            dg.members = (int)owners.size();
+            dg.nTri = (int)ch.size();
+            dg.loops = kAnnulusLoops;
+            double axisDev = 0, lineDev = 0, rLo = 0, rHi = 0, hSigned = 0;
+            int donorDiag = -1, rimCylDiag = 0;
+            auto report = [&](const char* why) {
+                dg.why = why;
+                printBand(dg);
+                if (!diagOn()) return;
+                std::fprintf(stderr,
+                             "DIAG_REL_RINGFRUSTUM seed=%d pass=%d nTri=%zu members=%zu free=%d "
+                             "ring0=%d/%d R=%.9g circ=%.4ft ring1=%d/%d R=%.9g circ=%.4ft "
+                             "axisDevTau=%.4f lineDevTau=%.4f Rlo=%.9g Rhi=%.9g h=%.9g "
+                             "donor=%d rimCyl=%d why=%s\n",
+                             ch.front(), pass, ch.size(), owners.size(), nFree, rg[0].corners,
+                             (int)rg[0].verts.size(), rg[0].R, rg[0].circDev / tau, rg[1].corners,
+                             (int)rg[1].verts.size(), rg[1].R, rg[1].circDev / tau, axisDev / tau,
+                             lineDev / tau, rLo, rHi, hSigned, donorDiag, rimCylDiag, why);
+            };
+            if (!ringsOk) {
+                done[ci] = 1;
+                report("ring-off");
+                continue;
+            }
+            std::set<int> cornerV, chordV, chartV;
+            std::vector<std::vector<gp_XYZ>> groups(kAnnulusLoops);
+            for (int k = 0; k < kAnnulusLoops; ++k)
+                for (std::size_t i = 0; i < rg[k].verts.size(); ++i) {
+                    const int lv = rg[k].verts[i];
+                    if (rg[k].corner[i]) {
+                        cornerV.insert(lv);
+                        groups[(std::size_t)k].push_back(mv.pts[mv.compVtx[lv]]);
+                    } else {
+                        chordV.insert(lv);
+                    }
+                }
+            bool badV = false;
+            for (int t : ch)
+                for (int k = 0; k < 3; ++k) {
+                    const int lv = rm.localVtx(t, k);
+                    if (lv < 0) badV = true;
+                    else chartV.insert(lv);
+                }
+            if (badV) {
+                done[ci] = 1;
+                report("degenerate");
+                continue;
+            }
+            dg.nV = (int)chartV.size();
+            // Fewest parameters first: a wall within tau of one plane is a plane.
+            bool planar = true;
+            for (int lv : chartV)
+                for (int k = 0; k < kAnnulusLoops && planar; ++k)
+                    if (!(std::abs((mv.pts[mv.compVtx[lv]] - rg[k].c).Dot(rg[k].n)) <= tau))
+                        planar = false;
+            if (planar) {
+                done[ci] = 1;
+                report("plane");
+                continue;
+            }
+            // Coaxial: one axis certifies both rims' corners (D-fc-4.8 (b)).
+            JointAxisFit ja = jointAxisAbout(groups, rg[0].c, rg[0].n);
+            if (!jointAxisCertifies(ja, tau)) {
+                JointAxisFit g;
+                if (!jointAxisFit(groups, rg[0].c, rg[0].n, maxIt, g) ||
+                    !jointAxisCertifies(g, tau)) {
+                    for (double d : g.maxDev) axisDev = std::max(axisDev, d);
+                    done[ci] = 1;
+                    report("not-coaxial");
+                    continue;
+                }
+                ja = g;
+            }
+            for (double d : ja.maxDev) axisDev = std::max(axisDev, d);
+            if (pass == 0) {
+                RingWallCyl rw;
+                const bool fitted = ringWallCylinder(rm, ch, rg, tau, maxIt, rw);
+                if (!fitted || !(rw.fres <= tau) || !(rw.cornerDev <= tau) || rw.off) {
+                    if (fitted) {
+                        dg.radius = rw.fr;
+                        dg.axis = rw.S.A;
+                        dg.certDevTau = std::max(rw.cornerDev, rw.otherDev) / tau;
+                    }
+                    report("vertex-off");  // pass 1 tries the cone
+                    continue;
+                }
+                const Cyl& S = rw.S;
+                int cols = 0, levels = 0;
+                stationsOf(rm, rw.fitSet, S, tau, cols, levels);
+                dg.radius = rw.fr;
+                dg.axis = S.A;
+                dg.certDevTau = std::max(rw.cornerDev, rw.otherDev) / tau;
+                dg.stations = cols;
+                dg.levels = levels;
+                dg.nI = (int)rw.fitSet.size();
+                dg.nCover = (int)(ch.size() - rw.fitSet.size());
+                rLo = rHi = rw.fr;
+                done[ci] = 1;
+                if (!overDetermined(cols, levels)) {
+                    report("underdetermined");
+                    continue;
+                }
+                CylFields f;
+                if (!closedWallByConstruction(rm, ch, S) || !cylFields(rm, tol, ch, S, f, true)) {
+                    report("not-closed");
+                    continue;
+                }
+                closeRingFields(f);
+                f.closed360 = true;
+                Region nr;
+                int r0 = -1;
+                if (owners.empty()) {
+                    nr.id = 0;
+                    nr.reject = Reject::None;
+                    nr.builtAs = BuiltAs::NotBuilt;
+                } else {
+                    r0 = *owners.begin();
+                    nr = work.accepted[(std::size_t)r0];
+                }
+                nr.type = SurfType::Cylinder;
+                nr.origin = Origin::CylGrow;
+                nr.filletNbrA = nr.filletNbrB = -1;
+                nr.tris = ch;
+                applyCylFields(nr, S, f);
+                // Every gate above passed: the ring certificate holds for S over
+                // ch, whatever the chord sag in maxVertexDev (D-gid-7.6).
+                nr.ringCertified = true;
+                dg.comps = ringWallSeam(mv, rg, tau, S.R, S.A, nr.ax);
+                std::vector<char> inC((std::size_t)nTri, 0);
+                for (int t : ch) inC[(std::size_t)t] = 1;
+                dg.straddle = trimClaimed(rm, work, inC);
+                dg.maxDev = nr.maxVertexDev;
+                dg.maxDevTau = nr.maxVertexDev / tau;
+                dg.nSides = nr.nSides;
+                dg.dVol = nr.dVolPredicted;
+                if (r0 < 0) {
+                    r0 = (int)work.accepted.size();
+                    work.accepted.push_back(std::move(nr));
+                    dead.push_back(0);
+                } else {
+                    work.accepted[(std::size_t)r0] = std::move(nr);
+                    for (int o : owners)
+                        if (o != r0) dead[(std::size_t)o] = 1;
+                }
+                for (int t : ch) owner[(std::size_t)t] = r0;
+                ++committed;
+                report("accept");
+                continue;
+            }
+            // Pass 1: the cone through both rims. A cone relates to a certified
+            // hole wall (D-gid-2.5 / D-gid-3.6): the certified closed cylinders
+            // across its rims (accepted, in scan order); the first is its donor.
+            // The cone face reuses that cylinder's rim circle, whose parameter is
+            // the cylinder's XDirection, so the cone is certified and placed on the
+            // cylinder's own frame (shareSeamFrame's rule, D-fc-4.6 F8), and the
+            // cylinder's axis must certify both rims (D-fc-4.8 (b)). No donor: the
+            // wall stays as it is (no-donor).
+            done[ci] = 1;
+            std::vector<int> rimCyl;
+            for (int t : ch)
+                for (int s = 0; s < 3; ++s) {
+                    const int w = rm.nbr(t, s);
+                    if (w < 0 || chSet.count(w)) continue;
+                    const int o = owner[(std::size_t)w];
+                    if (o < 0 || ((std::size_t)o < dead.size() && dead[(std::size_t)o])) continue;
+                    const Region& rr = work.accepted[(std::size_t)o];
+                    const bool certified = rr.ringCertified || rr.maxVertexDev <= tau;
+                    if (rr.type == SurfType::Cylinder && rr.closed360 && certified &&
+                        std::find(rimCyl.begin(), rimCyl.end(), o) == rimCyl.end())
+                        rimCyl.push_back(o);
+                }
+            const int donor = rimCyl.empty() ? -1 : rimCyl.front();
+            donorDiag = donor;
+            rimCylDiag = (int)rimCyl.size();
+            if (donor < 0) {
+                report("no-donor");
+                continue;
+            }
+            Frame0 fr;
+            {
+                const gp_Ax3& dax = work.accepted[(std::size_t)donor].ax;
+                fr.o = dax.Location().XYZ();
+                fr.a = dax.Direction().XYZ();
+                fr.e1 = dax.XDirection().XYZ();
+                fr.e2 = dax.YDirection().XYZ();
+                const JointAxisFit jd = jointAxisAbout(groups, fr.o, fr.a);
+                axisDev = 0;
+                for (double d : jd.maxDev) axisDev = std::max(axisDev, d);
+                if (!jointAxisCertifies(jd, tau)) {
+                    report("not-coaxial");
+                    continue;
+                }
+            }
+            std::vector<double> rho, zz;
+            for (int lv : chartV) {
+                if (chordV.count(lv)) continue;  // certifies on its chord (RQ-H1)
+                const gp_XYZ d = mv.pts[mv.compVtx[lv]] - fr.o;
+                rho.push_back(std::hypot(d.Dot(fr.e1), d.Dot(fr.e2)));
+                zz.push_back(d.Dot(fr.a));
+            }
+            const ProfileLine L = profileLine(rho, zz);
+            dg.axis = fr.a;
+            if (!L.ok) {
+                report("degenerate");
+                continue;
+            }
+            lineDev = L.maxDev;
+            dg.certDevTau = lineDev / tau;
+            double zMin = zz.front(), zMax = zz.front(), s2 = 0;
+            for (std::size_t i = 0; i < zz.size(); ++i) {
+                zMin = std::min(zMin, zz[i]);
+                zMax = std::max(zMax, zz[i]);
+                const double d = profileLineDist(L, rho[i], zz[i]);
+                s2 += d * d;
+            }
+            const double rzMin = L.rhoAt(zMin), rzMax = L.rhoAt(zMax);
+            const bool loAtMin = rzMin <= rzMax;
+            rLo = loAtMin ? rzMin : rzMax;
+            rHi = loAtMin ? rzMax : rzMin;
+            const double zLo = loAtMin ? zMin : zMax;
+            hSigned = loAtMin ? (zMax - zMin) : -(zMax - zMin);
+            dg.radius = rLo;
+            bool off = !(lineDev <= tau);
+            // RQ-H2 cover: corner / chord / within tau of the cone.
+            for (int t : ch) {
+                RingWallVert tv[3];
+                for (int k = 0; k < 3; ++k) {
+                    const int lv = rm.localVtx(t, k);
+                    const gp_XYZ d = mv.pts[mv.compVtx[lv]] - fr.o;
+                    const double dev = profileLineDist(
+                        L, std::hypot(d.Dot(fr.e1), d.Dot(fr.e2)), d.Dot(fr.a));
+                    const bool isCorner = cornerV.count(lv) != 0;
+                    tv[k] = classifyRingWallVertex(isCorner, !isCorner && chordV.count(lv) != 0,
+                                                   dev, tau);
+                }
+                if (!oneVertexChordCover(tv[0], tv[1], tv[2]) &&
+                    !ringWallTriangleCovered(tv[0], tv[1], tv[2]))
+                    off = true;
+            }
+            const Cyl S{fr.o + fr.a * zLo, fr.a, rLo};
+            int cols = 0, levels = 0;
+            stationsOf(rm, ch, S, tau, cols, levels);
+            dg.stations = cols;
+            dg.levels = levels;
+            if (off) {
+                report("vertex-off");
+                continue;
+            }
+            if (!overDetermined(cols, levels)) {
+                report("underdetermined");
+                continue;
+            }
+            // Both rims off the apex, and apart: a cone, not the cylinder pass 0 refused.
+            if (!(rLo > tau) || !(rHi - rLo > tau)) {
+                report("degenerate");
+                continue;
+            }
+            CylFields f;
+            if (!closedWallByConstruction(rm, ch, S) || !cylFields(rm, tol, ch, S, f, true)) {
+                report("not-closed");
+                continue;
+            }
+            closeRingFields(f);
+            const gp_XYZ loc = S.C;
+            const gp_Ax3 ax(gp_Pnt(loc.X(), loc.Y(), loc.Z()), gp_Dir(fr.a.X(), fr.a.Y(), fr.a.Z()),
+                            gp_Dir(fr.e1.X(), fr.e1.Y(), fr.e1.Z()));
+            const gp_XYZ e1 = ax.XDirection().XYZ(), e2 = ax.YDirection().XYZ();
+            const double slope = (rHi - rLo) / hSigned;
+            double dVol = 0;
+            for (int t : ch)
+                dVol += revolvedChordTerm(vtxOf(mv, t, 0), vtxOf(mv, t, 1), vtxOf(mv, t, 2), loc,
+                                          fr.a, e1, e2, rLo, slope);
+            if (!std::isfinite(dVol)) dVol = 0.0;
+            // A second closed cylinder across the other rim shares the same rim
+            // parameter: it turns onto the neighbour's XDirection (shareSeamFrame).
+            // The neighbour's axis already certifies that rim.
+            for (std::size_t k = 1; k < rimCyl.size(); ++k) {
+                Region& rr = work.accepted[(std::size_t)rimCyl[k]];
+                try {
+                    rr.ax = gp_Ax3(rr.ax.Location(), rr.ax.Direction(), ax.XDirection());
+                } catch (const Standard_Failure&) {
+                }
+            }
+            const int nSides = std::max(f.nSides, 3);
+            Region nr;
+            nr.id = 0;
+            nr.type = SurfType::Cone;
+            nr.origin = Origin::ChamferCone;
+            nr.ax = ax;
+            nr.radius = rLo;
+            nr.uMin = 0;
+            nr.uMax = kTwoPi;
+            nr.vMin = rLo;
+            nr.vMax = rHi;
+            nr.closed360 = true;
+            nr.outwardNormal = f.outward;
+            nr.tris = ch;
+            nr.maxVertexDev = lineDev;
+            nr.rmsVertexDev = std::sqrt(s2 / (double)zz.size());
+            nr.chordSagitta = chordSagitta(rLo, nSides);
+            nr.nSides = nSides;
+            nr.dVolPredicted = (f.outward ? 1.0 : -1.0) * dVol;
+            nr.maxVertexSnap = hSigned;
+            nr.reject = Reject::None;
+            nr.builtAs = BuiltAs::NotBuilt;
+            nr.filletNbrA = donor;
+            nr.filletNbrB = -1;
+            std::vector<char> inC((std::size_t)nTri, 0);
+            for (int t : ch) inC[(std::size_t)t] = 1;
+            dg.straddle = trimClaimed(rm, work, inC);
+            dg.maxDev = lineDev;
+            dg.maxDevTau = lineDev / tau;
+            dg.nSides = nSides;
+            dg.dVol = nr.dVolPredicted;
+            dg.nI = (int)zz.size();
+            int r0 = -1;
+            if (owners.empty()) {
+                r0 = (int)work.accepted.size();
+                work.accepted.push_back(std::move(nr));
+                dead.push_back(0);
+            } else {
+                r0 = *owners.begin();
+                work.accepted[(std::size_t)r0] = std::move(nr);
+                for (int o : owners)
+                    if (o != r0) dead[(std::size_t)o] = 1;
+            }
+            for (int t : ch) owner[(std::size_t)t] = r0;
+            ++committed;
+            report("accept");
+        }
+        // D-fc-4.3: the robbed regions dissolve. ChamferCone and TorusBlend keep
+        // their neighbour as an accepted index; it moves with the compaction.
+        bool anyDead = false;
+        for (char d : dead) anyDead = anyDead || d;
+        if (anyDead) {
+            const int nAcc = (int)work.accepted.size();
+            std::vector<int> newIdx((std::size_t)nAcc, -1);
+            std::vector<Region> keep;
+            keep.reserve((std::size_t)nAcc);
+            for (int i = 0; i < nAcc; ++i) {
+                if (dead[(std::size_t)i]) continue;
+                newIdx[(std::size_t)i] = (int)keep.size();
+                keep.push_back(std::move(work.accepted[(std::size_t)i]));
+            }
+            for (Region& rg2 : keep) {
+                const bool nbr =
+                    rg2.origin == Origin::ChamferCone || rg2.origin == Origin::TorusBlend;
+                if (!nbr || rg2.filletNbrA < 0 || rg2.filletNbrA >= nAcc) continue;
+                rg2.filletNbrA = newIdx[(std::size_t)rg2.filletNbrA];
+            }
+            for (TorusPendingReclaim& pack : work.torusPending)
+                for (int& ai : pack.reclaimAccIdx)
+                    if (ai >= 0 && ai < nAcc) ai = newIdx[(std::size_t)ai];
+            work.accepted.swap(keep);
+        }
+    }
+    return committed;
+}
+
+bool reclaimLine(const MeshView& mv, const SegmentParams& p, const DerivedTols& tol,
+                 SegmentWork& work) {
+    const double tau = tauOf(mv);
+    if (!(tau > 0.0) || mv.nTri == 0 || !mv.triEdges) return true;
+    const RMesh rm = makeRMesh(mv);
+    const int healed = healRefusedDonors(rm, p, tol, tau, work);
+    int deferred = 0;
+    const int closed = closeSameSurface(rm, p, tol, tau, work, deferred);
+    const int ringWalls = closeRingWalls(rm, p, tol, tau, work);
+    const int rings = claimRingCylinders(rm, p, tol, tau, work);
+    if (diagOn())
+        std::fprintf(stderr,
+                     "DIAG_REL_SUM stage=reclaim mode=line healed=%d closed=%d deferred=%d "
+                     "rings=%d ringWalls=%d\n",
+                     healed, closed, deferred, rings, ringWalls);
+    return true;
+}
+
+// Torus mode (D-fc-4.6).
+
+bool torusDiagOn() {
+    const char* e = std::getenv("STL2STEP_DIAG_REL");
+    return e && e[0] && e[0] != '0';
+}
+
+gp_XYZ cornerOf(const MeshView& mv, int t, int k) {
+    const int gt = mv.compTris ? mv.compTris[t] : t;
+    return mv.pts[mv.tris[gt][k]];
+}
+
+int cornerId(const MeshView& mv, int t, int k) {
+    const int gt = mv.compTris ? mv.compTris[t] : t;
+    return mv.tris[gt][k];
+}
+
+// Stage T's extent rule (refit_torus.cpp): the complement of the largest gap.
+void arcExtentOf(std::vector<double> a, double& lo, double& hi, double& maxGap) {
+    lo = hi = maxGap = 0.0;
+    if (a.empty()) return;
+    std::sort(a.begin(), a.end());
+    if (a.size() == 1) {
+        lo = hi = a.front();
+        maxGap = kTwoPi;
+        return;
+    }
+    std::size_t ig = a.size() - 1;
+    maxGap = (a.front() + kTwoPi) - a.back();
+    for (std::size_t i = 0; i + 1 < a.size(); ++i) {
+        const double g = a[i + 1] - a[i];
+        if (g > maxGap) {
+            maxGap = g;
+            ig = i;
+        }
+    }
+    lo = a[(ig + 1) % a.size()];
+    hi = a[ig];
+    if (hi < lo) hi += kTwoPi;
+}
+
+// The torus keeps its certified surface; the union's own vertices give its
+// deviation, extents and predicted volume (stage T's formulas).
+void refreshTorusRegion(const MeshView& mv, Region& r) {
+    std::sort(r.tris.begin(), r.tris.end());
+    r.tris.erase(std::unique(r.tris.begin(), r.tris.end()), r.tris.end());
+    const gp_XYZ o = r.ax.Location().XYZ();
+    const gp_XYZ a = r.ax.Direction().XYZ();
+    const gp_XYZ ex = r.ax.XDirection().XYZ();
+    const gp_XYZ ey = a.Crossed(ex);
+    std::vector<int> ids;
+    ids.reserve(r.tris.size() * 3);
+    for (int t : r.tris)
+        for (int k = 0; k < 3; ++k) ids.push_back(cornerId(mv, t, k));
+    std::sort(ids.begin(), ids.end());
+    ids.erase(std::unique(ids.begin(), ids.end()), ids.end());
+    double maxD = 0.0, sum2 = 0.0;
+    std::vector<double> us, vs;
+    us.reserve(ids.size());
+    vs.reserve(ids.size());
+    for (int g : ids) {
+        const gp_XYZ d = mv.pts[g] - o;
+        const double z = d.Dot(a);
+        const gp_XYZ rad = d - a * z;
+        const double rho = rad.Modulus();
+        const double dev = std::fabs(std::hypot(rho - r.radius, z) - r.radius2);
+        maxD = std::max(maxD, dev);
+        sum2 += dev * dev;
+        double u = std::atan2(rad.Dot(ey), rad.Dot(ex));
+        if (u < 0.0) u += kTwoPi;
+        us.push_back(u);
+        double v = std::atan2(z, rho - r.radius);
+        if (v < 0.0) v += kTwoPi;
+        vs.push_back(v);
+    }
+    r.maxVertexDev = maxD;
+    r.rmsVertexDev = ids.empty() ? 0.0 : std::sqrt(sum2 / (double)ids.size());
+    double uLo = 0, uHi = 0, uGap = 0, vLo = 0, vHi = 0, vGap = 0;
+    arcExtentOf(us, uLo, uHi, uGap);
+    arcExtentOf(vs, vLo, vHi, vGap);
+    while (vLo > kPi) vLo -= kTwoPi;
+    while (vLo <= -kPi) vLo += kTwoPi;
+    while (vHi > kPi) vHi -= kTwoPi;
+    while (vHi <= -kPi) vHi += kTwoPi;
+    if (vHi < vLo) vHi += kTwoPi;
+    r.vMin = vLo;
+    r.vMax = vHi;
+    if (!r.closed360) {
+        r.uMin = uLo;
+        r.uMax = uHi;
+    }
+    const int nSides = std::max(r.nSides, 1);
+    const double gamma = kTwoPi / (double)nSides;
+    const double sHalf = std::sin(0.5 * gamma);
+    const double kSeg = (sHalf > gp::Resolution()) ? (gamma - std::sin(gamma)) / (4.0 * sHalf) : 0.0;
+    double dVolSum = 0.0;
+    for (int t : r.tris) {
+        const gp_XYZ p0 = cornerOf(mv, t, 0), p1 = cornerOf(mv, t, 1), p2 = cornerOf(mv, t, 2);
+        gp_XYZ n = (p1 - p0).Crossed(p2 - p0);
+        const double mag = n.Modulus();
+        if (!(mag > gp::Resolution())) continue;
+        n /= mag;
+        const double a2 = 0.5 * mag;
+        const gp_XYZ d = (p0 + p1 + p2) / 3.0 - o;
+        const double zc = d.Dot(a);
+        gp_XYZ rad = d - a * zc;
+        const double rc = rad.Modulus();
+        if (!(rc > gp::Resolution())) continue;
+        rad /= rc;
+        dVolSum += a2 * rc * kSeg * std::fabs(n.Dot(rad));
+    }
+    r.dVolPredicted = (r.outwardNormal ? 1.0 : -1.0) * dVolSum;
+}
+
+bool reclaimTorusMode(const MeshView& mv, SegmentWork& work) {
+    const double tau = tauOf(mv);
+    if (!(tau > 0.0) || !mv.pts || !mv.tris || !mv.triEdges || mv.nTri == 0) return true;
+    bool anyTorus = false;
+    for (const Region& r : work.accepted)
+        if (r.origin == Origin::TorusBlend) anyTorus = true;
+    if (!anyTorus) return true;
+    const bool diag = torusDiagOn();
+    const int nTri = (int)mv.nTri;
+    const int nEdge = (int)mv.nEdge;
+    std::vector<std::array<int, 2>> edgeTris((std::size_t)std::max(nEdge, 0),
+                                             std::array<int, 2>{-1, -1});
+    for (int t = 0; t < nTri; ++t)
+        for (int k = 0; k < 3; ++k) {
+            const int e = mv.triEdges[t][k];
+            if (e < 0 || e >= nEdge) continue;
+            if (edgeTris[(std::size_t)e][0] < 0) edgeTris[(std::size_t)e][0] = t;
+            else if (edgeTris[(std::size_t)e][1] < 0) edgeTris[(std::size_t)e][1] = t;
+        }
+    const int nAcc = (int)work.accepted.size();
+    std::vector<int> owner((std::size_t)nTri, -1);
+    for (int i = 0; i < nAcc; ++i)
+        for (int t : work.accepted[(std::size_t)i].tris)
+            if (t >= 0 && t < nTri) owner[(std::size_t)t] = i;
+    std::vector<char> dead((std::size_t)nAcc, 0);
+    int nDead = 0;
+
+    // F10: a surface triangle of a revolution spans two profile stations (the
+    // section-ear rule of the cylinder band, D-fc-3.2.1, in the (rho, z) plane).
+    // One whose three vertices merge into one station at tau (countProfPts, the
+    // certificate's own rule) is a chord across that ring -- a cap polygon
+    // triangulated on its rim vertices, which every vertex test passes. It leaves
+    // the torus; its triangles return to Unclaimed as their own provisionals
+    // (D-fc-1.6(12)), so A3 commits the cap and the torus keeps its two rims.
+    {
+        const RMesh rm = makeRMesh(mv);
+        std::vector<int> triProv((std::size_t)nTri, -1);
+        for (int i = 0; i < (int)work.provisionals.size(); ++i)
+            for (int t : work.provisionals[(std::size_t)i].tris)
+                if (t >= 0 && t < nTri) triProv[(std::size_t)t] = i;
+        for (int s = 0; s < nAcc; ++s) {
+            Region& T = work.accepted[(std::size_t)s];
+            if (T.origin != Origin::TorusBlend) continue;
+            const gp_XYZ o = T.ax.Location().XYZ(), a = T.ax.Direction().XYZ();
+            std::vector<int> keep, cap;
+            for (int t : T.tris) {
+                std::vector<ProfPt> P(3);
+                for (int k = 0; k < 3; ++k) {
+                    const gp_XYZ d = cornerOf(mv, t, k) - o;
+                    P[(std::size_t)k].z = d.Dot(a);
+                    P[(std::size_t)k].rho = (d - a * P[(std::size_t)k].z).Modulus();
+                }
+                (countProfPts(P, tau) < kMinAxialLevels ? cap : keep).push_back(t);
+            }
+            if (cap.empty() || keep.empty()) continue;
+            std::vector<char> inCap((std::size_t)nTri, 0);
+            for (int t : cap) inCap[(std::size_t)t] = 1;
+            std::vector<int> provs;
+            for (int t : cap)
+                if (triProv[(std::size_t)t] >= 0) provs.push_back(triProv[(std::size_t)t]);
+            std::sort(provs.begin(), provs.end());
+            provs.erase(std::unique(provs.begin(), provs.end()), provs.end());
+            int nNew = 0;
+            for (int pi : provs) {
+                std::vector<int> rest, gone;
+                for (int t : work.provisionals[(std::size_t)pi].tris)
+                    (inCap[(std::size_t)t] ? gone : rest).push_back(t);
+                auto comps = edgeComponents(rm, gone);
+                std::sort(comps.begin(), comps.end(),
+                          [](const std::vector<int>& x, const std::vector<int>& y) {
+                              return minTriOf(x) < minTriOf(y);
+                          });
+                if (rest.empty()) {
+                    // The whole chart is the cap: it is Unclaimed again as it stood.
+                    Provisional& pr = work.provisionals[(std::size_t)pi];
+                    pr.claim = ProvClaim::Unclaimed;
+                    pr.tris = comps.front();
+                    refitProvisional(rm, pr);
+                    comps.erase(comps.begin());
+                } else {
+                    work.provisionals[(std::size_t)pi].tris = rest;
+                    refitProvisional(rm, work.provisionals[(std::size_t)pi]);
+                }
+                for (auto& c : comps) {
+                    Provisional np = work.provisionals[(std::size_t)pi];
+                    np.tris = std::move(c);
+                    np.claim = ProvClaim::Unclaimed;
+                    refitProvisional(rm, np);
+                    work.provisionals.push_back(std::move(np));
+                    ++nNew;
+                }
+            }
+            for (int t : cap) owner[(std::size_t)t] = -1;
+            T.tris = std::move(keep);
+            refreshTorusRegion(mv, T);
+            if (diag)
+                std::fprintf(stderr,
+                             "DIAG_REL_TORUS_CAP acc=%d Rmaj=%.6f Rmin=%.6f capTri=%zu provs=%zu "
+                             "newProvs=%d nTri=%zu v=[%.6f,%.6f]\n",
+                             s, T.radius, T.radius2, cap.size(), provs.size(), nNew,
+                             T.tris.size(), T.vMin, T.vMax);
+        }
+    }
+
+    // F2: an atom edge-adjacent to a certified torus joins it whole when every
+    // vertex lies within tau. The torus band was certified without it, so the
+    // leave-one-region-out count holds; the union only grows to a fixed point.
+    for (int s = 0; s < nAcc; ++s) {
+        if (work.accepted[(std::size_t)s].origin != Origin::TorusBlend) continue;
+        int nAbs = 0, nAbsTri = 0, nRefused = 0;
+        bool changed = true;
+        while (changed) {
+            changed = false;
+            std::vector<int> cand;
+            for (int t : work.accepted[(std::size_t)s].tris) {
+                if (t < 0 || t >= nTri) continue;
+                for (int k = 0; k < 3; ++k) {
+                    const int e = mv.triEdges[t][k];
+                    if (e < 0 || e >= nEdge) continue;
+                    const int o = edgeTris[(std::size_t)e][0] == t ? edgeTris[(std::size_t)e][1]
+                                                                    : edgeTris[(std::size_t)e][0];
+                    if (o < 0) continue;
+                    const int ri = owner[(std::size_t)o];
+                    if (ri >= 0 && ri != s && !dead[(std::size_t)ri]) cand.push_back(ri);
+                }
+            }
+            std::sort(cand.begin(), cand.end());
+            cand.erase(std::unique(cand.begin(), cand.end()), cand.end());
+            for (int ri : cand) {
+                const Region& R = work.accepted[(std::size_t)ri];
+                if (!torusAtom(R) || ri == work.accepted[(std::size_t)s].filletNbrA) continue;
+                if (!(regionTorusDev(mv, work.accepted[(std::size_t)s], R) <= tau)) {
+                    ++nRefused;
+                    continue;
+                }
+                Region& S = work.accepted[(std::size_t)s];
+                S.tris.insert(S.tris.end(), R.tris.begin(), R.tris.end());
+                for (int t : R.tris)
+                    if (t >= 0 && t < nTri) owner[(std::size_t)t] = s;
+                if (S.torusPending >= 0 && (std::size_t)S.torusPending < work.torusPending.size()) {
+                    TorusPendingReclaim& pack = work.torusPending[(std::size_t)S.torusPending];
+                    pack.stashedCylinders.push_back(R);
+                    pack.reclaimAccIdx.push_back(ri);
+                }
+                nAbsTri += (int)R.tris.size();
+                ++nAbs;
+                dead[(std::size_t)ri] = 1;
+                ++nDead;
+                changed = true;
+            }
+        }
+        if (nAbs > 0) refreshTorusRegion(mv, work.accepted[(std::size_t)s]);
+        if (diag && (nAbs > 0 || nRefused > 0)) {
+            const Region& S = work.accepted[(std::size_t)s];
+            std::fprintf(stderr,
+                         "DIAG_REL_TORUS_ABSORB acc=%d Rmaj=%.6f Rmin=%.6f absorbed=%d absTri=%d "
+                         "refusedAdj=%d nTri=%zu maxDevTau=%.4f\n",
+                         s, S.radius, S.radius2, nAbs, nAbsTri, nRefused, S.tris.size(),
+                         S.maxVertexDev / tau);
+        }
+    }
+
+    // F4: closure by the rails, the measure the builder calls fullRing.
+    for (int s = 0; s < nAcc; ++s) {
+        Region& r = work.accepted[(std::size_t)s];
+        if (dead[(std::size_t)s] || r.origin != Origin::TorusBlend || r.closed360) continue;
+        const TorusRails rails = torusRails(mv, r);
+        if (diag)
+            std::fprintf(stderr,
+                         "DIAG_REL_TORUS_RAILS acc=%d Rmaj=%.6f Rmin=%.6f nTri=%zu gap=%.6f "
+                         "maxStep=%.6f full=%d\n",
+                         s, r.radius, r.radius2, r.tris.size(), rails.gap, rails.maxStep,
+                         rails.full ? 1 : 0);
+        if (!rails.full) continue;
+        r.closed360 = true;
+        r.uMin = 0.0;
+        r.uMax = kTwoPi;
+    }
+
+    // F8: one axis per revolution axis. A closed torus touching a ChamferCone (the
+    // H0 donor frame) takes that cone's axis line, and the closed cylinders it
+    // touches follow; each only while its own vertices stay within tau. Circle-
+    // on-torus certifies exactly coaxial rims only (D-140-6 §3(4)).
+    {
+        std::vector<int> own((std::size_t)nTri, -1);
+        for (int i = 0; i < nAcc; ++i)
+            if (!dead[(std::size_t)i])
+                for (int t : work.accepted[(std::size_t)i].tris)
+                    if (t >= 0 && t < nTri) own[(std::size_t)t] = i;
+        auto touching = [&](int s) {
+            std::vector<int> out;
+            for (int t : work.accepted[(std::size_t)s].tris) {
+                if (t < 0 || t >= nTri) continue;
+                for (int k = 0; k < 3; ++k) {
+                    const int e = mv.triEdges[t][k];
+                    if (e < 0 || e >= nEdge) continue;
+                    const int o = edgeTris[(std::size_t)e][0] == t ? edgeTris[(std::size_t)e][1]
+                                                                    : edgeTris[(std::size_t)e][0];
+                    if (o >= 0 && own[(std::size_t)o] >= 0 && own[(std::size_t)o] != s)
+                        out.push_back(own[(std::size_t)o]);
+                }
+            }
+            std::sort(out.begin(), out.end());
+            out.erase(std::unique(out.begin(), out.end()), out.end());
+            return out;
+        };
+        auto onLine = [](const gp_Ax3& a, const gp_XYZ& lineP, const gp_XYZ& lineD) {
+            gp_XYZ d = a.Direction().XYZ();
+            gp_XYZ nd = lineD;
+            if (d.Dot(nd) < 0.0) nd.Reverse();
+            const gp_XYZ q = a.Location().XYZ();
+            const gp_XYZ loc = lineP + nd * (q - lineP).Dot(nd);
+            gp_XYZ x = a.XDirection().XYZ();
+            x -= nd * x.Dot(nd);
+            if (!(x.Modulus() > gp::Resolution())) return a;
+            return gp_Ax3(gp_Pnt(loc), gp_Dir(nd), gp_Dir(x));
+        };
+        auto cylDev = [&](const Region& c, const gp_Ax3& ax) {
+            double mx = 0.0;
+            const gp_XYZ o = ax.Location().XYZ(), d = ax.Direction().XYZ();
+            for (int t : c.tris)
+                for (int k = 0; k < 3; ++k) {
+                    const gp_XYZ v = cornerOf(mv, t, k) - o;
+                    mx = std::max(mx, std::fabs((v - d * v.Dot(d)).Modulus() - c.radius));
+                }
+            return mx;
+        };
+        for (int s = 0; s < nAcc; ++s) {
+            Region& T = work.accepted[(std::size_t)s];
+            if (dead[(std::size_t)s] || T.origin != Origin::TorusBlend || !T.closed360) continue;
+            const std::vector<int> nb = touching(s);
+            int cone = -1;
+            for (int i : nb) {
+                const Region& c = work.accepted[(std::size_t)i];
+                if (c.origin != Origin::ChamferCone) continue;
+                const gp_XYZ cd = c.ax.Direction().XYZ();
+                const gp_XYZ dd = T.ax.Location().XYZ() - c.ax.Location().XYZ();
+                const double off = (dd - cd * dd.Dot(cd)).Modulus();
+                const double ang = cd.Crossed(T.ax.Direction().XYZ()).Modulus();
+                if (off <= tau && ang * (T.radius + T.radius2) <= tau) {
+                    cone = i;
+                    break;
+                }
+            }
+            if (cone < 0) continue;
+            const gp_XYZ lp = work.accepted[(std::size_t)cone].ax.Location().XYZ();
+            const gp_XYZ ld = work.accepted[(std::size_t)cone].ax.Direction().XYZ();
+            Region moved = T;
+            moved.ax = onLine(T.ax, lp, ld);
+            if (!(regionTorusDev(mv, moved, moved) <= tau)) continue;
+            const bool changed = !(moved.ax.Location().IsEqual(T.ax.Location(), 0.0) &&
+                                   moved.ax.Direction().IsEqual(T.ax.Direction(), 0.0));
+            T.ax = moved.ax;
+            for (int i : nb) {
+                Region& c = work.accepted[(std::size_t)i];
+                if (c.type != SurfType::Cylinder || !c.closed360) continue;
+                const gp_Ax3 ca = onLine(c.ax, lp, ld);
+                if (cylDev(c, ca) <= tau) c.ax = ca;
+            }
+            if (diag && changed)
+                std::fprintf(stderr, "DIAG_REL_TORUS_AXIS acc=%d cone=%d\n", s, cone);
+        }
+    }
+
+    if (nDead > 0) {
+        std::vector<int> remap((std::size_t)nAcc, -1);
+        std::vector<Region> kept;
+        kept.reserve((std::size_t)(nAcc - nDead));
+        for (int i = 0; i < nAcc; ++i) {
+            if (dead[(std::size_t)i]) continue;
+            remap[(std::size_t)i] = (int)kept.size();
+            kept.push_back(std::move(work.accepted[(std::size_t)i]));
+        }
+        for (Region& r : kept)
+            if (r.origin == Origin::TorusBlend && r.filletNbrA >= 0 && r.filletNbrA < nAcc)
+                r.filletNbrA = remap[(std::size_t)r.filletNbrA];
+        work.accepted.swap(kept);
+    }
+    return true;
+}
+
+}  // namespace
+
+bool torusAtom(const Region& r) {
+    return r.origin == Origin::CylGrow && r.type == SurfType::Cylinder && !r.closed360 &&
+           !r.tris.empty();
+}
+
+double torusSurfaceDev(const Region& torus, const gp_XYZ& p) {
+    const gp_XYZ o = torus.ax.Location().XYZ();
+    const gp_XYZ a = torus.ax.Direction().XYZ();
+    const gp_XYZ d = p - o;
+    const double z = d.Dot(a);
+    const double rho = (d - a * z).Modulus();
+    return std::fabs(std::hypot(rho - torus.radius, z) - torus.radius2);
+}
+
+double regionTorusDev(const MeshView& mv, const Region& torus, const Region& region) {
+    double mx = 0.0;
+    for (int t : region.tris) {
+        if (t < 0 || (std::size_t)t >= mv.nTri) return std::numeric_limits<double>::infinity();
+        for (int k = 0; k < 3; ++k) mx = std::max(mx, torusSurfaceDev(torus, cornerOf(mv, t, k)));
+    }
+    return mx;
+}
+
+bool leaveOneOutDeterminate(const std::vector<std::array<ProfPt, 3>>& triPts,
+                            const std::vector<int>& triAtom, int nAtoms, double tau) {
+    if (nAtoms <= 0) return true;
+    if (triAtom.size() != triPts.size()) return false;
+    std::vector<ProfPt> pts;
+    pts.reserve(triPts.size() * 3);
+    for (int k = 0; k < nAtoms; ++k) {
+        pts.clear();
+        for (std::size_t i = 0; i < triPts.size(); ++i) {
+            if (triAtom[i] == k) continue;
+            for (const ProfPt& p : triPts[i]) pts.push_back(p);
+        }
+        std::sort(pts.begin(), pts.end(), [](const ProfPt& a, const ProfPt& b) { return a.lv < b.lv; });
+        pts.erase(std::unique(pts.begin(), pts.end(),
+                              [](const ProfPt& a, const ProfPt& b) { return a.lv == b.lv; }),
+                  pts.end());
+        if (!certifyTorus(pts, tau).determinate) return false;
+    }
+    return true;
+}
+
+TorusRails torusRails(const MeshView& mv, const Region& torus) {
+    TorusRails out;
+    out.gap = kTwoPi;
+    const int nTri = (int)mv.nTri;
+    const int nEdge = (int)mv.nEdge;
+    if (!mv.pts || !mv.tris || !mv.triEdges || !mv.compEdges || nTri == 0) return out;
+    const gp_XYZ o = torus.ax.Location().XYZ();
+    const gp_XYZ a = torus.ax.Direction().XYZ();
+    const gp_XYZ ex = torus.ax.XDirection().XYZ();
+    const gp_XYZ ey = a.Crossed(ex);
+    auto az = [&](const gp_XYZ& p) {
+        const gp_XYZ d = p - o;
+        return std::atan2(d.Dot(ey), d.Dot(ex));
+    };
+    std::vector<char> in((std::size_t)nTri, 0);
+    for (int t : torus.tris)
+        if (t >= 0 && t < nTri) in[(std::size_t)t] = 1;
+    std::vector<std::array<int, 2>> edgeTris((std::size_t)std::max(nEdge, 0),
+                                             std::array<int, 2>{-1, -1});
+    for (int t : torus.tris) {
+        if (t < 0 || t >= nTri) continue;
+        for (int k = 0; k < 3; ++k) {
+            const int e = mv.triEdges[t][k];
+            if (e < 0 || e >= nEdge) continue;
+            if (edgeTris[(std::size_t)e][0] < 0) edgeTris[(std::size_t)e][0] = t;
+            else if (edgeTris[(std::size_t)e][1] < 0) edgeTris[(std::size_t)e][1] = t;
+        }
+    }
+    std::vector<int> ids;
+    ids.reserve(torus.tris.size() * 3);
+    double maxStep = 0.0;
+    for (int t : torus.tris) {
+        if (t < 0 || t >= nTri) continue;
+        for (int k = 0; k < 3; ++k) {
+            ids.push_back(cornerId(mv, t, k));
+            const int e = mv.triEdges[t][k];
+            if (e < 0 || e >= nEdge) continue;
+            // A boundary edge has one triangle of this region: the mesh's other
+            // triangle across it, if any, belongs to a neighbour.
+            if (edgeTris[(std::size_t)e][1] >= 0) continue;
+            const std::pair<int, int>& ce = mv.compEdges[e];
+            const int ga = mv.compVtx ? mv.compVtx[ce.first] : ce.first;
+            const int gb = mv.compVtx ? mv.compVtx[ce.second] : ce.second;
+            double dd = std::fabs(az(mv.pts[ga]) - az(mv.pts[gb]));
+            if (dd > kPi) dd = kTwoPi - dd;
+            maxStep = std::max(maxStep, dd);
+        }
+    }
+    std::sort(ids.begin(), ids.end());
+    ids.erase(std::unique(ids.begin(), ids.end()), ids.end());
+    std::vector<double> ps;
+    ps.reserve(ids.size());
+    for (int g : ids) ps.push_back(az(mv.pts[g]));
+    std::sort(ps.begin(), ps.end());
+    double gap = ps.empty() ? kTwoPi : (kTwoPi - ps.back() + ps.front());
+    for (std::size_t i = 1; i < ps.size(); ++i) gap = std::max(gap, ps[i] - ps[i - 1]);
+    out.gap = gap;
+    out.maxStep = maxStep;
+    out.full = maxStep > 0.0 && gap <= maxStep;
+    return out;
+}
+
+bool reclaimRelational(const MeshView& mv, const SegmentParams& p, const DerivedTols& tol,
+                       SegmentWork& work, RelRevolveMode mode) {
+    if (mode == RelRevolveMode::Line) return reclaimLine(mv, p, tol, work);
+    try {
+        if (mode == RelRevolveMode::Torus) return reclaimTorusMode(mv, work);
+        return true;
+    } catch (...) {
+        return true;
+    }
+}
+
+// D-gid-8.4. The late ring-frustum closure (closeRingFrustums),
+// run after the torus families and before A3. Silent unless STL2STEP_DIAG_REL.
+bool claimRingFrustums(const MeshView& mv, const SegmentParams& p, const DerivedTols& tol,
+                       SegmentWork& work) {
+    const double tau = tauOf(mv);
+    if (!(tau > 0.0) || mv.nTri == 0 || !mv.triEdges) return true;
+    const RMesh rm = makeRMesh(mv);
+    const int closed = closeRingFrustums(rm, p, tol, tau, work);
+    if (diagOn())
+        std::fprintf(stderr, "DIAG_REL_SUM stage=reclaim mode=ringfrustum closed=%d\n", closed);
+    return true;
+}
+
+bool certifyMeshRing(const std::vector<gp_XYZ>& pts, double tau, MeshRing& out) {
+    if (!(tau > 0.0) || (int)pts.size() < minStations(kParamsCircle)) return false;
+    if (!ringCircle(pts, out.n, out.c, out.R, out.planeDev, out.circDev)) return false;
+    if (!(out.planeDev <= tau) || !(out.circDev <= tau) || !(out.R > tau)) return false;
+    gp_XYZ e1 = std::abs(out.n.X()) < 0.9 ? gp_XYZ(1, 0, 0).Crossed(out.n)
+                                         : gp_XYZ(0, 1, 0).Crossed(out.n);
+    e1 /= e1.Modulus();
+    const gp_XYZ e2 = out.n.Crossed(e1);
+    std::vector<double> ps, rs;
+    for (const gp_XYZ& q : pts) {
+        const gp_XYZ d = q - out.c;
+        double psi = std::atan2(d.Dot(e2), d.Dot(e1));
+        if (psi < 0.0) psi += kTwoPi;
+        ps.push_back(psi);
+        rs.push_back(out.n.Crossed(d).Modulus());
+    }
+    out.stations = countColumns(ps, rs, tau);
+    return out.stations >= minStations(kParamsCircle);
+}
+
+std::vector<AnnulusRings> annulusRingCharts(const MeshView& mv, const SegmentWork& work,
+                                            double tau) {
+    std::vector<AnnulusRings> out;
+    struct Cand {
+        AnnulusRings a;
+    };
+    std::vector<Cand> cands;
+    if (!(tau > 0.0) || mv.nTri == 0 || !mv.triEdges || !mv.compEdges || !mv.compVtx) return out;
+    const RMesh rm = makeRMesh(mv);
+    const int nTri = (int)mv.nTri;
+    std::vector<int> triProv((std::size_t)nTri, -1);
+    std::vector<char> owned((std::size_t)nTri, 0);
+    for (int i = 0; i < (int)work.provisionals.size(); ++i)
+        for (int t : work.provisionals[(std::size_t)i].tris)
+            if (t >= 0 && t < nTri) triProv[(std::size_t)t] = i;
+    for (const Region& r : work.accepted)
+        for (int t : r.tris)
+            if (t >= 0 && t < nTri) owned[(std::size_t)t] = 1;
+    for (int pi = 0; pi < (int)work.provisionals.size(); ++pi) {
+        const Provisional& pr = work.provisionals[(std::size_t)pi];
+        if (pr.claim != ProvClaim::Unclaimed || pr.tris.empty()) continue;
+        bool free = true;
+        for (int t : pr.tris)
+            if (t < 0 || t >= nTri || owned[(std::size_t)t]) free = false;
+        if (!free) continue;
+        std::size_t nB = 0;
+        const std::vector<std::vector<int>> loops = chartLoops(rm, pr.tris, triProv, pi, &nB);
+        // The chart's whole boundary is two simple loops: a planar annulus.
+        if ((int)loops.size() != kAnnulusLoops || loops[0].size() + loops[1].size() != nB)
+            continue;
+        AnnulusRings a;
+        a.chart = pi;
+        a.minTri = minTriOf(pr.tris);
+        bool ok = true;
+        std::vector<gp_XYZ> lp[kAnnulusLoops];
+        for (int k = 0; k < kAnnulusLoops && ok; ++k) {
+            for (int lv : loops[(std::size_t)k]) lp[k].push_back(mv.pts[mv.compVtx[lv]]);
+            a.ring[k].verts = loops[(std::size_t)k];
+            ok = certifyMeshRing(lp[k], tau, a.ring[k]);
+        }
+        // Planar: both rings lie in one plane within tau (each in the other's).
+        for (int k = 0; k < kAnnulusLoops && ok; ++k)
+            for (const gp_XYZ& q : lp[1 - k])
+                if (!(std::abs((q - a.ring[k].c).Dot(a.ring[k].n)) <= tau)) ok = false;
+        if (ok) cands.push_back({std::move(a)});
+    }
+    std::vector<const MeshRing*> peers;
+    peers.reserve(cands.size() * static_cast<std::size_t>(kAnnulusLoops));
+    for (const Cand& c : cands) {
+        for (int k = 0; k < kAnnulusLoops; ++k) peers.push_back(&c.a.ring[k]);
+    }
+    // D-fc-5.20: moving an accepted chart empties MeshRing::verts while these
+    // pointers still address it, so a later chart misses that witness and F-2
+    // fails open. Refute every candidate against the intact set, then move.
+    SegmentParams sp;
+    std::vector<char> keep(cands.size(), 1);
+    for (std::size_t i = 0; i < cands.size(); ++i) {
+        for (int k = 0; k < kAnnulusLoops; ++k) {
+            if (meshRingRefutedByTessLaw(mv, sp, tau, work, cands[i].a.ring[k], peers)) {
+                keep[i] = 0;
+                break;
+            }
+        }
+    }
+    for (std::size_t i = 0; i < cands.size(); ++i)
+        if (keep[i]) out.push_back(std::move(cands[i].a));
+    return out;
+}
+
+bool mergeSameSurfaceBand(const MeshView& mv, const SegmentParams& p, const DerivedTols& tol,
+                          SegmentWork& work, int acc, const std::vector<int>& band,
+                          const gp_XYZ& origin, const gp_XYZ& axis, double radiusAcc,
+                          double radius) {
+    const double tau = tauOf(mv);
+    const int nTri = (int)mv.nTri;
+    if (!(tau > 0.0) || nTri == 0 || !mv.triEdges || band.empty() || acc < 0 ||
+        acc >= (int)work.accepted.size())
+        return false;
+    const Region& R = work.accepted[(std::size_t)acc];
+    // D-fc-4.4 members are partial CylGrow cylinders (closeSameSurface's class);
+    // the joint least-squares fit below certifies the union (the donor's own
+    // refit already certified it, D-fc-1.4). A FilletStrip keeps its anchors.
+    if (!isCylGrowCylinder(R) || R.closed360) {
+        if (diagOn())
+            std::fprintf(stderr, "DIAG_REL_MERGE seed=%d acc=%d type=%d closed=%d why=no-donor\n",
+                         minTriOf(band), acc, (int)R.type, (int)R.closed360);
+        return false;
+    }
+    const RMesh rm = makeRMesh(mv);
+    const int maxIt = std::max(1, p.maxRefineIters);
+    gp_XYZ a = axis;
+    a /= a.Modulus();
+    // Both surfaces as certified on the family axis: the member at its own
+    // radius about it (D-fc-4.8 (b)), the band at its.
+    const Cyl SR{origin, a, radiusAcc}, SB{origin, a, radius};
+    BandDiag dg;
+    dg.mode = "merge";
+    dg.seed = minTriOf(band);
+    dg.members = 1;
+    dg.radius = radius;
+    dg.axis = a;
+    // Mutual vertex containment at tau and strictly overlapping axial extents.
+    if (setDev(mv, band, SR) > tau || setDev(mv, R.tris, SB) > tau) {
+        dg.why = "vertex-off";
+        printBand(dg);
+        return false;
+    }
+    double li, hi, lj, hj;
+    axialRange(mv, R.tris, SR, li, hi);
+    axialRange(mv, band, SR, lj, hj);
+    if (!(li < hj && lj < hi)) {
+        dg.why = "not-joined";
+        printBand(dg);
+        return false;
+    }
+    std::vector<int> U = R.tris;
+    U.insert(U.end(), band.begin(), band.end());
+    std::sort(U.begin(), U.end());
+    U.erase(std::unique(U.begin(), U.end()), U.end());
+    gp_Dir fa;
+    gp_Pnt fc;
+    double fr = 0, fres = 0;
+    if (!cylinderFitLS(mv, U, gp_Dir(SR.A), fa, fc, fr, fres, maxIt) || fres > tau) {
+        dg.why = "vertex-off";
+        dg.certDevTau = fres / tau;
+        printBand(dg);
+        return false;
+    }
+    std::vector<char> unclaimed((std::size_t)nTri, 0);
+    for (const Provisional& pr : work.provisionals)
+        if (pr.claim == ProvClaim::Unclaimed)
+            for (int t : pr.tris)
+                if (t >= 0 && t < nTri) unclaimed[(std::size_t)t] = 1;
+    for (const Region& r : work.accepted)
+        for (int t : r.tris)
+            if (t >= 0 && t < nTri) unclaimed[(std::size_t)t] = 0;
+    for (int t : band)
+        if (t >= 0 && t < nTri) unclaimed[(std::size_t)t] = 0;
+    std::vector<int> erase;
+    return closeGroup(rm, tol, tau, maxIt, work, std::vector<int>{acc}, U,
+                      Cyl{fc.XYZ(), fa.XYZ(), fr}, unclaimed, "merge", erase);
+}
+
+std::vector<std::vector<int>> triSetLoops(const MeshView& mv, const std::vector<int>& tris) {
+    std::vector<std::vector<int>> loops;
+    if (mv.nTri == 0 || !mv.triEdges || !mv.compEdges) return loops;
+    const RMesh rm = makeRMesh(mv);
+    const int nTri = (int)mv.nTri;
+    // The set as one chart: chartLoops reads the edges whose other side is not in it.
+    std::vector<int> mark((std::size_t)nTri, -1);
+    for (int t : tris)
+        if (t >= 0 && t < nTri) mark[(std::size_t)t] = 0;
+    std::size_t nB = 0;
+    loops = chartLoops(rm, tris, mark, 0, &nB);
+    std::size_t sum = 0;
+    for (const auto& l : loops) sum += l.size();
+    if (sum != nB) loops.clear();
+    return loops;
+}
+
+std::vector<std::vector<int>> triSetOrientedLoops(const MeshView& mv, const std::vector<int>& tris) {
+    std::vector<std::vector<int>> loops = triSetLoops(mv, tris);
+    const int nTri = (int)mv.nTri;
+    for (std::vector<int>& l : loops) {
+        if (l.size() < 2) continue;
+        const int g0 = mv.compVtx ? mv.compVtx[l[0]] : l[0];
+        const int g1 = mv.compVtx ? mv.compVtx[l[1]] : l[1];
+        bool fwd = false, rev = false;
+        for (int t : tris) {
+            if (t < 0 || t >= nTri) continue;
+            const int* v = mv.tris[mv.compTris ? mv.compTris[t] : t];
+            for (int c = 0; c < 3; ++c) {
+                if (v[c] == g0 && v[(c + 1) % 3] == g1) fwd = true;
+                if (v[c] == g1 && v[(c + 1) % 3] == g0) rev = true;
+            }
+        }
+        if (rev && !fwd) std::reverse(l.begin() + 1, l.end());
+    }
+    return loops;
+}
+
+JointAxisFit jointAxisAbout(const std::vector<std::vector<gp_XYZ>>& groups, const gp_XYZ& origin,
+                            const gp_XYZ& axis) {
+    JointAxisFit f;
+    f.origin = origin;
+    f.axis = axis;
+    const double am = axis.Modulus();
+    if (am > gp::Resolution()) f.axis /= am;
+    for (const std::vector<gp_XYZ>& g : groups) {
+        double sum = 0;
+        std::vector<double> rho;
+        rho.reserve(g.size());
+        for (const gp_XYZ& p : g) {
+            const gp_XYZ d = p - f.origin;
+            rho.push_back((d - f.axis * d.Dot(f.axis)).Modulus());
+            sum += rho.back();
+        }
+        const double R = g.empty() ? 0.0 : sum / (double)g.size();
+        double dev = 0;
+        for (double r : rho) dev = std::max(dev, std::fabs(r - R));
+        f.radius.push_back(R);
+        f.maxDev.push_back(dev);
+    }
+    return f;
+}
+
+bool jointAxisCertifies(const JointAxisFit& f, double tau) {
+    if (!(tau > 0.0) || f.maxDev.empty()) return false;
+    for (std::size_t g = 0; g < f.maxDev.size(); ++g)
+        if (!(f.maxDev[g] <= tau) || !(f.radius[g] > tau)) return false;
+    return true;
+}
+
+// Levenberg-Marquardt on (axis tilt along U, V; axis point along U, V), each
+// donor's radius projected out as the mean of its own rho (variable projection,
+// the same step cylinderFitLS takes for one radius).
+bool jointAxisFit(const std::vector<std::vector<gp_XYZ>>& groups, const gp_XYZ& originSeed,
+                  const gp_XYZ& axisSeed, int maxIters, JointAxisFit& out) {
+    std::vector<gp_XYZ> P;
+    std::vector<int> gOf;
+    for (int g = 0; g < (int)groups.size(); ++g)
+        for (const gp_XYZ& p : groups[(std::size_t)g]) {
+            if (!std::isfinite(p.X()) || !std::isfinite(p.Y()) || !std::isfinite(p.Z()))
+                return false;
+            P.push_back(p);
+            gOf.push_back(g);
+        }
+    const int nG = (int)groups.size();
+    if (nG == 0 || P.size() < 6) return false;
+    gp_XYZ mean(0, 0, 0);
+    for (const gp_XYZ& p : P) mean += p;
+    mean /= (double)P.size();
+    gp_XYZ W = axisSeed;
+    if (!(W.Modulus() > gp::Resolution())) return false;
+    W /= W.Modulus();
+    const gp_XYZ Wseed = W;
+    gp_XYZ C = originSeed;
+    std::vector<double> rho(P.size()), Rg((std::size_t)nG), cnt((std::size_t)nG, 0.0);
+    for (int g : gOf) cnt[(std::size_t)g] += 1.0;
+    auto evaluate = [&](const gp_XYZ& Wc, const gp_XYZ& Cc, double& E) {
+        std::fill(Rg.begin(), Rg.end(), 0.0);
+        for (std::size_t i = 0; i < P.size(); ++i) {
+            const gp_XYZ d = P[i] - Cc;
+            const double m = (d - Wc * d.Dot(Wc)).Modulus();
+            if (!std::isfinite(m) || m <= gp::Resolution()) return false;
+            rho[i] = m;
+            Rg[(std::size_t)gOf[i]] += m;
+        }
+        for (int g = 0; g < nG; ++g)
+            if (cnt[(std::size_t)g] > 0) Rg[(std::size_t)g] /= cnt[(std::size_t)g];
+        E = 0;
+        for (std::size_t i = 0; i < P.size(); ++i) {
+            const double f = rho[i] - Rg[(std::size_t)gOf[i]];
+            E += f * f;
+        }
+        return std::isfinite(E);
+    };
+    double E = 0;
+    if (!evaluate(W, C, E)) return false;
+    double lambda = 1e-6;
+    const int iterCap = maxIters > 0 ? maxIters : 16;
+    for (int it = 0; it < iterCap; ++it) {
+        const gp_XYZ tmp = (std::fabs(W.X()) < 0.9) ? gp_XYZ(1, 0, 0) : gp_XYZ(0, 1, 0);
+        gp_XYZ U = W.Crossed(tmp);
+        U /= U.Modulus();
+        const gp_XYZ V = W.Crossed(U);
+        std::vector<std::array<double, 4>> J(P.size());
+        std::vector<std::array<double, 4>> colMean((std::size_t)nG, {{0, 0, 0, 0}});
+        for (std::size_t i = 0; i < P.size(); ++i) {
+            const gp_XYZ d = P[i] - C;
+            const double wd = d.Dot(W);
+            const gp_XYZ rhat = (d - W * wd) / rho[i];
+            J[i] = {{-wd * d.Dot(U) / rho[i], -wd * d.Dot(V) / rho[i], -rhat.Dot(U), -rhat.Dot(V)}};
+            std::array<double, 4>& cm = colMean[(std::size_t)gOf[i]];
+            for (int k = 0; k < 4; ++k) cm[(std::size_t)k] += J[i][(std::size_t)k];
+        }
+        for (int g = 0; g < nG; ++g)
+            for (int k = 0; k < 4; ++k)
+                if (cnt[(std::size_t)g] > 0)
+                    colMean[(std::size_t)g][(std::size_t)k] /= cnt[(std::size_t)g];
+        double A[4][4] = {{0}};
+        double b[4] = {0, 0, 0, 0};
+        for (std::size_t i = 0; i < P.size(); ++i) {
+            double gr[4];
+            const std::array<double, 4>& cm = colMean[(std::size_t)gOf[i]];
+            for (int k = 0; k < 4; ++k) gr[k] = J[i][(std::size_t)k] - cm[(std::size_t)k];
+            const double f = rho[i] - Rg[(std::size_t)gOf[i]];
+            for (int k = 0; k < 4; ++k) {
+                b[k] -= gr[k] * f;
+                for (int l = 0; l < 4; ++l) A[k][l] += gr[k] * gr[l];
+            }
+        }
+        bool stepped = false;
+        for (int trial = 0; trial < 8 && !stepped; ++trial) {
+            double M[4][5];
+            for (int k = 0; k < 4; ++k) {
+                for (int l = 0; l < 4; ++l) M[k][l] = A[k][l];
+                M[k][k] = M[k][k] * (1.0 + lambda) + lambda;
+                M[k][4] = b[k];
+            }
+            bool singular = false;
+            for (int col = 0; col < 4 && !singular; ++col) {
+                int piv = col;
+                for (int row = col + 1; row < 4; ++row)
+                    if (std::fabs(M[row][col]) > std::fabs(M[piv][col])) piv = row;
+                if (!(std::fabs(M[piv][col]) > gp::Resolution())) {
+                    singular = true;
+                    break;
+                }
+                if (piv != col)
+                    for (int l = 0; l < 5; ++l) std::swap(M[piv][l], M[col][l]);
+                for (int row = col + 1; row < 4; ++row) {
+                    const double fac = M[row][col] / M[col][col];
+                    for (int l = col; l < 5; ++l) M[row][l] -= fac * M[col][l];
+                }
+            }
+            if (singular) break;
+            double dx[4];
+            for (int row = 3; row >= 0; --row) {
+                double acc = M[row][4];
+                for (int l = row + 1; l < 4; ++l) acc -= M[row][l] * dx[l];
+                dx[row] = acc / M[row][row];
+            }
+            if (!std::isfinite(dx[0]) || !std::isfinite(dx[1]) || !std::isfinite(dx[2]) ||
+                !std::isfinite(dx[3]))
+                break;
+            gp_XYZ Wn = W + U * dx[0] + V * dx[1];
+            if (!(Wn.Modulus() > gp::Resolution())) break;
+            Wn /= Wn.Modulus();
+            const gp_XYZ Cn = C + U * dx[2] + V * dx[3];
+            double En = 0;
+            const std::vector<double> rhoKeep = rho, RgKeep = Rg;
+            if (evaluate(Wn, Cn, En) && En <= E) {
+                W = Wn;
+                C = Cn;
+                E = En;
+                lambda = std::max(1e-12, lambda / 3.0);
+                stepped = true;
+            } else {
+                rho = rhoKeep;
+                Rg = RgKeep;
+                lambda *= 5.0;
+                if (lambda > 1e6) break;
+            }
+        }
+        if (!stepped) break;
+    }
+    if (W.Dot(Wseed) < 0.0) W.Reverse();
+    C = C + W * ((mean - C).Dot(W));
+    out = jointAxisAbout(groups, C, W);
+    return std::isfinite(C.X()) && std::isfinite(C.Y()) && std::isfinite(C.Z());
+}
+
+std::vector<CoaxialFamily> coaxialFamilies(const std::vector<AxisDonor>& donors,
+                                           const std::vector<int>& order, double tau,
+                                           int maxIters) {
+    std::vector<CoaxialFamily> fams;
+    if (!(tau > 0.0)) return fams;
+    std::vector<char> taken(donors.size(), 0);
+    for (std::size_t oi = 0; oi < order.size(); ++oi) {
+        const int i = order[oi];
+        if (i < 0 || (std::size_t)i >= donors.size() || taken[(std::size_t)i]) continue;
+        taken[(std::size_t)i] = 1;
+        const AxisDonor& lead = donors[(std::size_t)i];
+        CoaxialFamily fam;
+        fam.members.push_back(i);
+        std::vector<std::vector<gp_XYZ>> groups{lead.pts};
+        fam.fit = jointAxisAbout(groups, lead.origin, lead.axis);
+        double famLen = lead.length, famRmax = lead.radius;
+        for (std::size_t oj = oi + 1; oj < order.size(); ++oj) {
+            const int j = order[oj];
+            if (j < 0 || (std::size_t)j >= donors.size() || taken[(std::size_t)j]) continue;
+            const AxisDonor& e = donors[(std::size_t)j];
+            gp_XYZ ea = e.axis;
+            if (!(ea.Modulus() > gp::Resolution())) continue;
+            ea /= ea.Modulus();
+            const double sinA = ea.Crossed(fam.fit.axis).Modulus();
+            if (sinA > tanAngTol(tau, tau, std::max(std::min(e.length, famLen), tau))) continue;
+            const gp_XYZ d = e.origin - fam.fit.origin;
+            const double lineDist = (d - fam.fit.axis * d.Dot(fam.fit.axis)).Modulus();
+            if (lineDist > e.radius + famRmax) continue;
+            groups.push_back(e.pts);
+            JointAxisFit f = jointAxisAbout(groups, fam.fit.origin, fam.fit.axis);
+            bool refit = false;
+            if (!jointAxisCertifies(f, tau)) {
+                JointAxisFit g;
+                if (jointAxisFit(groups, fam.fit.origin, fam.fit.axis, maxIters, g) &&
+                    jointAxisCertifies(g, tau)) {
+                    f = g;
+                    refit = true;
+                } else {
+                    groups.pop_back();
+                    continue;
+                }
+            }
+            fam.fit = f;
+            fam.refit = fam.refit || refit;
+            fam.members.push_back(j);
+            taken[(std::size_t)j] = 1;
+            famLen = std::max(famLen, e.length);
+            famRmax = std::max(famRmax, e.radius);
+        }
+        fams.push_back(std::move(fam));
+    }
+    return fams;
+}
+
+bool torusChainSupersetFails(const std::vector<ProfPt>& candidatePts, std::size_t nCandidates,
+                             std::size_t nBand, double tau) {
+    if (nBand >= nCandidates) return false;
+    return !certifyTorus(candidatePts, tau).ok;
+}
+
+bool torusWindowOverlapsRefused(const std::vector<int>& bandTris,
+                                const std::vector<char>& failedTri) {
+    for (int t : bandTris)
+        if (t >= 0 && (std::size_t)t < failedTri.size() && failedTri[(std::size_t)t]) return true;
+    return false;
+}
+
+bool torusRefusalGeometric(const TorusCert& c) {
+    if (c.ok || !c.determinate) return false;
+    return !(c.why && std::strcmp(c.why, "fit-singular") == 0);
+}
+
+bool torusChainFailsGeometric(const TorusCert& onFamily, const JointTorusCert* joint, double tau) {
+    if (onFamily.ok) return false;
+    if (joint && joint->ok) return false;
+    // D-fc-4.12: a refusal on a determinate family-axis certificate is geometric
+    // whatever the joint fit made of the chain, under-determined included.
+    if (torusRefusalGeometric(onFamily)) return true;
+    // An under-determined chain does not determine the joint axis either: its
+    // donors' deviations about that axis refuse nothing.
+    if (!joint || !joint->fitted || !joint->chain.determinate) return false;
+    if (!jointAxisCertifies(joint->family, tau)) return true;
+    return torusRefusalGeometric(joint->chain);
+}
+
+TorusRings torusRingsOf(const std::vector<int>& verts, const std::vector<double>& rhoAt,
+                        const std::vector<double>& zAt, int maxV, double tau) {
+    TorusRings out;
+    out.ringOf.assign((std::size_t)std::max(maxV, -1) + 1, -1);
+    if (!(tau > 0.0)) return out;
+    struct Cell {
+        int parent = 0;
+        long long kr = 0, kz = 0;
+        double rMin = 0, rMax = 0, zMin = 0, zMax = 0;
+        std::vector<int> verts;
+    };
+    std::vector<Cell> cells;
+    std::map<std::pair<long long, long long>, int> buckets;
+    for (int v : verts) {
+        const double rho = rhoAt[(std::size_t)v];
+        const double z = zAt[(std::size_t)v];
+        const auto key = std::make_pair((long long)std::llround(rho / tau), (long long)std::llround(z / tau));
+        auto it = buckets.find(key);
+        if (it == buckets.end()) {
+            Cell c;
+            c.parent = (int)cells.size();
+            c.kr = key.first;
+            c.kz = key.second;
+            c.rMin = c.rMax = rho;
+            c.zMin = c.zMax = z;
+            c.verts.push_back(v);
+            buckets.emplace(key, (int)cells.size());
+            cells.push_back(std::move(c));
+        } else {
+            Cell& c = cells[(std::size_t)it->second];
+            c.verts.push_back(v);
+            c.rMin = std::min(c.rMin, rho);
+            c.rMax = std::max(c.rMax, rho);
+            c.zMin = std::min(c.zMin, z);
+            c.zMax = std::max(c.zMax, z);
+        }
+    }
+    auto findCell = [&](int x) {
+        while (cells[(std::size_t)x].parent != x) {
+            cells[(std::size_t)x].parent = cells[(std::size_t)cells[(std::size_t)x].parent].parent;
+            x = cells[(std::size_t)x].parent;
+        }
+        return x;
+    };
+    auto uniteCell = [&](int a, int b) {
+        a = findCell(a);
+        b = findCell(b);
+        if (a == b) return false;
+        const double rMin = std::min(cells[(std::size_t)a].rMin, cells[(std::size_t)b].rMin);
+        const double rMax = std::max(cells[(std::size_t)a].rMax, cells[(std::size_t)b].rMax);
+        const double zMin = std::min(cells[(std::size_t)a].zMin, cells[(std::size_t)b].zMin);
+        const double zMax = std::max(cells[(std::size_t)a].zMax, cells[(std::size_t)b].zMax);
+        if (rMax - rMin > tau || zMax - zMin > tau) return false;
+        cells[(std::size_t)b].parent = a;
+        cells[(std::size_t)a].rMin = rMin;
+        cells[(std::size_t)a].rMax = rMax;
+        cells[(std::size_t)a].zMin = zMin;
+        cells[(std::size_t)a].zMax = zMax;
+        return true;
+    };
+    {
+        bool changed = !cells.empty();
+        for (int guard = 0; changed && guard < (int)cells.size() + 2; ++guard) {
+            changed = false;
+            for (int i = 0; i < (int)cells.size(); ++i)
+                for (int dr = -1; dr <= 1; ++dr)
+                    for (int dz = -1; dz <= 1; ++dz) {
+                        if (dr == 0 && dz == 0) continue;
+                        const auto it = buckets.find(std::make_pair(cells[(std::size_t)i].kr + dr,
+                                                                    cells[(std::size_t)i].kz + dz));
+                        if (it != buckets.end() && uniteCell(i, it->second)) changed = true;
+                    }
+        }
+    }
+    std::vector<std::vector<int>> groups(cells.size());
+    for (int i = 0; i < (int)cells.size(); ++i) {
+        auto& g = groups[(std::size_t)findCell(i)];
+        g.insert(g.end(), cells[(std::size_t)i].verts.begin(), cells[(std::size_t)i].verts.end());
+    }
+    for (auto& g : groups) {
+        if ((int)g.size() < minStations(kParamsLine)) continue;
+        TorusRing ring;
+        ring.minV = g.front();
+        double sr = 0, sz = 0;
+        for (int v : g) {
+            sr += rhoAt[(std::size_t)v];
+            sz += zAt[(std::size_t)v];
+            ring.minV = std::min(ring.minV, v);
+        }
+        ring.rho = sr / (double)g.size();
+        ring.z = sz / (double)g.size();
+        ring.verts = std::move(g);
+        out.rings.push_back(std::move(ring));
+    }
+    std::sort(out.rings.begin(), out.rings.end(), [](const TorusRing& a, const TorusRing& b) {
+        if (a.z != b.z) return a.z < b.z;
+        if (a.rho != b.rho) return a.rho < b.rho;
+        return a.minV < b.minV;
+    });
+    for (int i = 0; i < (int)out.rings.size(); ++i)
+        for (int v : out.rings[(std::size_t)i].verts) out.ringOf[(std::size_t)v] = i;
+    return out;
+}
+
+std::vector<int> torusStationCands(const std::vector<std::array<int, 3>>& triVerts,
+                                   const std::vector<int>& chainTris,
+                                   const std::vector<int>& ringOf, const std::vector<char>& live,
+                                   const std::vector<int>& sheetOfTri, int sheet) {
+    auto ringAt = [&](int v) {
+        return (v >= 0 && (std::size_t)v < ringOf.size()) ? ringOf[(std::size_t)v] : -1;
+    };
+    std::set<int> stations;
+    for (int t : chainTris) {
+        if (t < 0 || (std::size_t)t >= triVerts.size()) continue;
+        for (int v : triVerts[(std::size_t)t])
+            if (ringAt(v) >= 0) stations.insert(ringAt(v));
+    }
+    std::vector<int> out;
+    for (std::size_t t = 0; t < triVerts.size(); ++t) {
+        if (t >= live.size() || !live[t] || t >= sheetOfTri.size() || sheetOfTri[t] != sheet)
+            continue;
+        int ids[3] = {-1, -1, -1}, nR = 0;
+        bool onAll = true;
+        for (int v : triVerts[t]) {
+            const int r = ringAt(v);
+            if (r < 0 || !stations.count(r)) {
+                onAll = false;
+                break;
+            }
+            bool dup = false;
+            for (int i = 0; i < nR; ++i) dup = dup || ids[i] == r;
+            if (!dup) ids[nR++] = r;
+        }
+        if (onAll && nR >= 2) out.push_back((int)t);
+    }
+    return out;
+}
+
+int torusSidesOf(int cols, double span, bool closed) {
+    if (closed || cols < 2 || !(span > 0.0) || !(span < kTwoPi)) return std::max(cols, 1);
+    const double n = std::round(kTwoPi * (double)(cols - 1) / span);
+    return std::isfinite(n) ? std::max(1, (int)n) : std::max(cols, 1);
+}
+
+std::vector<ProfPt> profileAbout(const std::vector<gp_XYZ>& pts, const gp_XYZ& origin,
+                                 const gp_XYZ& axis, const gp_XYZ& xHint) {
+    gp_XYZ a = axis;
+    const double am = a.Modulus();
+    if (am > gp::Resolution()) a /= am;
+    else a = gp_XYZ(0, 0, 1);
+    gp_XYZ x = xHint - a * xHint.Dot(a);
+    if (!(x.Modulus() > gp::Resolution())) {
+        const gp_XYZ tmp = (std::abs(a.X()) < 0.9) ? gp_XYZ(1, 0, 0) : gp_XYZ(0, 1, 0);
+        x = a.Crossed(tmp);
+    }
+    const gp_XYZ e1 = x / x.Modulus();
+    const gp_XYZ e2 = a.Crossed(e1);
+    std::vector<ProfPt> out;
+    out.reserve(pts.size());
+    for (const gp_XYZ& p : pts) {
+        const gp_XYZ d = p - origin;
+        ProfPt o;
+        o.z = d.Dot(a);
+        const double px = d.Dot(e1), py = d.Dot(e2);
+        o.rho = std::hypot(px, py);
+        o.psi = std::atan2(py, px);
+        if (o.psi < 0.0) o.psi += kTwoPi;
+        out.push_back(o);
+    }
+    return out;
+}
+
+namespace {
+
+bool hornProfileDev(const std::vector<ProfPt>& P, double z0, double r, double& maxDev, double& rms) {
+    maxDev = 0.0;
+    rms = 0.0;
+    if (!(r > 0.0) || P.empty()) return false;
+    double sum2 = 0.0;
+    for (const ProfPt& p : P) {
+        if (!std::isfinite(p.rho) || !std::isfinite(p.z)) return false;
+        const double d = std::fabs(std::hypot(p.rho - r, p.z - z0) - r);
+        if (!std::isfinite(d)) return false;
+        maxDev = std::max(maxDev, d);
+        sum2 += d * d;
+    }
+    rms = std::sqrt(sum2 / (double)P.size());
+    return std::isfinite(maxDev) && std::isfinite(rms);
+}
+
+// One free parameter z0. r is fixed (the relational horn, or a held seed).
+bool fitHornZ(const std::vector<ProfPt>& P, double r, double& z0, int maxIt, double tau,
+              double& maxDev, double& rms) {
+    if (!(r > tau) || maxIt < 1) return false;
+    for (int it = 0; it < maxIt; ++it) {
+        double h = 0.0, g = 0.0;
+        for (const ProfPt& p : P) {
+            const double dy = p.z - z0;
+            const double s = std::hypot(p.rho - r, dy);
+            if (!(s > gp::Resolution())) continue;
+            const double jz = -dy / s;
+            const double res = s - r;
+            h += jz * jz;
+            g += jz * res;
+        }
+        if (!(h > gp::Resolution())) break;
+        const double dz = -g / h;
+        if (!std::isfinite(dz)) return false;
+        z0 += dz;
+        if (std::fabs(dz) <= tau) break;
+    }
+    return std::isfinite(z0) && hornProfileDev(P, z0, r, maxDev, rms) && maxDev <= tau;
+}
+
+// Two free parameters (z0, r), Rmaj held equal to r. Seeded by the caller.
+bool fitHornZR(const std::vector<ProfPt>& P, double& z0, double& r, int maxIt, double tau,
+               double& maxDev, double& rms) {
+    if (!(r > tau) || maxIt < 1) return false;
+    for (int it = 0; it < maxIt; ++it) {
+        double h11 = 0.0, h12 = 0.0, h22 = 0.0, g1 = 0.0, g2 = 0.0;
+        for (const ProfPt& p : P) {
+            const double dx = p.rho - r, dy = p.z - z0;
+            const double s = std::hypot(dx, dy);
+            if (!(s > gp::Resolution())) continue;
+            const double jz = -dy / s;
+            const double jr = -dx / s - 1.0;
+            const double res = s - r;
+            h11 += jz * jz;
+            h12 += jz * jr;
+            h22 += jr * jr;
+            g1 += jz * res;
+            g2 += jr * res;
+        }
+        const double det = h11 * h22 - h12 * h12;
+        if (!(std::fabs(det) > gp::Resolution())) break;
+        const double dz = (-g1 * h22 + g2 * h12) / det;
+        const double dr = (-h11 * g2 + h12 * g1) / det;
+        if (!std::isfinite(dz) || !std::isfinite(dr)) return false;
+        z0 += dz;
+        r += dr;
+        if (!(r > tau)) return false;
+        if (std::hypot(dz, dr) <= tau) break;
+    }
+    return std::isfinite(z0) && hornProfileDev(P, z0, r, maxDev, rms) && maxDev <= tau;
+}
+
+}  // namespace
+
+TorusCert hornFromSpindle(const TorusCert& spindle, const std::vector<ProfPt>& P, double tau,
+                          double edgeR, int maxIt) {
+    if (!(tau > 0.0) || maxIt < 1 || P.size() < 3) return spindle;
+    if (spindle.ok || !spindle.determinate || !spindle.why) return spindle;
+    if (std::strcmp(spindle.why, "spindle-torus") != 0) return spindle;
+    if (!(spindle.Rmin > tau)) return spindle;
+    const double gap = spindle.Rmaj - spindle.Rmin;
+    if (!(gap >= -tau && gap <= 0.0)) return spindle;
+
+    double bestZ = 0.0, bestR = 0.0, bestMax = 0.0, bestRms = 0.0;
+    bool got = false;
+    // Fewest parameters first. r fixed by the certified edge-round: Rmaj = r
+    // = edgeR / 2, so Rmaj = edgeR - r. One free parameter, z0.
+    if (edgeR > tau) {
+        double z = spindle.z0, mx = 0.0, rms = 0.0;
+        if (fitHornZ(P, 0.5 * edgeR, z, maxIt, tau, mx, rms)) {
+            bestZ = z;
+            bestR = 0.5 * edgeR;
+            bestMax = mx;
+            bestRms = rms;
+            got = true;
+        }
+    }
+    // Rmaj := the spindle's Rmin, then refit (z0, r). The snap itself ships
+    // when the refit does not improve on a residual already within tau.
+    if (!got) {
+        double z = spindle.z0, r = spindle.Rmin, mx = 0.0, rms = 0.0;
+        double seedMax = 0.0, seedRms = 0.0;
+        const bool seedOk = hornProfileDev(P, z, r, seedMax, seedRms) && seedMax <= tau;
+        const bool refined = fitHornZR(P, z, r, maxIt, tau, mx, rms);
+        if (refined) {
+            bestZ = z;
+            bestR = r;
+            bestMax = mx;
+            bestRms = rms;
+            got = true;
+        } else if (seedOk) {
+            bestZ = spindle.z0;
+            bestR = spindle.Rmin;
+            bestMax = seedMax;
+            bestRms = seedRms;
+            got = true;
+        }
+    }
+    if (!got || !(bestR > tau)) return spindle;
+    TorusCert h = spindle;
+    h.ok = true;
+    h.why = "accept";
+    h.Rmaj = bestR;
+    h.Rmin = bestR;
+    h.z0 = bestZ;
+    h.maxDev = bestMax;
+    h.rmsDev = bestRms;
+    return h;
+}
+
+// Levenberg-Marquardt on (axis tilt along U, V; axis point along U, V; Rmaj, z0,
+// Rmin). Donor residuals rho - R_g with R_g projected out as the mean of donor g's
+// own rho (jointAxisFit's step); chain residuals hypot(rho - Rmaj, z - z0) - Rmin.
+JointTorusCert jointTorusCertify(const std::vector<std::vector<gp_XYZ>>& donors,
+                                 const std::vector<gp_XYZ>& chain, const gp_XYZ& originSeed,
+                                 const gp_XYZ& axisSeed, const gp_XYZ& xHint, double tau,
+                                 int maxIters) {
+    JointTorusCert out;
+    if (!(tau > 0.0) || donors.empty() || chain.empty()) return out;
+    gp_XYZ W = axisSeed;
+    if (!(W.Modulus() > gp::Resolution())) return out;
+    W /= W.Modulus();
+    const gp_XYZ Wseed = W;
+    gp_XYZ C = originSeed;
+    std::vector<gp_XYZ> P;
+    std::vector<int> gOf;  // donor index, -1 for a chain vertex
+    for (int g = 0; g < (int)donors.size(); ++g)
+        for (const gp_XYZ& p : donors[(std::size_t)g]) {
+            P.push_back(p);
+            gOf.push_back(g);
+        }
+    for (const gp_XYZ& p : chain) {
+        P.push_back(p);
+        gOf.push_back(-1);
+    }
+    for (const gp_XYZ& p : P)
+        if (!std::isfinite(p.X()) || !std::isfinite(p.Y()) || !std::isfinite(p.Z())) return out;
+    const int nG = (int)donors.size();
+    std::vector<double> cnt((std::size_t)nG, 0.0);
+    for (int g : gOf)
+        if (g >= 0) cnt[(std::size_t)g] += 1.0;
+    for (double c : cnt)
+        if (!(c > 0.0)) return out;
+    double Rmaj = 0, z0 = 0, Rmin = 0;
+    {
+        const std::vector<ProfPt> seed = profileAbout(chain, C, W, xHint);
+        if (!fitProfileCircle(seed, tau, Rmaj, z0, Rmin)) return out;
+    }
+    constexpr int kN = 7;
+    std::vector<double> rho(P.size()), zv(P.size()), Rg((std::size_t)nG);
+    auto evaluate = [&](const gp_XYZ& Wc, const gp_XYZ& Cc, double ra, double zc, double rb,
+                        double& E) {
+        std::fill(Rg.begin(), Rg.end(), 0.0);
+        for (std::size_t i = 0; i < P.size(); ++i) {
+            const gp_XYZ d = P[i] - Cc;
+            zv[i] = d.Dot(Wc);
+            const double m = (d - Wc * zv[i]).Modulus();
+            if (!std::isfinite(m) || m <= gp::Resolution()) return false;
+            rho[i] = m;
+            if (gOf[i] >= 0) Rg[(std::size_t)gOf[i]] += m;
+        }
+        for (int g = 0; g < nG; ++g) Rg[(std::size_t)g] /= cnt[(std::size_t)g];
+        E = 0;
+        for (std::size_t i = 0; i < P.size(); ++i) {
+            const double f = (gOf[i] >= 0) ? rho[i] - Rg[(std::size_t)gOf[i]]
+                                           : std::hypot(rho[i] - ra, zv[i] - zc) - rb;
+            E += f * f;
+        }
+        return std::isfinite(E);
+    };
+    double E = 0;
+    if (!evaluate(W, C, Rmaj, z0, Rmin, E)) return out;
+    double lambda = 1e-6;
+    const int iterCap = maxIters > 0 ? maxIters : 16;
+    for (int it = 0; it < iterCap; ++it) {
+        const gp_XYZ tmp = (std::fabs(W.X()) < 0.9) ? gp_XYZ(1, 0, 0) : gp_XYZ(0, 1, 0);
+        gp_XYZ U = W.Crossed(tmp);
+        U /= U.Modulus();
+        const gp_XYZ V = W.Crossed(U);
+        std::vector<std::array<double, kN>> J(P.size());
+        std::vector<std::array<double, 4>> colMean((std::size_t)nG, {{0, 0, 0, 0}});
+        for (std::size_t i = 0; i < P.size(); ++i) {
+            const gp_XYZ d = P[i] - C;
+            const double du = d.Dot(U), dv = d.Dot(V);
+            const double dRa = -zv[i] * du / rho[i], dRb = -zv[i] * dv / rho[i];
+            const double dRc = -du / rho[i], dRd = -dv / rho[i];
+            std::array<double, kN>& row = J[i];
+            if (gOf[i] >= 0) {
+                row = {{dRa, dRb, dRc, dRd, 0, 0, 0}};
+                std::array<double, 4>& cm = colMean[(std::size_t)gOf[i]];
+                for (int k = 0; k < 4; ++k) cm[(std::size_t)k] += row[(std::size_t)k];
+            } else {
+                const double s = std::hypot(rho[i] - Rmaj, zv[i] - z0);
+                if (!(s > gp::Resolution())) return out;
+                const double cr = (rho[i] - Rmaj) / s, cz = (zv[i] - z0) / s;
+                row = {{cr * dRa + cz * du, cr * dRb + cz * dv, cr * dRc, cr * dRd, -cr, -cz, -1.0}};
+            }
+        }
+        for (int g = 0; g < nG; ++g)
+            for (int k = 0; k < 4; ++k) colMean[(std::size_t)g][(std::size_t)k] /= cnt[(std::size_t)g];
+        double A[kN][kN] = {{0}};
+        double b[kN] = {0};
+        for (std::size_t i = 0; i < P.size(); ++i) {
+            double gr[kN];
+            for (int k = 0; k < kN; ++k) gr[k] = J[i][(std::size_t)k];
+            double f;
+            if (gOf[i] >= 0) {
+                const std::array<double, 4>& cm = colMean[(std::size_t)gOf[i]];
+                for (int k = 0; k < 4; ++k) gr[k] -= cm[(std::size_t)k];
+                f = rho[i] - Rg[(std::size_t)gOf[i]];
+            } else {
+                f = std::hypot(rho[i] - Rmaj, zv[i] - z0) - Rmin;
+            }
+            for (int k = 0; k < kN; ++k) {
+                b[k] -= gr[k] * f;
+                for (int l = 0; l < kN; ++l) A[k][l] += gr[k] * gr[l];
+            }
+        }
+        bool stepped = false;
+        for (int trial = 0; trial < 8 && !stepped; ++trial) {
+            double M[kN][kN + 1];
+            for (int k = 0; k < kN; ++k) {
+                for (int l = 0; l < kN; ++l) M[k][l] = A[k][l];
+                M[k][k] = M[k][k] * (1.0 + lambda) + lambda;
+                M[k][kN] = b[k];
+            }
+            bool singular = false;
+            for (int col = 0; col < kN && !singular; ++col) {
+                int piv = col;
+                for (int r = col + 1; r < kN; ++r)
+                    if (std::fabs(M[r][col]) > std::fabs(M[piv][col])) piv = r;
+                if (!(std::fabs(M[piv][col]) > gp::Resolution())) {
+                    singular = true;
+                    break;
+                }
+                if (piv != col)
+                    for (int l = 0; l <= kN; ++l) std::swap(M[piv][l], M[col][l]);
+                for (int r = col + 1; r < kN; ++r) {
+                    const double fac = M[r][col] / M[col][col];
+                    for (int l = col; l <= kN; ++l) M[r][l] -= fac * M[col][l];
+                }
+            }
+            if (singular) break;
+            double dx[kN];
+            bool finite = true;
+            for (int r = kN - 1; r >= 0; --r) {
+                double acc = M[r][kN];
+                for (int l = r + 1; l < kN; ++l) acc -= M[r][l] * dx[l];
+                dx[r] = acc / M[r][r];
+                if (!std::isfinite(dx[r])) finite = false;
+            }
+            if (!finite) break;
+            gp_XYZ Wn = W + U * dx[0] + V * dx[1];
+            if (!(Wn.Modulus() > gp::Resolution())) break;
+            Wn /= Wn.Modulus();
+            const gp_XYZ Cn = C + U * dx[2] + V * dx[3];
+            const double Ran = Rmaj + dx[4], zn = z0 + dx[5], Rbn = Rmin + dx[6];
+            double En = 0;
+            const std::vector<double> rhoKeep = rho, zKeep = zv, RgKeep = Rg;
+            if (evaluate(Wn, Cn, Ran, zn, Rbn, En) && En <= E) {
+                W = Wn;
+                C = Cn;
+                Rmaj = Ran;
+                z0 = zn;
+                Rmin = Rbn;
+                E = En;
+                lambda = std::max(1e-12, lambda / 3.0);
+                stepped = true;
+            } else {
+                rho = rhoKeep;
+                zv = zKeep;
+                Rg = RgKeep;
+                lambda *= 5.0;
+                if (lambda > 1e6) break;
+            }
+        }
+        if (!stepped) break;
+    }
+    if (W.Dot(Wseed) < 0.0) W.Reverse();
+    if (!std::isfinite(C.X()) || !std::isfinite(C.Y()) || !std::isfinite(C.Z())) return out;
+    gp_XYZ mean(0, 0, 0);
+    for (const gp_XYZ& p : P) mean += p;
+    mean /= (double)P.size();
+    C = C + W * ((mean - C).Dot(W));
+    out.fitted = true;
+    out.tilt = std::min(1.0, W.Crossed(Wseed).Modulus());
+    out.tilt = std::asin(out.tilt);
+    out.family = jointAxisAbout(donors, C, W);
+    const std::vector<ProfPt> chainProf = profileAbout(chain, C, W, xHint);
+    out.chain = certifyTorus(chainProf, tau);
+    // D-fc-5.17: a joint-axis spindle within tau of a horn is tried here, at
+    // the certifyTorus call. The family still has to certify (every donor
+    // vertex within tau); a horn that does not fit leaves the spindle refusal.
+    if (!out.chain.ok) {
+        const double edgeR = (!out.family.radius.empty() && jointAxisCertifies(out.family, tau))
+                                 ? out.family.radius.front()
+                                 : 0.0;
+        const TorusCert horn = hornFromSpindle(out.chain, chainProf, tau, edgeR, std::max(1, maxIters));
+        if (horn.ok) out.chain = horn;
+    }
+    out.ok = jointAxisCertifies(out.family, tau) && out.chain.ok;
+    return out;
+}
+
+// D-gid-7.12. Same-surface growth of the certified tori, after A3, on what
+// every other stage left. A triangle lies on a torus when its three vertices
+// are within tau of it and it spans two profile stations (F10: a chord across
+// one ring is a cap polygon, which every vertex test passes). No refit: the
+// surface is the band's own certified one, so its certificate -- and the
+// leave-one-region-out count it was taken on -- is unchanged.
+//  (b) An uncertified B1 chip (torusAtom and robbableUncertified: its own
+//      maxVertexDev exceeds tau) whose every triangle lies on a certified torus
+//      is that torus's surface. The torus takes the chip whole and the chip
+//      dissolves: the uncertified surface is replaced by the certified one.
+//  (a) A certified torus, and the chips it took, claim the unclaimed triangles
+//      edge-connected to them that lie on it. Growth that touches the band
+//      joins the band; a piece of chips and the triangles joining them that does
+//      not touch it ships as one face of its own on the band's surface.
+//  (c) D-gid-8.4. An uncertified chip that (b) did not take whole (one of its
+//      triangles is off the torus, e.g. a junction triangle that reaches the
+//      next surface) is still no surface (D-fc-4.3): (a) may fill through its
+//      triangles one by one on the same test, when the chip sits on a junction:
+//      every triangle the fill does not take lies within tau of a certified
+//      plane, cylinder or sphere corner across one of its edges (never a second
+//      torus). A chip the fill enters dissolves and its other triangles are
+//      released to no region (D-fc-4.3); any other chip stays whole.
+// Torus order is accepted order; a triangle or chip goes to the first certified
+// torus that takes it. Withheld triangles (U-3 retry) are never taken.
+bool claimTorusSameSurface(const MeshView& mv, const SegmentParams& p, SegmentWork& work) {
+    const double tau = tauOf(mv);
+    if (!(tau > 0.0) || !mv.pts || !mv.tris || !mv.triEdges || mv.nTri == 0) return true;
+    const int nTri = (int)mv.nTri;
+    const int nEdge = (int)mv.nEdge;
+    const int nAcc = (int)work.accepted.size();
+    std::vector<int> cert;
+    for (int s = 0; s < nAcc; ++s) {
+        const Region& T = work.accepted[(std::size_t)s];
+        if (T.origin == Origin::TorusBlend && T.type == SurfType::Torus && !T.tris.empty() &&
+            T.maxVertexDev <= tau)
+            cert.push_back(s);
+    }
+    if (cert.empty()) return true;
+    const bool diag = torusDiagOn();
+
+    std::vector<std::array<int, 2>> edgeTris((std::size_t)std::max(nEdge, 0),
+                                             std::array<int, 2>{-1, -1});
+    for (int t = 0; t < nTri; ++t)
+        for (int k = 0; k < 3; ++k) {
+            const int e = mv.triEdges[t][k];
+            if (e < 0 || e >= nEdge) continue;
+            if (edgeTris[(std::size_t)e][0] < 0) edgeTris[(std::size_t)e][0] = t;
+            else if (edgeTris[(std::size_t)e][1] < 0) edgeTris[(std::size_t)e][1] = t;
+        }
+    auto across = [&](int t, int k) {
+        const int e = mv.triEdges[t][k];
+        if (e < 0 || e >= nEdge) return -1;
+        return edgeTris[(std::size_t)e][0] == t ? edgeTris[(std::size_t)e][1]
+                                                : edgeTris[(std::size_t)e][0];
+    };
+    std::vector<int> owner((std::size_t)nTri, -1);
+    for (int i = 0; i < nAcc; ++i)
+        for (int t : work.accepted[(std::size_t)i].tris)
+            if (t >= 0 && t < nTri) owner[(std::size_t)t] = i;
+    std::vector<char> withheld((std::size_t)nTri, 0);
+    for (int t : p.torusWithheldTris)
+        if (t >= 0 && t < nTri) withheld[(std::size_t)t] = 1;
+
+    auto onTorus = [&](const Region& T, int t) {
+        const gp_XYZ o = T.ax.Location().XYZ(), a = T.ax.Direction().XYZ();
+        std::vector<ProfPt> P(3);
+        for (int k = 0; k < 3; ++k) {
+            const gp_XYZ c = cornerOf(mv, t, k);
+            if (!(torusSurfaceDev(T, c) <= tau)) return false;
+            const gp_XYZ d = c - o;
+            P[(std::size_t)k].z = d.Dot(a);
+            P[(std::size_t)k].rho = (d - a * P[(std::size_t)k].z).Modulus();
+        }
+        return countProfPts(P, tau) >= kMinAxialLevels;
+    };
+    // A point's distance to an accepted region's own surface (plane, cylinder,
+    // sphere corner, torus); infinite for any other surface (cone, B-spline).
+    auto certSurfaceDev = [](const Region& N, const gp_XYZ& c) {
+        const gp_XYZ o = N.ax.Location().XYZ(), a = N.ax.Direction().XYZ();
+        switch (N.type) {
+            case SurfType::Plane: return std::fabs((c - o).Dot(a));
+            case SurfType::Cylinder: return std::fabs(a.Crossed(c - o).Modulus() - N.radius);
+            case SurfType::Sphere: return std::fabs((c - o).Modulus() - N.radius);
+            case SurfType::Torus: return torusSurfaceDev(N, c);
+            default: return std::numeric_limits<double>::infinity();
+        }
+    };
+
+    // (b) Each uncertified chip goes to the first certified torus it lies on.
+    std::vector<int> robTo((std::size_t)nAcc, -1);
+    for (int ri = 0; ri < nAcc; ++ri) {
+        const Region& R = work.accepted[(std::size_t)ri];
+        if (!torusAtom(R) || !robbableUncertified(R, tau)) continue;
+        bool usable = true;
+        for (int t : R.tris)
+            if (t < 0 || t >= nTri || withheld[(std::size_t)t]) usable = false;
+        if (!usable) continue;
+        for (int s : cert) {
+            const Region& T = work.accepted[(std::size_t)s];
+            bool all = true;
+            for (int t : R.tris)
+                if (!onTorus(T, t)) {
+                    all = false;
+                    break;
+                }
+            if (!all) continue;
+            robTo[(std::size_t)ri] = s;
+            break;
+        }
+    }
+    // (c) D-gid-8.4. An uncertified chip that (b) did not take, because not every
+    // triangle of it lies on one certified torus, is still no surface (D-fc-4.3):
+    // its triangles are candidates of the fill below, triangle by triangle, on the
+    // same vertex + F10 test, under the junction condition at the fill. A chip the
+    // fill enters dissolves; its triangles the fill did not take are released,
+    // owned by no region (D-fc-4.3: back to Unclaimed). No refit, no count, no
+    // subset: each triangle is tested alone against a certified surface. A chip
+    // with a withheld triangle (U-3 retry) is not entered, as in (b).
+    std::vector<char> partialChip((std::size_t)nAcc, 0);
+    for (int ri = 0; ri < nAcc; ++ri) {
+        const Region& R = work.accepted[(std::size_t)ri];
+        if (robTo[(std::size_t)ri] >= 0 || !torusAtom(R) || !robbableUncertified(R, tau)) continue;
+        bool usable = true;
+        for (int t : R.tris)
+            if (t < 0 || t >= nTri || withheld[(std::size_t)t]) usable = false;
+        if (usable) partialChip[(std::size_t)ri] = 1;
+    }
+
+    std::vector<char> dead((std::size_t)nAcc, 0);
+    std::vector<Region> born;
+    std::vector<int> claimedFill;
+    int nGrown = 0;
+    for (int s : cert) {
+        std::vector<char> grow((std::size_t)nTri, 0);
+        std::vector<int> seeds = work.accepted[(std::size_t)s].tris;
+        int nChips = 0, nChipTri = 0;
+        for (int ri = 0; ri < nAcc; ++ri) {
+            if (robTo[(std::size_t)ri] != s) continue;
+            ++nChips;
+            for (int t : work.accepted[(std::size_t)ri].tris) {
+                grow[(std::size_t)t] = 1;
+                seeds.push_back(t);
+                ++nChipTri;
+            }
+        }
+        // (a) Unclaimed triangles edge-connected to the band or its chips, and
+        // (c) the triangles of an uncertified chip (b) did not take.
+        const Region& T = work.accepted[(std::size_t)s];
+        // (c) The fill may split a chip only at a junction with a surface of
+        // another kind: every triangle it does not take must lie within tau of
+        // this torus or of a certified plane, cylinder or sphere corner across one
+        // of its edges. Never of a second torus: one chip goes to one torus, as in
+        // (b). A chip that fails stays whole and the fill runs again without it.
+        std::vector<char> enter = partialChip;
+        auto onCertAcross = [&](int t, int chip) {
+            for (int k = 0; k < 3; ++k) {
+                const int o = across(t, k);
+                if (o < 0) continue;
+                const Region* N = nullptr;
+                if (grow[(std::size_t)o]) {
+                    N = &T;
+                } else {
+                    const int ow = owner[(std::size_t)o];
+                    if (ow < 0 || ow >= nAcc || ow == chip || dead[(std::size_t)ow]) continue;
+                    N = &work.accepted[(std::size_t)ow];
+                }
+                if (!(N->maxVertexDev <= tau) && !N->ringCertified) continue;
+                if (N != &T && N->type == SurfType::Torus) continue;
+                bool all = true;
+                for (int kk = 0; kk < 3 && all; ++kk)
+                    all = certSurfaceDev(*N, cornerOf(mv, t, kk)) <= tau;
+                if (all) return true;
+            }
+            return false;
+        };
+        const std::vector<char> grow0 = grow;
+        std::vector<int> fill, entered;
+        for (;;) {
+            grow = grow0;
+            fill.clear();
+            entered.clear();
+            std::vector<int> stack = seeds;
+            while (!stack.empty()) {
+                const int t = stack.back();
+                stack.pop_back();
+                for (int k = 0; k < 3; ++k) {
+                    const int o = across(t, k);
+                    if (o < 0 || grow[(std::size_t)o] || withheld[(std::size_t)o]) continue;
+                    const int ow = owner[(std::size_t)o];
+                    if (ow >= 0 && !(ow < nAcc && enter[(std::size_t)ow] && !dead[(std::size_t)ow]))
+                        continue;
+                    if (!onTorus(T, o)) continue;
+                    grow[(std::size_t)o] = 1;
+                    fill.push_back(o);
+                    stack.push_back(o);
+                    if (ow >= 0) entered.push_back(ow);
+                }
+            }
+            std::sort(entered.begin(), entered.end());
+            entered.erase(std::unique(entered.begin(), entered.end()), entered.end());
+            bool again = false;
+            for (int ri : entered) {
+                for (int t : work.accepted[(std::size_t)ri].tris) {
+                    if (t < 0 || t >= nTri || grow[(std::size_t)t] || onCertAcross(t, ri)) continue;
+                    if (diag)
+                        std::fprintf(stderr,
+                                     "DIAG_REL_TORUS_HOLD region=%d into=%d tri=%d why=no-certified-"
+                                     "neighbour\n",
+                                     ri, s, t);
+                    enter[(std::size_t)ri] = 0;
+                    again = true;
+                    break;
+                }
+            }
+            if (!again) break;
+        }
+        if (nChips == 0 && fill.empty()) continue;
+        // (c) A chip the fill entered dissolves; what the fill did not take of
+        // it is released (owned by no region).
+        {
+            for (int ri : entered) {
+                const Region& R = work.accepted[(std::size_t)ri];
+                int nStolen = 0, nReleased = 0;
+                for (int t : R.tris) {
+                    if (t < 0 || t >= nTri) continue;
+                    if (grow[(std::size_t)t]) {
+                        ++nStolen;
+                        continue;
+                    }
+                    owner[(std::size_t)t] = -1;
+                    ++nReleased;
+                    if (diag) {
+                        double dv = 0.0;
+                        for (int k = 0; k < 3; ++k)
+                            dv = std::max(dv, torusSurfaceDev(T, cornerOf(mv, t, k)));
+                        std::fprintf(stderr,
+                                     "DIAG_REL_TORUS_RELEASE region=%d into=%d tri=%d "
+                                     "maxDevTau=%.4f\n",
+                                     ri, s, t, dv / tau);
+                    }
+                }
+                dead[(std::size_t)ri] = 1;
+                if (diag)
+                    std::fprintf(stderr,
+                                 "DIAG_REL_ROB stage=torusgrow region=%d into=%d radius=%.9g "
+                                 "devTau=%.9g nTri=%zu stolen=%d released=%d dVolStored=%.9g\n",
+                                 ri, s, R.radius, R.maxVertexDev / tau, R.tris.size(), nStolen,
+                                 nReleased, R.dVolPredicted);
+            }
+        }
+        for (int t : fill) {
+            owner[(std::size_t)t] = s;
+            claimedFill.push_back(t);
+        }
+        // Edge-components of the growth; one that touches the band joins it.
+        std::vector<char> seen((std::size_t)nTri, 0);
+        std::vector<int> joined;
+        int nPieces = 0;
+        std::vector<int> grown;
+        for (int ri = 0; ri < nAcc; ++ri)
+            if (robTo[(std::size_t)ri] == s)
+                grown.insert(grown.end(), work.accepted[(std::size_t)ri].tris.begin(),
+                             work.accepted[(std::size_t)ri].tris.end());
+        grown.insert(grown.end(), fill.begin(), fill.end());
+        std::sort(grown.begin(), grown.end());
+        for (int t0 : grown) {
+            if (seen[(std::size_t)t0]) continue;
+            std::vector<int> comp, st{t0};
+            seen[(std::size_t)t0] = 1;
+            bool touches = false;
+            while (!st.empty()) {
+                const int t = st.back();
+                st.pop_back();
+                comp.push_back(t);
+                for (int k = 0; k < 3; ++k) {
+                    const int o = across(t, k);
+                    if (o < 0) continue;
+                    if (owner[(std::size_t)o] == s && !grow[(std::size_t)o]) touches = true;
+                    if (!grow[(std::size_t)o] || seen[(std::size_t)o]) continue;
+                    seen[(std::size_t)o] = 1;
+                    st.push_back(o);
+                }
+            }
+            std::sort(comp.begin(), comp.end());
+            if (touches) {
+                joined.insert(joined.end(), comp.begin(), comp.end());
+                continue;
+            }
+            // A piece of its own on the band's surface (fresh region, emitTorus's
+            // fields; the material side from its own triangles).
+            Region n;
+            n.id = 0;
+            n.type = SurfType::Torus;
+            n.origin = Origin::TorusBlend;
+            n.ax = T.ax;
+            n.radius = T.radius;
+            n.radius2 = T.radius2;
+            n.nSides = T.nSides;
+            n.chordSagitta = T.chordSagitta;
+            n.closed360 = false;
+            n.filletNbrA = T.filletNbrA;
+            n.filletNbrB = -1;
+            n.reject = Reject::None;
+            n.builtAs = BuiltAs::NotBuilt;
+            {
+                const gp_XYZ o = T.ax.Location().XYZ(), a = T.ax.Direction().XYZ();
+                double sigma = 0.0;
+                for (int t : comp) {
+                    const gp_XYZ p0 = cornerOf(mv, t, 0), p1 = cornerOf(mv, t, 1),
+                                 p2 = cornerOf(mv, t, 2);
+                    const gp_XYZ nn = (p1 - p0).Crossed(p2 - p0);  // 2 * area * normal
+                    const gp_XYZ d = (p0 + p1 + p2) / 3.0 - o;
+                    const double zc = d.Dot(a);
+                    gp_XYZ rad = d - a * zc;
+                    const double rc = rad.Modulus();
+                    if (!(rc > gp::Resolution())) continue;
+                    rad /= rc;
+                    const gp_XYZ m = rad * (rc - T.radius) + a * zc;
+                    const double mm = m.Modulus();
+                    if (mm > gp::Resolution()) sigma += 0.5 * nn.Dot(m / mm);
+                }
+                n.outwardNormal = sigma >= 0.0;
+            }
+            n.tris = comp;
+            n.torusGrowTris = comp;
+            refreshTorusRegion(mv, n);
+            int pieceChips = 0;
+            for (int ri = 0; ri < nAcc; ++ri)
+                if (robTo[(std::size_t)ri] == s &&
+                    std::binary_search(comp.begin(), comp.end(),
+                                       minTriOf(work.accepted[(std::size_t)ri].tris)))
+                    ++pieceChips;
+            if (diag)
+                std::fprintf(stderr,
+                             "DIAG_REL_TORUS_PIECE acc=%d Rmaj=%.6f Rmin=%.6f chips=%d nTri=%zu "
+                             "maxDevTau=%.4f outward=%d bandOutward=%d u=[%.6f,%.6f] "
+                             "v=[%.6f,%.6f]\n",
+                             s, n.radius, n.radius2, pieceChips, n.tris.size(),
+                             n.maxVertexDev / tau, n.outwardNormal ? 1 : 0,
+                             T.outwardNormal ? 1 : 0, n.uMin, n.uMax, n.vMin, n.vMax);
+            ++nPieces;
+            born.push_back(std::move(n));
+        }
+        for (int ri = 0; ri < nAcc; ++ri)
+            if (robTo[(std::size_t)ri] == s) dead[(std::size_t)ri] = 1;
+        Region& B = work.accepted[(std::size_t)s];
+        if (!joined.empty()) {
+            B.tris.insert(B.tris.end(), joined.begin(), joined.end());
+            B.torusGrowTris.insert(B.torusGrowTris.end(), joined.begin(), joined.end());
+            std::sort(B.torusGrowTris.begin(), B.torusGrowTris.end());
+            refreshTorusRegion(mv, B);
+        }
+        ++nGrown;
+        if (diag)
+            std::fprintf(stderr,
+                         "DIAG_REL_TORUS_GROW acc=%d Rmaj=%.6f Rmin=%.6f chips=%d chipTri=%d "
+                         "fill=%zu joined=%zu pieces=%d nTri=%zu maxDevTau=%.4f\n",
+                         s, B.radius, B.radius2, nChips, nChipTri, fill.size(), joined.size(),
+                         nPieces, B.tris.size(), B.maxVertexDev / tau);
+    }
+    if (nGrown == 0) return true;
+
+    // The claimed triangles leave the Unclaimed provisionals A3 left (the
+    // shatter grain), so no provisional names a torus it was never part of.
+    if (!claimedFill.empty()) {
+        std::sort(claimedFill.begin(), claimedFill.end());
+        for (Provisional& pr : work.provisionals) {
+            if (pr.claim != ProvClaim::Unclaimed) continue;
+            pr.tris.erase(std::remove_if(pr.tris.begin(), pr.tris.end(),
+                                         [&](int t) {
+                                             return std::binary_search(claimedFill.begin(),
+                                                                       claimedFill.end(), t);
+                                         }),
+                          pr.tris.end());
+        }
+    }
+
+    // A dissolved chip leaves the accepted list; indices into it follow the
+    // regions that stay (the sphere stage's rule, D-fc-5.20).
+    bool anyDead = false;
+    for (char d : dead) anyDead = anyDead || d;
+    if (anyDead) {
+        std::vector<int> newIdx((std::size_t)nAcc, -1);
+        std::vector<Region> keep;
+        keep.reserve((std::size_t)nAcc + born.size());
+        for (int i = 0; i < nAcc; ++i) {
+            if (dead[(std::size_t)i]) continue;
+            newIdx[(std::size_t)i] = (int)keep.size();
+            keep.push_back(std::move(work.accepted[(std::size_t)i]));
+        }
+        for (Region& rg : born) keep.push_back(std::move(rg));
+        for (Region& rg : keep) {
+            const bool nbr = rg.origin == Origin::ChamferCone || rg.origin == Origin::TorusBlend;
+            if (!nbr || rg.filletNbrA < 0 || rg.filletNbrA >= nAcc) continue;
+            rg.filletNbrA = newIdx[(std::size_t)rg.filletNbrA];
+        }
+        for (TorusPendingReclaim& pack : work.torusPending)
+            for (int& ai : pack.reclaimAccIdx)
+                if (ai >= 0 && ai < nAcc) ai = newIdx[(std::size_t)ai];
+        work.accepted.swap(keep);
+    } else {
+        for (Region& rg : born) work.accepted.push_back(std::move(rg));
+    }
+    return true;
+}
+
+}  // namespace refit
+}  // namespace stl2step

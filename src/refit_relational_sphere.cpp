@@ -1,0 +1,1778 @@
+// Sphere corners by relation (D-fc-5.11 F8, D-fc-7.3 RQ-HUB-6). A corner where
+// three certified rounds of one radius meet is a sphere. The centre is the
+// point the rounds' spines share. The radius is the least-squares radius of
+// the corner's own vertices (the mean of their distances to that centre), not
+// the rounds' mean. The corner ships only when every vertex and every
+// sphere|round contact is within tau. The claimed set is every free triangle
+// inside the corner sector whose three vertices lie within tau of the anchor
+// sphere; it is claimed only when it is one disk bounded by the three rounds
+// alone. Runs after the tori (H1), before A3. A round is a cylinder (line
+// spine) or a certified torus blend (circle spine). The torus contact is the
+// torus u-iso through the centre (ElSLib::TorusUIso in the torus frame). A
+// mesh polyline between the two curved faces is not a contact.
+// D-gid-8.4: two certified cylinder rounds of one radius whose axes meet fix
+// the centre and the radius without a third round. When no third round passes
+// through that centre, the pair is a corner of its own; it ships only under the
+// D-gid-4.4 meet rule (vertices and contacts within tau, certified neighbours
+// tangent, plane stations > 2). A pair with any third round through its centre
+// (certified or not, a torus that fails its own residual included) is not a
+// pair corner: the triple decides, and no anchor subset is tried.
+// SPDX-License-Identifier: MIT
+
+#include "refit_relational_sphere.hpp"
+
+#include "refit_band_volume.hpp"
+#include "refit_internal.hpp"
+#include "refit_profile_cert.hpp"
+#include "refit_relational.hpp"
+
+#include <Precision.hxx>
+
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <cstdarg>
+#include <cstdio>
+#include <cstdlib>
+#include <limits>
+#include <utility>
+#include <vector>
+
+namespace stl2step {
+namespace refit {
+
+namespace {
+constexpr double kTwoPi = 6.28318530717958647692528676655900577;
+}  // namespace
+
+double spineDistance(const RoundSpine& s, const gp_XYZ& x) {
+    const gp_XYZ d = x - s.o;
+    const double h = d.Dot(s.a);
+    const gp_XYZ rho = d - s.a * h;
+    if (!s.circle) return rho.Modulus();
+    return std::hypot(rho.Modulus() - s.R, h);
+}
+
+bool spineTangentAt(const RoundSpine& s, const gp_XYZ& x, gp_XYZ& t) {
+    if (!s.circle) {
+        t = s.a;
+        return true;
+    }
+    const gp_XYZ d = x - s.o;
+    const gp_XYZ rho = d - s.a * d.Dot(s.a);
+    const double m = rho.Modulus();
+    if (!(m > 0.0)) return false;
+    t = s.a.Crossed(rho / m);
+    return true;
+}
+
+bool lineSpinesPoint(const std::vector<RoundSpine>& spines, gp_XYZ& c) {
+    double M[3][3] = {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}};
+    double b[3] = {0, 0, 0};
+    int n = 0;
+    for (const RoundSpine& s : spines) {
+        if (s.circle) continue;
+        const double a[3] = {s.a.X(), s.a.Y(), s.a.Z()};
+        const double o[3] = {s.o.X(), s.o.Y(), s.o.Z()};
+        for (int i = 0; i < 3; ++i)
+            for (int j = 0; j < 3; ++j) {
+                const double pij = (i == j ? 1.0 : 0.0) - a[i] * a[j];
+                M[i][j] += pij;
+                b[i] += pij * o[j];
+            }
+        ++n;
+    }
+    if (n < 2) return false;
+    const double det = M[0][0] * (M[1][1] * M[2][2] - M[1][2] * M[2][1]) -
+                       M[0][1] * (M[1][0] * M[2][2] - M[1][2] * M[2][0]) +
+                       M[0][2] * (M[1][0] * M[2][1] - M[1][1] * M[2][0]);
+    if (!(std::fabs(det) > 0.0) || !std::isfinite(det)) return false;
+    double x[3];
+    for (int k = 0; k < 3; ++k) {
+        double A[3][3];
+        for (int i = 0; i < 3; ++i)
+            for (int j = 0; j < 3; ++j) A[i][j] = (j == k) ? b[i] : M[i][j];
+        x[k] = (A[0][0] * (A[1][1] * A[2][2] - A[1][2] * A[2][1]) -
+                A[0][1] * (A[1][0] * A[2][2] - A[1][2] * A[2][0]) +
+                A[0][2] * (A[1][0] * A[2][1] - A[1][1] * A[2][0])) /
+               det;
+    }
+    if (!std::isfinite(x[0]) || !std::isfinite(x[1]) || !std::isfinite(x[2])) return false;
+    c = gp_XYZ(x[0], x[1], x[2]);
+    return true;
+}
+
+SphereCornerFit sphereOfRoundSet(const std::vector<RoundSpine>& rounds, double tau) {
+    SphereCornerFit f;
+    if (!(tau > 0.0) || rounds.size() < 2 || rounds.size() > 3) return f;
+    if (!lineSpinesPoint(rounds, f.c)) return f;
+    double lo = rounds[0].r, hi = rounds[0].r, sum = 0.0;
+    bool spineOff = false;
+    for (const RoundSpine& s : rounds) {
+        lo = std::min(lo, s.r);
+        hi = std::max(hi, s.r);
+        sum += s.r;
+        const double d = spineDistance(s, f.c);
+        f.spineDev = std::max(f.spineDev, d);
+        // Line spine: the cylinder axis, within tau. Circle spine: the torus
+        // tube-centre circle, within tanDistTol(tau, tau) = 2 tau.
+        const double lim = s.circle ? tanDistTol(tau, tau) : tau;
+        if (!std::isfinite(d) || d > lim) spineOff = true;
+    }
+    f.r = sum / static_cast<double>(rounds.size());
+    f.radiusSpread = hi - lo;
+    if (f.radiusSpread > tau || spineOff || !(f.r > tau)) {
+        f.why = "not-blend";
+        return f;
+    }
+    f.ok = true;
+    f.why = "accept";
+    return f;
+}
+
+SphereCornerFit sphereOfRounds(const std::array<RoundSpine, 3>& rounds, double tau) {
+    return sphereOfRoundSet(std::vector<RoundSpine>(rounds.begin(), rounds.end()), tau);
+}
+
+double sphereRadiusLeastSquares(const gp_XYZ& centre, const std::vector<gp_XYZ>& pts) {
+    if (pts.empty()) return std::numeric_limits<double>::quiet_NaN();
+    double sum = 0.0;
+    for (const gp_XYZ& p : pts) {
+        const double d = (p - centre).Modulus();
+        if (!std::isfinite(d)) return std::numeric_limits<double>::quiet_NaN();
+        sum += d;
+    }
+    const double r = sum / static_cast<double>(pts.size());
+    return std::isfinite(r) ? r : std::numeric_limits<double>::quiet_NaN();
+}
+
+bool sphereRoundContact(const gp_XYZ& c, double r, const RoundSpine& s, double tol) {
+    if (s.circle) {
+        if (!(s.a.Modulus() > 0.0)) return false;
+        double u = 0.0;
+        const gp_Ax3 fr(gp_Pnt(s.o), gp_Dir(s.a));
+        return sphereTorusContact(c, r, fr, s.R, s.r, tol, u);
+    }
+    double v = 0.0;
+    return sphereCylinderContact(c, r, s.o, s.a, s.r, tol, v);
+}
+
+bool sphereOutranksCylinder(const gp_XYZ& c, double r, const RoundSpine& cyl,
+                            const std::vector<std::array<gp_XYZ, 3>>& tris, double tau) {
+    if (!(tau > 0.0) || !std::isfinite(tau) || cyl.circle || tris.empty()) return false;
+    if (!(cyl.a.Modulus() > 0.0) || !std::isfinite(r) || !std::isfinite(cyl.r)) return false;
+    for (const std::array<gp_XYZ, 3>& t : tris)
+        for (const gp_XYZ& x : t) {
+            const double onCyl = std::fabs(spineDistance(cyl, x) - cyl.r);
+            const double onSph = std::fabs((x - c).Modulus() - r);
+            if (!(onCyl <= tau) || !(onSph <= tau)) return false;
+        }
+    return true;
+}
+
+// solved: a finite residual was measured. Fewer than four points is residual 0
+// (the historical value). A failed eigensolve, a zero normal, or a non-finite
+// residual is unsolved: the caller must refuse, not treat it as "not a plane".
+namespace {
+struct PlaneSolve {
+    bool solved = false;
+    double residual = 0;
+};
+
+PlaneSolve solvePlane(const std::vector<gp_XYZ>& pts) {
+    PlaneSolve s;
+    if (pts.size() < 4) {
+        s.solved = true;
+        s.residual = 0.0;
+        return s;
+    }
+    gp_XYZ m(0, 0, 0);
+    for (const gp_XYZ& p : pts) m += p;
+    m /= (double)pts.size();
+    if (!std::isfinite(m.X()) || !std::isfinite(m.Y()) || !std::isfinite(m.Z())) return s;
+    std::array<std::array<double, 3>, 3> C{};
+    for (const gp_XYZ& p : pts) {
+        const double d[3] = {p.X() - m.X(), p.Y() - m.Y(), p.Z() - m.Z()};
+        for (int i = 0; i < 3; ++i)
+            for (int j = 0; j < 3; ++j) C[i][j] += d[i] * d[j];
+    }
+    std::array<double, 3> ev{};
+    std::array<std::array<double, 3>, 3> evec{};
+    if (!jacobiEigenSymmetric3(C, ev, evec)) return s;
+    int k = 0;
+    for (int i = 1; i < 3; ++i)
+        if (ev[i] < ev[k]) k = i;
+    gp_XYZ n(evec[k][0], evec[k][1], evec[k][2]);  // row k: eigenvector of eval[k]
+    const double nm = n.Modulus();
+    if (!(nm > 0.0) || !std::isfinite(nm)) return s;
+    n /= nm;
+    double mx = 0.0;
+    for (const gp_XYZ& p : pts) {
+        const double h = std::fabs((p - m).Dot(n));
+        if (!std::isfinite(h)) return s;
+        mx = std::max(mx, h);
+    }
+    s.solved = true;
+    s.residual = mx;
+    return s;
+}
+}  // namespace
+
+double planeResidual(const std::vector<gp_XYZ>& pts) {
+    const PlaneSolve s = solvePlane(pts);
+    return s.solved ? s.residual : HUGE_VAL;
+}
+
+bool pointsPlanar(const std::vector<gp_XYZ>& pts, double tau) {
+    const PlaneSolve s = solvePlane(pts);
+    return s.solved && std::isfinite(s.residual) && s.residual <= tau;
+}
+
+bool planeGateRefuses(const std::vector<gp_XYZ>& pts, double tau) {
+    // D-fc-5.20. q <= 0 admits nothing. A failed eigensolve is not evidence
+    // the points leave the plane, so the plane-first refusal still fires.
+    if (!(tau > 0.0) || !std::isfinite(tau)) return true;
+    const PlaneSolve s = solvePlane(pts);
+    if (!s.solved || !std::isfinite(s.residual)) return true;
+    return s.residual <= tau;
+}
+
+double pinnedVertexTol(double d, double cap) {
+    // Same pad partialFaceTolCap already applies. Admitted only up to cap:
+    // a vertex at the cap must not be stored past it.
+    const double padded = d * 1.001 + Precision::Confusion();
+    if (!(padded < cap)) return cap;
+    return padded;
+}
+
+RoundCert certifyCylinderRound(const RoundSpine& spine,
+                               const std::vector<std::array<gp_XYZ, 3>>& tris, double tau) {
+    RoundCert rc;
+    if (spine.circle || !(tau > 0.0) || tris.empty()) return rc;
+    gp_XYZ e1 = std::fabs(spine.a.X()) < 0.9 ? gp_XYZ(1, 0, 0) : gp_XYZ(0, 1, 0);
+    e1 = e1 - spine.a * e1.Dot(spine.a);
+    e1 /= e1.Modulus();
+    const gp_XYZ e2 = spine.a.Crossed(e1);
+    auto dev = [&](const gp_XYZ& x) { return std::fabs(spineDistance(spine, x) - spine.r); };
+    std::vector<char> inI(tris.size(), 0);
+    std::vector<double> psi, rho, zs;
+    double zlo = HUGE_VAL, zhi = -HUGE_VAL;
+    for (std::size_t i = 0; i < tris.size(); ++i) {
+        bool in = true;
+        for (const gp_XYZ& x : tris[i]) in = in && dev(x) <= tau;
+        if (!in) continue;
+        inI[i] = 1;
+        ++rc.nI;
+        for (int k = 0; k < 3; ++k) {
+            const gp_XYZ& x = tris[i][(std::size_t)k];
+            const gp_XYZ d = x - spine.o;
+            const double z = d.Dot(spine.a);
+            const gp_XYZ q = d - spine.a * z;
+            psi.push_back(std::atan2(q.Dot(e2), q.Dot(e1)));
+            rho.push_back(q.Modulus());
+            zs.push_back(z);
+            zlo = std::min(zlo, z);
+            zhi = std::max(zhi, z);
+            rc.certDev = std::max(rc.certDev, dev(x));
+            const gp_XYZ mid = (x + tris[i][(std::size_t)((k + 1) % 3)]) * 0.5;
+            rc.s = std::max(rc.s, dev(mid));
+        }
+    }
+    if (rc.nI == 0) return rc;
+    rc.stations = countColumns(psi, rho, tau);
+    rc.levels = countLevels(zs, tau);
+    for (std::size_t i = 0; i < tris.size(); ++i) {
+        if (inI[i]) continue;
+        bool one = false, all = true;
+        for (const gp_XYZ& x : tris[i]) {
+            const double d = dev(x);
+            one = one || d <= tau;
+            all = all && d <= rc.s;
+            const double z = (x - spine.o).Dot(spine.a);
+            all = all && z >= zlo - tau && z <= zhi + tau;
+            rc.coverDev = std::max(rc.coverDev, d);
+        }
+        if (one && all) ++rc.nCover;
+        else ++rc.nOther;
+    }
+    rc.ok = rc.nOther == 0 && rc.stations >= minStations(kParamsCircle) && rc.levels >= 2;
+    return rc;
+}
+
+bool sphereCylinderContact(const gp_XYZ& c, double r, const gp_XYZ& o, const gp_XYZ& a,
+                           double R, double tol, double& v) {
+    RoundSpine s;
+    s.o = o;
+    s.a = a;
+    s.r = R;
+    if (!(tol >= 0.0) || spineDistance(s, c) > tol || std::fabs(R - r) > tol) return false;
+    v = (c - o).Dot(a);
+    return true;
+}
+
+bool sphereTorusContact(const gp_XYZ& c, double r, const gp_Ax3& frame, double Rmaj, double Rmin,
+                        double tol, double& u) {
+    if (!(tol >= 0.0) || !std::isfinite(r) || !std::isfinite(Rmaj) || !std::isfinite(Rmin))
+        return false;
+    // Ring only. A horn (Rmaj == Rmin) and a spindle (Rmaj < Rmin) are refused.
+    // The gap is OCCT's own resolution, the same admission torusIsRing uses.
+    if (!(Rmin > Precision::Confusion()) || !(Rmaj - Rmin > Precision::Confusion())) return false;
+    if (std::fabs(Rmin - r) > tol) return false;
+    RoundSpine s;
+    s.circle = true;
+    s.o = frame.Location().XYZ();
+    s.a = frame.Direction().XYZ();
+    s.R = Rmaj;
+    s.r = Rmin;
+    if (spineDistance(s, c) > tol) return false;
+    const gp_XYZ d = c - frame.Location().XYZ();
+    const double x = d.Dot(frame.XDirection().XYZ());
+    const double y = d.Dot(frame.YDirection().XYZ());
+    if (!std::isfinite(x) || !std::isfinite(y)) return false;
+    u = std::atan2(y, x);
+    if (u < 0.0) u += kTwoPi;
+    return std::isfinite(u);
+}
+
+double sphereIsoBound(const gp_XYZ& centre, double r, const gp_XYZ& sx, const gp_XYZ& sy,
+                      const gp_XYZ& sz, const gp_XYZ& c0, double rho, const gp_XYZ& xc,
+                      const gp_XYZ& yc, bool meridian, double u0, double v0, double s) {
+    gp_XYZ s0, sc, sn;
+    if (!meridian) {
+        const gp_XYZ m = sx * std::cos(u0) + sy * std::sin(u0);
+        const gp_XYZ w = sx * (-std::sin(u0)) + sy * std::cos(u0);
+        s0 = centre + sz * (r * std::sin(v0));
+        sc = m * (r * std::cos(v0));
+        sn = w * (r * std::cos(v0) * s);
+    } else {
+        const gp_XYZ m = sx * std::cos(u0) + sy * std::sin(u0);
+        s0 = centre;
+        sc = (m * std::cos(v0) + sz * std::sin(v0)) * r;
+        sn = (m * (-std::sin(v0)) + sz * std::cos(v0)) * (r * s);
+    }
+    const gp_XYZ P = c0 - s0;
+    const gp_XYZ Q = xc * rho - sc;
+    const gp_XYZ R = yc * rho - sn;
+    const double a = Q.Dot(Q), b = Q.Dot(R), c = R.Dot(R);
+    const double lam = 0.5 * (a + c) + std::sqrt(0.25 * (a - c) * (a - c) + b * b);
+    return P.Modulus() + std::sqrt(std::max(lam, 0.0));
+}
+
+SphereIsoLine sphereIsoLineOf(const gp_XYZ& centre, double r, const gp_XYZ& sx, const gp_XYZ& sy,
+                              const gp_XYZ& sz, const gp_XYZ& c0, double rho, const gp_XYZ& xc,
+                              const gp_XYZ& yc, double tMid) {
+    SphereIsoLine L;
+    const gp_XYZ n = xc.Crossed(yc);
+    auto wrap = [](double u) {
+        while (u < 0.0) u += kTwoPi;
+        while (u >= kTwoPi) u -= kTwoPi;
+        return u;
+    };
+    if (std::fabs(n.Dot(sz)) >= std::hypot(n.Dot(sx), n.Dot(sy))) {
+        // Parallel: u(t) = azimuth of Xc + s t.
+        L.meridian = false;
+        L.s = n.Dot(sz) >= 0.0 ? 1.0 : -1.0;
+        L.u0 = wrap(std::atan2(xc.Dot(sy), xc.Dot(sx)));
+        L.v0 = std::asin(std::max(-1.0, std::min(1.0, (c0 - centre).Dot(sz) / r)));
+    } else {
+        // Meridian through the circle's mid point: v(t) = beta + s t.
+        const gp_XYZ pm = c0 + (xc * std::cos(tMid) + yc * std::sin(tMid)) * rho - centre;
+        gp_XYZ m = pm - sz * pm.Dot(sz);
+        const double mm = m.Modulus();
+        if (!(mm > 0.0)) return L;
+        m /= mm;
+        L.meridian = true;
+        L.u0 = wrap(std::atan2(m.Dot(sy), m.Dot(sx)));
+        const double beta = std::atan2(xc.Dot(sz), xc.Dot(m));
+        const gp_XYZ yPlus = m * (-std::sin(beta)) + sz * std::cos(beta);
+        L.s = yc.Dot(yPlus) >= 0.0 ? 1.0 : -1.0;
+        L.v0 = beta;
+    }
+    L.bound = sphereIsoBound(centre, r, sx, sy, sz, c0, rho, xc, yc, L.meridian, L.u0, L.v0, L.s);
+    // The line's own branch: the value at tMid in [0, 2 pi) (u of a parallel)
+    // or in [-pi, pi) (v of a meridian). A whole-period shift is exact.
+    if (!L.meridian) {
+        const double um = L.u0 + L.s * tMid;
+        L.u0 += wrap(um) - um;
+    } else {
+        const double vm = L.v0 + L.s * tMid;
+        L.v0 += (wrap(vm + 0.5 * kTwoPi) - 0.5 * kTwoPi) - vm;
+    }
+    return L;
+}
+
+double sphereCapVolume(const gp_XYZ& centre, double r, const gp_XYZ& p, const gp_XYZ& q,
+                       const gp_XYZ& s) {
+    const gp_XYZ a = p - centre, b = q - centre, d = s - centre;
+    const double la = a.Modulus(), lb = b.Modulus(), ld = d.Modulus();
+    const double triple = std::fabs(a.Dot(b.Crossed(d)));
+    const double den = la * lb * ld + a.Dot(b) * ld + a.Dot(d) * lb + b.Dot(d) * la;
+    const double omega = 2.0 * std::atan2(triple, den);
+    return r * r * r * omega / 3.0 - triple / 6.0;
+}
+
+namespace {
+
+bool diagOn() {
+    const char* e = std::getenv("STL2STEP_DIAG_REL");
+    return e && e[0] && e[0] != '0';
+}
+
+void diagPrintf(const char* fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    std::vfprintf(stderr, fmt, ap);
+    va_end(ap);
+}
+
+gp_XYZ ptOf(const MeshView& mv, int t, int k) {
+    const int gt = mv.compTris ? mv.compTris[t] : t;
+    return mv.pts[mv.tris[gt][k]];
+}
+
+double triAreaNormal(const MeshView& mv, int t, gp_XYZ& n) {
+    const gp_XYZ a = ptOf(mv, t, 0), b = ptOf(mv, t, 1), c = ptOf(mv, t, 2);
+    gp_XYZ x = (b - a).Crossed(c - a);
+    const double m = x.Modulus();
+    n = m > 0.0 ? x / m : gp_XYZ(0, 0, 0);
+    return 0.5 * m;
+}
+
+// D-fc-4.3. An accepted CylGrow region whose own maxVertexDev exceeds tau does
+// not certify its surface (D-fc-1.4); a certified band may rob it.
+// D-gid-7.6: a ring-certified wall is certified, whatever its chord sag.
+bool uncertifiedCylGrow(const Region& r, double tau) {
+    return r.origin == Origin::CylGrow && !r.ringCertified && r.maxVertexDev > tau;
+}
+
+// D-fc-7.1 measurement, print-only. revolvedChordTerm summed over the region's
+// triangles (slope 0), signed the way dVolCylinderSector is signed. It is the
+// chord gap of this cylinder, not a rewrite of dVolPredicted.
+double cylinderShippedVolume(const MeshView& mv, const Region& r) {
+    const gp_XYZ axis = r.ax.Direction().XYZ();
+    const gp_XYZ e1 = r.ax.XDirection().XYZ();
+    const gp_XYZ e2 = r.ax.YDirection().XYZ();
+    const gp_XYZ origin = r.ax.Location().XYZ();
+    if (!(axis.Modulus() > 0.0) || !(e1.Modulus() > 0.0) || !(r.radius > 0.0)) return 0.0;
+    double v = 0.0;
+    for (int t : r.tris) {
+        if (t < 0 || t >= (int)mv.nTri) continue;
+        const double term = revolvedChordTerm(ptOf(mv, t, 0), ptOf(mv, t, 1), ptOf(mv, t, 2),
+                                              origin, axis, e1, e2, r.radius, 0.0);
+        if (!std::isfinite(term)) return 0.0;
+        v += term;
+    }
+    if (!std::isfinite(v)) return 0.0;
+    return (r.outwardNormal ? 1.0 : -1.0) * v;
+}
+
+// Distance from a point to a torus blend surface (tube radius Rmin about the
+// major circle). 
+double torusSurfaceDev(const gp_XYZ& x, const Region& tor) {
+    RoundSpine s;
+    s.circle = true;
+    s.o = tor.ax.Location().XYZ();
+    s.a = tor.ax.Direction().XYZ();
+    s.R = tor.radius;
+    const double d = spineDistance(s, x);
+    if (!std::isfinite(d)) return std::numeric_limits<double>::infinity();
+    return std::fabs(d - tor.radius2);
+}
+
+void refitPlaneProv(const MeshView& mv, Provisional& pr) {
+    gp_Ax3 pl;
+    if (!pr.tris.empty() && pcaPlane(mv, pr.tris, pl)) pr.plane = pl;
+    double area = 0.0;
+    std::vector<int> vs;
+    for (int t : pr.tris) {
+        gp_XYZ n;
+        area += triAreaNormal(mv, t, n);
+        const int gt = mv.compTris ? mv.compTris[t] : t;
+        for (int k = 0; k < 3; ++k) vs.push_back(mv.tris[gt][k]);
+    }
+    std::sort(vs.begin(), vs.end());
+    vs.erase(std::unique(vs.begin(), vs.end()), vs.end());
+    pr.area = area;
+    const gp_XYZ n = pr.plane.Direction().XYZ();
+    const gp_XYZ o = pr.plane.Location().XYZ();
+    double mx = 0.0, ss = 0.0;
+    for (int g : vs) {
+        const double d = std::fabs((mv.pts[g] - o).Dot(n));
+        mx = std::max(mx, d);
+        ss += d * d;
+    }
+    pr.maxVertexDev = mx;
+    pr.rmsVertexDev = vs.empty() ? 0.0 : std::sqrt(ss / (double)vs.size());
+}
+
+struct Round {
+    int acc = -1;
+    RoundSpine s;
+    bool certified = false;
+    RoundCert cert;
+};
+
+// Print-only (STL2STEP_DIAG_REL). Algebraic sphere of an unclaimed component:
+// |p-c|^2 = r^2 written 2 c·p + g = p·p, g = r^2 - |c|^2. Not a certificate.
+bool diagAlgebraicSphere(const std::vector<gp_XYZ>& pts, gp_XYZ& c, double& r) {
+    if (pts.size() < 4) return false;
+    double A[4][4] = {};
+    double b[4] = {};
+    for (const gp_XYZ& p : pts) {
+        const double row[4] = {2.0 * p.X(), 2.0 * p.Y(), 2.0 * p.Z(), 1.0};
+        const double rhs = p.Dot(p);
+        for (int i = 0; i < 4; ++i) {
+            b[i] += row[i] * rhs;
+            for (int j = 0; j < 4; ++j) A[i][j] += row[i] * row[j];
+        }
+    }
+    double M[4][5];
+    for (int i = 0; i < 4; ++i) {
+        for (int j = 0; j < 4; ++j) M[i][j] = A[i][j];
+        M[i][4] = b[i];
+    }
+    for (int col = 0; col < 4; ++col) {
+        int piv = col;
+        for (int row = col + 1; row < 4; ++row)
+            if (std::fabs(M[row][col]) > std::fabs(M[piv][col])) piv = row;
+        if (!(std::fabs(M[piv][col]) > 1e-18)) return false;
+        if (piv != col)
+            for (int k = col; k < 5; ++k) std::swap(M[col][k], M[piv][k]);
+        const double div = M[col][col];
+        for (int k = col; k < 5; ++k) M[col][k] /= div;
+        for (int row = 0; row < 4; ++row) {
+            if (row == col) continue;
+            const double f = M[row][col];
+            for (int k = col; k < 5; ++k) M[row][k] -= f * M[col][k];
+        }
+    }
+    c = gp_XYZ(M[0][4], M[1][4], M[2][4]);
+    const double g = M[3][4];
+    const double r2 = g + c.Dot(c);
+    if (!(r2 > 0.0) || !std::isfinite(r2)) return false;
+    r = std::sqrt(r2);
+    return std::isfinite(r);
+}
+
+// Why SphereCorner's 3-round enumerator left a patch faceted. Free-fit numbers
+// are measurements; a line here is not an accept.
+void diagResidueSpheres(const MeshView& mv, const SegmentWork& work, double tau) {
+    if (!diagOn() || !(tau > 0.0)) return;
+    const int nTri = (int)mv.nTri;
+    const int nEdge = (int)mv.nEdge;
+    std::vector<int> triAcc((std::size_t)nTri, -1);
+    for (int ai = 0; ai < (int)work.accepted.size(); ++ai)
+        for (int t : work.accepted[(std::size_t)ai].tris)
+            if (t >= 0 && t < nTri) triAcc[(std::size_t)t] = ai;
+    std::vector<int> triProv((std::size_t)nTri, -1);
+    for (int pi = 0; pi < (int)work.provisionals.size(); ++pi)
+        for (int t : work.provisionals[(std::size_t)pi].tris)
+            if (t >= 0 && t < nTri) triProv[(std::size_t)t] = pi;
+    auto freeTri = [&](int t) -> bool {
+        if (t < 0 || t >= nTri) return false;
+        const int ai = triAcc[(std::size_t)t];
+        if (ai >= 0) return uncertifiedCylGrow(work.accepted[(std::size_t)ai], tau);
+        const int pi = triProv[(std::size_t)t];
+        return pi >= 0 && work.provisionals[(std::size_t)pi].claim == ProvClaim::Unclaimed;
+    };
+    std::vector<std::array<int, 2>> edgeTris((std::size_t)std::max(nEdge, 0),
+                                             std::array<int, 2>{{-1, -1}});
+    for (int t = 0; t < nTri; ++t)
+        for (int s = 0; s < 3; ++s) {
+            const int e = mv.triEdges[t][s];
+            if (e < 0 || e >= nEdge) continue;
+            auto& et = edgeTris[(std::size_t)e];
+            if (et[0] < 0) et[0] = t;
+            else if (et[0] != t) et[1] = t;
+        }
+    auto otherTri = [&](int e, int t) -> int {
+        if (e < 0 || e >= nEdge) return -1;
+        const auto& et = edgeTris[(std::size_t)e];
+        if (et[0] == t) return et[1];
+        if (et[1] == t) return et[0];
+        return -1;
+    };
+    std::vector<char> seen((std::size_t)nTri, 0);
+    int printed = 0;
+    for (int t0 = 0; t0 < nTri; ++t0) {
+        if (seen[(std::size_t)t0] || !freeTri(t0)) continue;
+        std::vector<int> cc, st = {t0};
+        seen[(std::size_t)t0] = 1;
+        while (!st.empty()) {
+            const int u = st.back();
+            st.pop_back();
+            cc.push_back(u);
+            for (int s = 0; s < 3; ++s) {
+                const int o = otherTri(mv.triEdges[u][s], u);
+                if (o >= 0 && freeTri(o) && !seen[(std::size_t)o]) {
+                    seen[(std::size_t)o] = 1;
+                    st.push_back(o);
+                }
+            }
+        }
+        if (cc.size() < 4 || cc.size() > 200) continue;
+        std::vector<int> gv;
+        for (int t : cc) {
+            const int gt = mv.compTris ? mv.compTris[t] : t;
+            for (int k = 0; k < 3; ++k) gv.push_back(mv.tris[gt][k]);
+        }
+        std::sort(gv.begin(), gv.end());
+        gv.erase(std::unique(gv.begin(), gv.end()), gv.end());
+        std::vector<gp_XYZ> vp;
+        vp.reserve(gv.size());
+        for (int g : gv) vp.push_back(mv.pts[g]);
+        gp_XYZ c;
+        double r = 0.0;
+        if (!diagAlgebraicSphere(vp, c, r)) continue;
+        double maxDev = 0.0;
+        for (const gp_XYZ& x : vp) maxDev = std::max(maxDev, std::fabs((x - c).Modulus() - r));
+        if (!(maxDev <= 2.0 * tau)) continue;
+        const double planeRes = planeResidual(vp);
+        if (!(planeRes > tau)) continue;
+        gp_Ax3 pl;
+        int stations = 0;
+        if (pcaPlane(mv, cc, pl)) {
+            std::vector<double> z;
+            z.reserve(vp.size());
+            const gp_XYZ n = pl.Direction().XYZ();
+            const gp_XYZ o = pl.Location().XYZ();
+            for (const gp_XYZ& x : vp) z.push_back((x - o).Dot(n));
+            stations = countLevels(std::move(z), tau);
+        }
+        std::vector<int> nbrAcc, nbrN;
+        for (int t : cc)
+            for (int s = 0; s < 3; ++s) {
+                const int o = otherTri(mv.triEdges[t][s], t);
+                if (o < 0 || freeTri(o)) continue;
+                const int ai = triAcc[(std::size_t)o];
+                if (ai < 0) continue;
+                int slot = -1;
+                for (int i = 0; i < (int)nbrAcc.size(); ++i)
+                    if (nbrAcc[(std::size_t)i] == ai) slot = i;
+                if (slot < 0) {
+                    nbrAcc.push_back(ai);
+                    nbrN.push_back(1);
+                } else {
+                    ++nbrN[(std::size_t)slot];
+                }
+            }
+        diagPrintf("DIAG_REL_SPHERE_RESIDUE nTri=%zu nV=%zu R=%.9g centre=%.4f,%.4f,%.4f "
+                   "maxDevTau=%.6g planeTau=%.6g stations=%d nNbr=%zu\n",
+                   cc.size(), gv.size(), r, c.X(), c.Y(), c.Z(), maxDev / tau, planeRes / tau,
+                   stations, nbrAcc.size());
+        for (int i = 0; i < (int)nbrAcc.size(); ++i) {
+            const Region& nb = work.accepted[(std::size_t)nbrAcc[(std::size_t)i]];
+            RoundSpine sp;
+            sp.o = nb.ax.Location().XYZ();
+            sp.a = nb.ax.Direction().XYZ();
+            double spineTau = -1.0, dRTau = -1.0;
+            if (nb.type == SurfType::Cylinder) {
+                sp.circle = false;
+                sp.r = nb.radius;
+                const double d = spineDistance(sp, c);
+                spineTau = d / tau;
+                dRTau = std::fabs(nb.radius - r) / tau;
+            } else if (nb.type == SurfType::Torus) {
+                sp.circle = true;
+                sp.R = nb.radius;
+                sp.r = nb.radius2;
+                const double d = spineDistance(sp, c);
+                spineTau = d / tau;
+                dRTau = std::fabs(nb.radius2 - r) / tau;
+            } else if (nb.type == SurfType::Plane) {
+                const double d = std::fabs((c - nb.ax.Location().XYZ()).Dot(nb.ax.Direction().XYZ()));
+                spineTau = d / tau;
+                dRTau = std::fabs(d - r) / tau;
+            }
+            diagPrintf("DIAG_REL_SPHERE_NBR centre=%.4f,%.4f,%.4f acc=%d origin=%d type=%d "
+                       "radius=%.9g radius2=%.9g devTau=%.6g certified=%d edges=%d "
+                       "spineTau=%.6g dRTau=%.6g\n",
+                       c.X(), c.Y(), c.Z(), nbrAcc[(std::size_t)i], (int)nb.origin, (int)nb.type,
+                       nb.radius, nb.radius2, nb.maxVertexDev / tau,
+                       anchorCertified(tau, nb.maxVertexDev) ? 1 : 0, nbrN[(std::size_t)i], spineTau,
+                       dRTau);
+        }
+        if (++printed >= 40) break;
+    }
+}
+
+}  // namespace
+
+bool claimSphereCorners(const MeshView& mv, const SegmentParams& p, const DerivedTols& tol,
+                        SegmentWork& work) {
+    (void)p;
+    (void)tol;
+    try {
+        const double tau = tauOf(mv);
+        if (!(tau > 0.0) || !mv.pts || !mv.tris || !mv.triEdges || mv.nTri == 0) return true;
+        const int nTri = (int)mv.nTri;
+        const int nEdge = (int)mv.nEdge;
+        const bool dg = diagOn();
+
+        // --- rounds: cylinders and certified torus blends (D-fc-1.4) --------
+        std::vector<Round> rounds;
+        for (int ai = 0; ai < (int)work.accepted.size(); ++ai) {
+            const Region& R = work.accepted[(std::size_t)ai];
+            if (R.tris.empty()) continue;
+            Round rd;
+            rd.acc = ai;
+            rd.s.o = R.ax.Location().XYZ();
+            rd.s.a = R.ax.Direction().XYZ();
+            if (R.type == SurfType::Cylinder) {
+                rd.s.circle = false;
+                rd.s.r = R.radius;
+            } else if (R.type == SurfType::Torus && R.origin == Origin::TorusBlend &&
+                       anchorCertified(tau, R.maxVertexDev)) {
+                // A torus whose own residual exceeds tau is not a round.
+                rd.s.circle = true;
+                rd.s.R = R.radius;
+                rd.s.r = R.radius2;
+            } else {
+                continue;
+            }
+            if (!(rd.s.r > tau)) continue;
+            rd.certified = anchorCertified(tau, R.maxVertexDev);
+            // A relational band's surface is certified on its tau-preimage I;
+            // its chord-bounded cover does not un-certify it (D-fc-3.2.7). A
+            // B1 region is certified by its own residual alone (D-fc-4.3).
+            if (!rd.certified && !rd.s.circle && R.origin != Origin::CylGrow) {
+                std::vector<std::array<gp_XYZ, 3>> pts;
+                pts.reserve(R.tris.size());
+                for (int t : R.tris) {
+                    if (t < 0 || t >= nTri) continue;
+                    pts.push_back({ptOf(mv, t, 0), ptOf(mv, t, 1), ptOf(mv, t, 2)});
+                }
+                rd.cert = certifyCylinderRound(rd.s, pts, tau);
+                rd.certified = rd.cert.ok;
+            }
+            rounds.push_back(rd);
+        }
+        if (rounds.size() < 2) return true;
+
+        // --- corners: two line spines that meet, and every round through it --
+        // D-gid-8.4: two certified cylinder rounds of one radius whose axes
+        // meet fix the sphere (centre on both axes, radius theirs). When no
+        // third round passes through that centre the pair alone is the corner;
+        // it ships only under the D-gid-4.4 meet rule (the same vertex test,
+        // contacts and plane-station rule as every corner), never as a classic
+        // three-round disk. Pairs run after every three-round corner.
+        std::vector<std::array<int, 3>> corners;
+        std::vector<std::array<int, 2>> pairCorners;
+        // A torus blend that fails its own residual is not a round, but it
+        // still passes through a corner it meets: it keeps the pair from being
+        // a corner of its own, as an uncertified cylinder round does.
+        std::vector<RoundSpine> offTori;
+        for (const Region& R : work.accepted) {
+            if (R.tris.empty() || R.type != SurfType::Torus || R.origin != Origin::TorusBlend ||
+                anchorCertified(tau, R.maxVertexDev))
+                continue;
+            RoundSpine sp;
+            sp.circle = true;
+            sp.o = R.ax.Location().XYZ();
+            sp.a = R.ax.Direction().XYZ();
+            sp.R = R.radius;
+            sp.r = R.radius2;
+            if (sp.r > tau) offTori.push_back(sp);
+        }
+        for (std::size_t i = 0; i < rounds.size(); ++i) {
+            if (rounds[i].s.circle) continue;
+            for (std::size_t j = i + 1; j < rounds.size(); ++j) {
+                if (rounds[j].s.circle) continue;
+                if (std::fabs(rounds[i].s.r - rounds[j].s.r) > tau) continue;
+                gp_XYZ c;
+                if (!lineSpinesPoint({rounds[i].s, rounds[j].s}, c)) continue;
+                if (spineDistance(rounds[i].s, c) > tau || spineDistance(rounds[j].s, c) > tau)
+                    continue;
+                bool third = false;
+                for (std::size_t k = 0; k < rounds.size(); ++k) {
+                    if (k == i || k == j) continue;
+                    if (std::fabs(rounds[k].s.r - rounds[i].s.r) > tau) continue;
+                    // Cylinder axis: within tau. Torus tube-centre circle:
+                    // within tanDistTol(tau, tau).
+                    const double limK = rounds[k].s.circle ? tanDistTol(tau, tau) : tau;
+                    const double spineK = spineDistance(rounds[k].s, c);
+                    if (dg && rounds[k].s.circle && spineK > limK)
+                        diagPrintf("DIAG_REL_SPHERE_MISS pair=%d,%d torus=%d centre=%.6f,%.6f,%.6f "
+                                   "distTau=%.6g limTau=%.6g\n",
+                                   (int)i, (int)j, (int)k, c.X(), c.Y(), c.Z(), spineK / tau,
+                                   limK / tau);
+                    if (spineK > limK) continue;
+                    third = true;
+                    std::array<int, 3> key = {(int)i, (int)j, (int)k};
+                    std::sort(key.begin(), key.end());
+                    corners.push_back(key);
+                }
+                for (std::size_t k = 0; k < offTori.size() && !third; ++k)
+                    if (std::fabs(offTori[k].r - rounds[i].s.r) <= tau &&
+                        spineDistance(offTori[k], c) <= tanDistTol(tau, tau))
+                        third = true;
+                if (!third) pairCorners.push_back({(int)i, (int)j});
+            }
+        }
+        std::sort(corners.begin(), corners.end());
+        corners.erase(std::unique(corners.begin(), corners.end()), corners.end());
+        // The H1 rob below ran only after three-round corners; a pair alone
+        // does not start it.
+        const bool tripleCorners = !corners.empty();
+        struct CornerKey {
+            int n = 3;
+            int idx[3] = {-1, -1, -1};
+        };
+        std::vector<CornerKey> todo;
+        todo.reserve(corners.size() + pairCorners.size());
+        for (const std::array<int, 3>& k3 : corners) {
+            CornerKey ck;
+            ck.n = 3;
+            for (int q = 0; q < 3; ++q) ck.idx[q] = k3[(std::size_t)q];
+            todo.push_back(ck);
+        }
+        for (const std::array<int, 2>& k2 : pairCorners) {
+            CornerKey ck;
+            ck.n = 2;
+            ck.idx[0] = k2[0];
+            ck.idx[1] = k2[1];
+            todo.push_back(ck);
+        }
+
+        int nAccept = 0, nRefused = 0;
+        if (todo.empty()) {
+            // Fewer than three rounds printed nothing before pair corners.
+            if (dg && rounds.size() >= 3) {
+                diagResidueSpheres(mv, work, tau);
+                diagPrintf("DIAG_REL_SUM stage=sphere rounds=%zu corners=0 accept=0 refused=0\n",
+                           rounds.size());
+            }
+            return true;
+        }
+
+        // --- triangle state -----------------------------------------------
+        std::vector<int> triProv((std::size_t)nTri, -1);
+        for (int pi = 0; pi < (int)work.provisionals.size(); ++pi)
+            for (int t : work.provisionals[(std::size_t)pi].tris)
+                if (t >= 0 && t < nTri) triProv[(std::size_t)t] = pi;
+        std::vector<int> triAcc((std::size_t)nTri, -1);
+        for (int ai = 0; ai < (int)work.accepted.size(); ++ai)
+            for (int t : work.accepted[(std::size_t)ai].tris)
+                if (t >= 0 && t < nTri) triAcc[(std::size_t)t] = ai;
+        std::vector<char> robbable(work.accepted.size(), 0);
+        for (int ai = 0; ai < (int)work.accepted.size(); ++ai)
+            robbable[(std::size_t)ai] = uncertifiedCylGrow(work.accepted[(std::size_t)ai], tau);
+        auto candidate = [&](int t) -> bool {
+            const int ai = triAcc[(std::size_t)t];
+            if (ai >= 0) return robbable[(std::size_t)ai] != 0;
+            const int pi = triProv[(std::size_t)t];
+            return pi >= 0 && work.provisionals[(std::size_t)pi].claim == ProvClaim::Unclaimed;
+        };
+
+        std::vector<std::array<int, 2>> edgeTris((std::size_t)std::max(nEdge, 0),
+                                                 std::array<int, 2>{{-1, -1}});
+        for (int t = 0; t < nTri; ++t)
+            for (int s = 0; s < 3; ++s) {
+                const int e = mv.triEdges[t][s];
+                if (e < 0 || e >= nEdge) continue;
+                auto& et = edgeTris[(std::size_t)e];
+                if (et[0] < 0) et[0] = t;
+                else if (et[0] != t) et[1] = t;
+            }
+        auto otherTri = [&](int e, int t) -> int {
+            if (e < 0 || e >= nEdge) return -1;
+            const auto& et = edgeTris[(std::size_t)e];
+            if (et[0] == t) return et[1];
+            if (et[1] == t) return et[0];
+            return -1;
+        };
+
+        std::vector<int> dissolved;
+        std::vector<char> claimed((std::size_t)nTri, 0);
+
+        for (const CornerKey& key : todo) {
+            const int nR = key.n;
+            const Round* rd[3] = {nullptr, nullptr, nullptr};
+            std::vector<RoundSpine> spines;
+            for (int q = 0; q < nR; ++q) {
+                rd[q] = &rounds[(std::size_t)key.idx[q]];
+                spines.push_back(rd[q]->s);
+            }
+            const SphereCornerFit fit = sphereOfRoundSet(spines, tau);
+            const gp_XYZ c = fit.c;
+            double r = fit.r;
+            int accIdx[3] = {-1, -1, -1};
+            for (int q = 0; q < nR; ++q) accIdx[q] = rd[q]->acc;
+            const char* why = fit.why;
+            std::vector<int> band;
+            int nV = 0, comps = 0, chi = 0, foreign = 0, nRob = 0;
+            int touch[3] = {0, 0, 0};
+            double maxDev = 0.0, planeRes = 0.0;
+            auto emit = [&](const char* w) {
+                if (!dg) return;
+                int seed = band.empty() ? -1 : band.front();
+                // A pair corner has no third round: it prints -1 / 0.
+                auto rOrigin = [&](int q) {
+                    return accIdx[q] >= 0 ? (int)work.accepted[(std::size_t)accIdx[q]].origin : -1;
+                };
+                auto rDevTau = [&](int q) {
+                    return accIdx[q] >= 0
+                               ? work.accepted[(std::size_t)accIdx[q]].maxVertexDev / tau
+                               : 0.0;
+                };
+                auto rCertI = [&](int q) { return rd[q] ? rd[q]->cert.nI : 0; };
+                auto rCover = [&](int q) { return rd[q] ? rd[q]->cert.nCover : 0; };
+                diagPrintf("DIAG_REL_BAND stage=sphere mode=corner seed=%d nTri=%zu nV=%d "
+                           "stations=%d levels=0 params=%d fit=anchored radius=%.9g "
+                           "centre=%.6f,%.6f,%.6f maxDev=%.6g maxDevTau=%.6g lineRes=%.6g "
+                           "spineDevTau=%.6g radiusSpreadTau=%.6g rounds=%d,%d,%d "
+                           "roundOrigin=%d,%d,%d roundDevTau=%.4g,%.4g,%.4g touch=%d,%d,%d "
+                           "roundCertI=%d,%d,%d roundCover=%d,%d,%d comps=%d chi=%d foreign=%d rob=%d why=%s\n",
+                           seed, band.size(), nV, nV, kParamsSphere, r, c.X(), c.Y(), c.Z(),
+                           maxDev, maxDev / tau, planeRes / tau, fit.spineDev / tau,
+                           fit.radiusSpread / tau, accIdx[0], accIdx[1], accIdx[2], rOrigin(0),
+                           rOrigin(1), rOrigin(2), rDevTau(0), rDevTau(1), rDevTau(2), touch[0],
+                           touch[1], touch[2], rCertI(0), rCertI(1), rCertI(2), rCover(0),
+                           rCover(1), rCover(2), comps, chi, foreign, nRob, w);
+            };
+            auto refuse = [&](const char* w) {
+                ++nRefused;
+                emit(w);
+            };
+            if (!fit.ok) {
+                refuse(why);
+                continue;
+            }
+            // D-fc-1.4: every round is a certified surface.
+            bool anchored = true;
+            for (int q = 0; q < nR; ++q)
+                if (!rd[q]->certified) anchored = false;
+            if (!anchored) {
+                refuse("no-anchor");
+                continue;
+            }
+            // Each round ends at the corner: its contact plane (through c, normal
+            // to its spine there) has the round's whole body on one side.
+            gp_XYZ tan[3];
+            double side[3] = {0, 0, 0};
+            bool ends = true;
+            for (int q = 0; q < nR && ends; ++q) {
+                if (!spineTangentAt(rd[q]->s, c, tan[q])) {
+                    ends = false;
+                    break;
+                }
+                const Region& R = work.accepted[(std::size_t)rd[q]->acc];
+                double sum = 0.0;
+                for (int t : R.tris)
+                    for (int k = 0; k < 3; ++k) sum += (ptOf(mv, t, k) - c).Dot(tan[q]);
+                side[q] = sum >= 0.0 ? 1.0 : -1.0;
+                for (int t : R.tris)
+                    for (int k = 0; k < 3; ++k)
+                        if (!onRoundSide(ptOf(mv, t, k), c, tan[q], side[q], tau)) ends = false;
+            }
+            if (!ends) {
+                refuse("not-blend");
+                continue;
+            }
+            // D-gid-8.3 (R-k31-2), certificate order "fewest parameters first".
+            // A CylGrow cylinder whose every vertex is within tau of its own
+            // cylinder (five parameters) AND of this corner's sphere (four, the
+            // centre fixed by three certified tangent rounds) is the sphere's:
+            // two certified surfaces claim the same triangles and the one with
+            // fewer parameters owns them. D-fc-4.3's "a region whose own
+            // residual <= tau is never touched" protects a region against a
+            // surface that does NOT also certify its triangles; it does not
+            // protect it against one that does. The corner's own rounds are
+            // anchors and are never taken. The candidacy holds for this corner
+            // only; F-D below then takes such a region whole (every triangle in
+            // the band and on the fitted sphere) or not at all.
+            struct OwnedReset {
+                std::vector<char>& flags;
+                std::vector<int> ids;
+                ~OwnedReset() {
+                    for (int a : ids) flags[(std::size_t)a] = 0;
+                }
+            } owned{robbable, {}};
+            for (int ai = 0; ai < (int)work.accepted.size(); ++ai) {
+                if (robbable[(std::size_t)ai]) continue;
+                bool own = false;
+                for (int q = 0; q < nR; ++q) own = own || ai == rd[q]->acc;
+                if (own) continue;
+                const Region& R = work.accepted[(std::size_t)ai];
+                if (R.origin != Origin::CylGrow || R.type != SurfType::Cylinder || R.tris.empty())
+                    continue;
+                const int t0 = R.tris.front();
+                if (t0 < 0 || t0 >= nTri ||
+                    std::fabs((ptOf(mv, t0, 0) - c).Modulus() - r) > tau)
+                    continue;
+                RoundSpine cs;
+                cs.circle = false;
+                cs.o = R.ax.Location().XYZ();
+                cs.a = R.ax.Direction().XYZ();
+                cs.r = R.radius;
+                std::vector<std::array<gp_XYZ, 3>> pts;
+                pts.reserve(R.tris.size());
+                bool inRange = true;
+                for (int t : R.tris) {
+                    if (t < 0 || t >= nTri) {
+                        inRange = false;
+                        break;
+                    }
+                    pts.push_back({ptOf(mv, t, 0), ptOf(mv, t, 1), ptOf(mv, t, 2)});
+                }
+                if (!inRange || !sphereOutranksCylinder(c, r, cs, pts, tau)) continue;
+                robbable[(std::size_t)ai] = 1;
+                owned.ids.push_back(ai);
+                if (dg)
+                    diagPrintf("DIAG_REL_SPHERE_OWNS centre=%.4f,%.4f,%.4f acc=%d nTri=%zu "
+                               "radius=%.9g devTau=%.6g\n",
+                               c.X(), c.Y(), c.Z(), ai, R.tris.size(), R.radius,
+                               R.maxVertexDev / tau);
+            }
+            // I: every free triangle in the sector with 3 vertices within tau.
+            for (int t = 0; t < nTri; ++t) {
+                if (claimed[(std::size_t)t] || !candidate(t)) continue;
+                bool in = true;
+                for (int k = 0; k < 3 && in; ++k) {
+                    const gp_XYZ x = ptOf(mv, t, k);
+                    if (std::fabs((x - c).Modulus() - r) > tau) in = false;
+                    for (int q = 0; q < nR && in; ++q)
+                        if (!onPatchSide(x, c, tan[q], side[q], tau)) in = false;
+                }
+                if (in) band.push_back(t);
+            }
+            if (band.empty()) {
+                if (dg) {
+                    // offSide[q]: near candidates outside round q's contact plane
+                    // (the round whose side excludes them). A held near triangle
+                    // names its owner once (DIAG_REL_SPHERE_HELD): whether that
+                    // region lies wholly on this sphere and meets it as a round.
+                    int nNear = 0, nNotCand = 0, nNotSector = 0;
+                    int offSide[3] = {0, 0, 0};
+                    std::vector<int> held;
+                    for (int t = 0; t < nTri; ++t) {
+                        bool near = true;
+                        for (int k = 0; k < 3 && near; ++k)
+                            if (std::fabs((ptOf(mv, t, k) - c).Modulus() - r) > tau) near = false;
+                        if (!near) continue;
+                        ++nNear;
+                        if (!candidate(t)) {
+                            ++nNotCand;
+                            const int ai = triAcc[(std::size_t)t];
+                            if (ai >= 0) held.push_back(ai);
+                            continue;
+                        }
+                        ++nNotSector;
+                        for (int q = 0; q < nR; ++q) {
+                            bool in = true;
+                            for (int k = 0; k < 3 && in; ++k)
+                                if (!onPatchSide(ptOf(mv, t, k), c, tan[q], side[q], tau)) in = false;
+                            if (!in) ++offSide[q];
+                        }
+                    }
+                    if (nNear > 0) {
+                        diagPrintf("DIAG_REL_SPHERE_EMPTY centre=%.4f,%.4f,%.4f R=%.9g "
+                                   "nNear=%d nNotCand=%d nNotSector=%d rounds=%d,%d,%d "
+                                   "offSide=%d,%d,%d\n",
+                                   c.X(), c.Y(), c.Z(), r, nNear, nNotCand, nNotSector, accIdx[0],
+                                   accIdx[1], accIdx[2], offSide[0], offSide[1], offSide[2]);
+                        std::sort(held.begin(), held.end());
+                        for (std::size_t i = 0; i < held.size();) {
+                            std::size_t j = i;
+                            while (j < held.size() && held[j] == held[i]) ++j;
+                            const Region& hr = work.accepted[(std::size_t)held[i]];
+                            bool onSph = !hr.tris.empty();
+                            for (int t2 : hr.tris)
+                                for (int k = 0; k < 3 && onSph; ++k)
+                                    if (std::fabs((ptOf(mv, t2, k) - c).Modulus() - r) > tau)
+                                        onSph = false;
+                            int contact = -1;
+                            if (hr.type == SurfType::Cylinder || hr.type == SurfType::Torus) {
+                                RoundSpine sp;
+                                sp.circle = hr.type == SurfType::Torus;
+                                sp.o = hr.ax.Location().XYZ();
+                                sp.a = hr.ax.Direction().XYZ();
+                                sp.R = hr.radius;
+                                sp.r = sp.circle ? hr.radius2 : hr.radius;
+                                contact = sphereRoundContact(c, r, sp, tau) ? 1 : 0;
+                            }
+                            diagPrintf("DIAG_REL_SPHERE_HELD centre=%.4f,%.4f,%.4f acc=%d origin=%d "
+                                       "type=%d nTri=%zu near=%d radius=%.9g devTau=%.6g "
+                                       "certified=%d onSphere=%d contact=%d\n",
+                                       c.X(), c.Y(), c.Z(), held[i], (int)hr.origin, (int)hr.type,
+                                       hr.tris.size(), (int)(j - i), hr.radius, hr.maxVertexDev / tau,
+                                       anchorCertified(tau, hr.maxVertexDev) ? 1 : 0, onSph ? 1 : 0,
+                                       contact);
+                            i = j;
+                        }
+                    }
+                }
+                refuse("underdetermined");
+                continue;
+            }
+            std::vector<char> inBand((std::size_t)nTri, 0);
+            for (int t : band) inBand[(std::size_t)t] = 1;
+            std::vector<int> gv;
+            for (int t : band) {
+                const int gt = mv.compTris ? mv.compTris[t] : t;
+                for (int k = 0; k < 3; ++k) gv.push_back(mv.tris[gt][k]);
+            }
+            std::sort(gv.begin(), gv.end());
+            gv.erase(std::unique(gv.begin(), gv.end()), gv.end());
+            nV = (int)gv.size();
+            std::vector<gp_XYZ> vp;
+            vp.reserve(gv.size());
+            double ss = 0.0;
+            for (int g : gv) vp.push_back(mv.pts[g]);
+            if (nV < minStations(kParamsSphere)) {
+                refuse("underdetermined");
+                continue;
+            }
+            // D-fc-7.3 RQ-HUB-6. The centre stays on the anchors. R is the
+            // least-squares radius of these vertices. The anchor radius only
+            // gathered the band. Ship only when every vertex is within tau of
+            // the fitted sphere and every round meets it within tau
+            // (sphereCylinderContact / sphereTorusContact). No radius band.
+            {
+                const double fitted = sphereRadiusLeastSquares(c, vp);
+                if (!std::isfinite(fitted) || !(fitted > tau)) {
+                    refuse("degenerate");
+                    continue;
+                }
+                r = fitted;
+                for (const gp_XYZ& x : vp) {
+                    const double d = std::fabs((x - c).Modulus() - r);
+                    maxDev = std::max(maxDev, d);
+                    ss += d * d;
+                }
+                if (maxDev > tau) {
+                    refuse("vertex-off");
+                    continue;
+                }
+                bool contact = true;
+                for (int q = 0; q < nR && contact; ++q)
+                    if (!sphereRoundContact(c, r, rd[q]->s, tau)) contact = false;
+                if (!contact) {
+                    refuse("vertex-off");
+                    continue;
+                }
+            }
+            // D-fc-7.3 F-D. The preimage (centre, fitted radius) is fixed before
+            // the drop. A robbable CylGrow (over tau, or owned by this corner
+            // under D-gid-8.3) joins this corner only when every one of its
+            // triangles lies on that sphere. A region that is only partly
+            // inside stays whole: its triangles leave the band. No subset is
+            // tried.
+            {
+                std::vector<int> owners;
+                for (int t : band) {
+                    const int ai = triAcc[(std::size_t)t];
+                    if (ai >= 0) owners.push_back(ai);
+                }
+                std::sort(owners.begin(), owners.end());
+                owners.erase(std::unique(owners.begin(), owners.end()), owners.end());
+                std::vector<char> drop((std::size_t)nTri, 0);
+                bool anyDrop = false;
+                for (int ai : owners) {
+                    const Region& rr = work.accepted[(std::size_t)ai];
+                    if (!robbable[(std::size_t)ai]) continue;
+                    bool whole = !rr.tris.empty();
+                    for (int t : rr.tris) {
+                        if (t < 0 || t >= nTri || !inBand[(std::size_t)t]) {
+                            whole = false;
+                            break;
+                        }
+                        for (int k = 0; k < 3; ++k)
+                            if (std::fabs((ptOf(mv, t, k) - c).Modulus() - r) > tau)
+                                whole = false;
+                    }
+                    if (whole) continue;
+                    anyDrop = true;
+                    for (int t : rr.tris)
+                        if (t >= 0 && t < nTri) drop[(std::size_t)t] = 1;
+                }
+                if (anyDrop) {
+                    std::vector<int> keptBand;
+                    for (int t : band)
+                        if (!drop[(std::size_t)t]) keptBand.push_back(t);
+                    band.swap(keptBand);
+                    if (band.empty()) {
+                        refuse("not-blend");
+                        continue;
+                    }
+                    std::fill(inBand.begin(), inBand.end(), 0);
+                    for (int t : band) inBand[(std::size_t)t] = 1;
+                    gv.clear();
+                    for (int t : band) {
+                        const int gt = mv.compTris ? mv.compTris[t] : t;
+                        for (int k = 0; k < 3; ++k) gv.push_back(mv.tris[gt][k]);
+                    }
+                    std::sort(gv.begin(), gv.end());
+                    gv.erase(std::unique(gv.begin(), gv.end()), gv.end());
+                    nV = (int)gv.size();
+                    vp.clear();
+                    ss = 0.0;
+                    maxDev = 0.0;
+                    for (int g : gv) {
+                        vp.push_back(mv.pts[g]);
+                        const double d = std::fabs((mv.pts[g] - c).Modulus() - r);
+                        maxDev = std::max(maxDev, d);
+                        ss += d * d;
+                    }
+                    if (nV < minStations(kParamsSphere) || maxDev > tau) {
+                        refuse(maxDev > tau ? "vertex-off" : "underdetermined");
+                        continue;
+                    }
+                }
+            }
+            // Plane first (fewest parameters). A failed eigensolve refuses
+            // here; it is not treated as "not a plane" (D-fc-5.20).
+            planeRes = planeResidual(vp);
+            if (planeGateRefuses(vp, tau)) {
+                refuse("line");
+                continue;
+            }
+            // One disk bounded by the three rounds alone.
+            int nE = 0, nBoundary = 0, contactOff = 0;
+            {
+                std::vector<int> es;
+                for (int t : band)
+                    for (int s = 0; s < 3; ++s) es.push_back(mv.triEdges[t][s]);
+                std::sort(es.begin(), es.end());
+                es.erase(std::unique(es.begin(), es.end()), es.end());
+                nE = (int)es.size();
+                chi = nV - nE + (int)band.size();
+                std::vector<char> seen((std::size_t)nTri, 0);
+                for (int t0 : band) {
+                    if (seen[(std::size_t)t0]) continue;
+                    ++comps;
+                    std::vector<int> st = {t0};
+                    seen[(std::size_t)t0] = 1;
+                    while (!st.empty()) {
+                        const int u = st.back();
+                        st.pop_back();
+                        for (int s = 0; s < 3; ++s) {
+                            const int o = otherTri(mv.triEdges[u][s], u);
+                            if (o >= 0 && inBand[(std::size_t)o] && !seen[(std::size_t)o]) {
+                                seen[(std::size_t)o] = 1;
+                                st.push_back(o);
+                            }
+                        }
+                    }
+                }
+                bool sameSurf = false;
+                for (int t : band)
+                    for (int s = 0; s < 3; ++s) {
+                        const int o = otherTri(mv.triEdges[t][s], t);
+                        if (o >= 0 && inBand[(std::size_t)o]) continue;
+                        ++nBoundary;
+                        const int ai = o >= 0 ? triAcc[(std::size_t)o] : -1;
+                        int which = -1;
+                        for (int q = 0; q < nR; ++q)
+                            if (ai >= 0 && ai == rd[q]->acc) which = q;
+                        if (which >= 0) {
+                            ++touch[which];
+                            // The round meets the sphere on its certified
+                            // surface: its contact triangle is within tau.
+                            for (int k = 0; k < 3; ++k)
+                                if (std::fabs(spineDistance(rd[which]->s, ptOf(mv, o, k)) -
+                                              rd[which]->s.r) > tau)
+                                    ++contactOff;
+                            continue;
+                        }
+                        ++foreign;
+                        if (ai >= 0 && !robbable[(std::size_t)ai]) {
+                            // A certified neighbour lying on this sphere is a second
+                            // face of one surface (D-fc-1.6(11)).
+                            bool on = true;
+                            for (int t2 : work.accepted[(std::size_t)ai].tris)
+                                for (int k = 0; k < 3 && on; ++k)
+                                    if (std::fabs((ptOf(mv, t2, k) - c).Modulus() - r) > tau)
+                                        on = false;
+                            if (on) {
+                                sameSurf = true;
+                                if (dg) {
+                                    const Region& sr = work.accepted[(std::size_t)ai];
+                                    diagPrintf("DIAG_REL_SPHERE_SAMESURF seed=%d region=%d "
+                                               "origin=%d type=%d nTri=%zu radius=%.9g "
+                                               "devTau=%.6g\n",
+                                               band.front(), ai, (int)sr.origin, (int)sr.type,
+                                               sr.tris.size(), sr.radius,
+                                               sr.maxVertexDev / tau);
+                                }
+                            }
+                        }
+                    }
+                if (sameSurf) {
+                    refuse("same-surface");
+                    continue;
+                }
+                if (dg && (foreign != 0 || touch[0] == 0 || touch[1] == 0 || touch[2] == 0)) {
+                    std::vector<int> facc, fn;
+                    for (int t : band)
+                        for (int s = 0; s < 3; ++s) {
+                            const int o = otherTri(mv.triEdges[t][s], t);
+                            if (o >= 0 && inBand[(std::size_t)o]) continue;
+                            const int ai = o >= 0 ? triAcc[(std::size_t)o] : -1;
+                            bool isRound = false;
+                            for (int q = 0; q < nR; ++q)
+                                if (ai >= 0 && ai == rd[q]->acc) isRound = true;
+                            if (isRound) continue;
+                            int slot = -1;
+                            for (int i = 0; i < (int)facc.size(); ++i)
+                                if (facc[(std::size_t)i] == ai) slot = i;
+                            if (slot < 0) {
+                                facc.push_back(ai);
+                                fn.push_back(1);
+                            } else {
+                                ++fn[(std::size_t)slot];
+                            }
+                        }
+                    for (int i = 0; i < (int)facc.size(); ++i) {
+                        const int ai = facc[(std::size_t)i];
+                        if (ai < 0) {
+                            diagPrintf("DIAG_REL_SPHERE_FOREIGN centre=%.4f,%.4f,%.4f acc=-1 "
+                                       "edges=%d\n",
+                                       c.X(), c.Y(), c.Z(), fn[(std::size_t)i]);
+                            continue;
+                        }
+                        const Region& nb = work.accepted[(std::size_t)ai];
+                        int on = 0, off = 0;
+                        for (int t2 : nb.tris)
+                            for (int k = 0; k < 3; ++k)
+                                if (std::fabs((ptOf(mv, t2, k) - c).Modulus() - r) <= tau) ++on;
+                                else ++off;
+                        double planeTau = -1.0;
+                        if (nb.type == SurfType::Plane) {
+                            const double d = std::fabs(
+                                (c - nb.ax.Location().XYZ()).Dot(nb.ax.Direction().XYZ()));
+                            planeTau = std::fabs(d - r) / tau;
+                        }
+                        diagPrintf("DIAG_REL_SPHERE_FOREIGN centre=%.4f,%.4f,%.4f acc=%d "
+                                   "origin=%d type=%d radius=%.9g devTau=%.4g certified=%d "
+                                   "edges=%d on=%d off=%d planeTau=%.4g\n",
+                                   c.X(), c.Y(), c.Z(), ai, (int)nb.origin, (int)nb.type, nb.radius,
+                                   nb.maxVertexDev / tau, anchorCertified(tau, nb.maxVertexDev) ? 1 : 0,
+                                   fn[(std::size_t)i], on, off, planeTau);
+                    }
+                }
+            }
+            // The historical corner is one disk bounded by all three rounds.
+            // D-gid-4.4: a round that only concurs (touch 0) is still an anchor,
+            // and a foreign edge is allowed when that neighbour is not a
+            // certified surface or is a certified surface tangent to this
+            // sphere. Uncertified residue is not an anchor. Plane stations > 2
+            // refuse two coaxial rims (the existing plane-station rule).
+            // D-gid-8.4: a pair corner is never classic; it takes the meet rule.
+            const bool classic = nR == 3 && comps == 1 && chi == 1 && foreign == 0 &&
+                                 touch[0] > 0 && touch[1] > 0 && touch[2] > 0;
+            bool meetOk = false;
+            if (!classic && comps == 1 && chi == 1 && contactOff == 0) {
+                const int nTouch = (touch[0] > 0 ? 1 : 0) + (touch[1] > 0 ? 1 : 0) +
+                                   (touch[2] > 0 ? 1 : 0);
+                bool nbrOk = nTouch >= 1;
+                for (int t : band) {
+                    for (int s = 0; s < 3 && nbrOk; ++s) {
+                        const int o = otherTri(mv.triEdges[t][s], t);
+                        if (o >= 0 && inBand[(std::size_t)o]) continue;
+                        const int ai = o >= 0 ? triAcc[(std::size_t)o] : -1;
+                        bool isRound = false;
+                        for (int q = 0; q < nR; ++q)
+                            if (ai >= 0 && ai == rd[q]->acc) isRound = true;
+                        if (isRound || ai < 0) continue;
+                        const Region& nb = work.accepted[(std::size_t)ai];
+                        if (!anchorCertified(tau, nb.maxVertexDev)) continue;
+                        if (nb.type == SurfType::Plane) {
+                            const double d = std::fabs(
+                                (c - nb.ax.Location().XYZ()).Dot(nb.ax.Direction().XYZ()));
+                            if (std::fabs(d - r) > tau) nbrOk = false;
+                        } else if (nb.type == SurfType::Cylinder || nb.type == SurfType::Torus) {
+                            RoundSpine sp;
+                            sp.circle = nb.type == SurfType::Torus;
+                            sp.o = nb.ax.Location().XYZ();
+                            sp.a = nb.ax.Direction().XYZ();
+                            sp.R = nb.radius;
+                            sp.r = sp.circle ? nb.radius2 : nb.radius;
+                            if (!sphereRoundContact(c, r, sp, tau)) nbrOk = false;
+                        } else {
+                            nbrOk = false;
+                        }
+                    }
+                }
+                int stations = 0;
+                if (nbrOk) {
+                    gp_Ax3 pln;
+                    if (pcaPlane(mv, band, pln)) {
+                        std::vector<double> hz;
+                        hz.reserve(vp.size());
+                        const gp_XYZ nn = pln.Direction().XYZ();
+                        const gp_XYZ oo = pln.Location().XYZ();
+                        for (const gp_XYZ& x : vp) hz.push_back((x - oo).Dot(nn));
+                        stations = countLevels(std::move(hz), tau);
+                    }
+                    if (stations > 2) meetOk = true;
+                }
+                if (dg)
+                    diagPrintf("DIAG_REL_SPHERE_MEET centre=%.4f,%.4f,%.4f nTouch=%d "
+                               "foreign=%d stations=%d meet=%d\n",
+                               c.X(), c.Y(), c.Z(), nTouch, foreign, stations, meetOk ? 1 : 0);
+            }
+            if (!classic && !meetOk) {
+                refuse("not-blend");
+                continue;
+            }
+            if (contactOff != 0) {
+                refuse("vertex-off");
+                continue;
+            }
+
+            // --- accept -----------------------------------------------------
+            gp_XYZ msum(0, 0, 0);
+            double sigma = 0.0, areaSum = 0.0, dvol = 0.0;
+            for (int t : band) {
+                gp_XYZ nt;
+                const double at = triAreaNormal(mv, t, nt);
+                const gp_XYZ a = ptOf(mv, t, 0), b = ptOf(mv, t, 1), d = ptOf(mv, t, 2);
+                gp_XYZ dir = (a + b + d) / 3.0 - c;
+                const double dm = dir.Modulus();
+                if (dm > 0.0) dir /= dm;
+                msum += dir * at;
+                sigma += at * nt.Dot(dir);
+                areaSum += at;
+                dvol += sphereCapVolume(c, r, a, b, d);
+            }
+            const double mm = msum.Modulus();
+            if (!(mm > 0.0)) {
+                refuse("degenerate");
+                continue;
+            }
+            const gp_XYZ mdir = msum / mm;
+            // The sphere's frame. When one round's spine tangent is
+            // perpendicular to the other two (within tau / r: the tilt that
+            // moves a contact circle by tau), the axis is that tangent pointing
+            // into the patch: its contact is the equator, the other two are
+            // meridians and meet at the pole -- every contact is an iso-line,
+            // so every pcurve is an exact line. Otherwise the patch's middle
+            // sits on the equator. Either way the patch is centred on u = pi,
+            // away from the seam.
+            // A pair corner: the same test against its one other round.
+            int polar = -1;
+            for (int q = 0; q < nR && polar < 0; ++q) {
+                bool perp = true;
+                for (int o = 1; o < nR; ++o)
+                    if (std::fabs(tan[q].Dot(tan[(q + o) % nR])) > tau / r) perp = false;
+                if (perp) polar = q;
+            }
+            gp_XYZ zd, xd;
+            if (polar >= 0) {
+                zd = tan[polar] * (-side[polar]);
+                zd /= zd.Modulus();
+                gp_XYZ mp = mdir - zd * mdir.Dot(zd);
+                const double mpm = mp.Modulus();
+                if (!(mpm > 0.0)) {
+                    refuse("degenerate");
+                    continue;
+                }
+                xd = (mp / mpm).Reversed();
+            } else {
+                const double ax3[3] = {std::fabs(mdir.X()), std::fabs(mdir.Y()),
+                                       std::fabs(mdir.Z())};
+                int ke = 0;
+                for (int i = 1; i < 3; ++i)
+                    if (ax3[i] < ax3[ke]) ke = i;
+                gp_XYZ e(ke == 0 ? 1.0 : 0.0, ke == 1 ? 1.0 : 0.0, ke == 2 ? 1.0 : 0.0);
+                zd = mdir.Crossed(e);
+                zd /= zd.Modulus();
+                xd = mdir.Reversed();
+            }
+            const bool outward = sigma > 0.0;
+
+            Region reg;
+            reg.id = 0;
+            reg.type = SurfType::Sphere;
+            reg.origin = Origin::SphereCorner;
+            reg.ax = gp_Ax3(gp_Pnt(c), gp_Dir(zd), gp_Dir(xd));
+            reg.radius = r;
+            reg.radius2 = 0.0;
+            {
+                double u0 = 1e300, u1 = -1e300, v0 = 1e300, v1 = -1e300;
+                const gp_XYZ yd = zd.Crossed(xd);
+                for (const gp_XYZ& x : vp) {
+                    const gp_XYZ d = x - c;
+                    const double u = std::atan2(d.Dot(yd), d.Dot(xd));
+                    const double uu = u < 0.0 ? u + kTwoPi : u;
+                    const double v = std::atan2(d.Dot(zd), std::hypot(d.Dot(xd), d.Dot(yd)));
+                    u0 = std::min(u0, uu);
+                    u1 = std::max(u1, uu);
+                    v0 = std::min(v0, v);
+                    v1 = std::max(v1, v);
+                }
+                reg.uMin = u0;
+                reg.uMax = u1;
+                reg.vMin = v0;
+                reg.vMax = v1;
+            }
+            reg.closed360 = false;
+            reg.outwardNormal = outward;
+            reg.tris = band;
+            reg.maxVertexDev = maxDev;
+            reg.rmsVertexDev = std::sqrt(ss / (double)gv.size());
+            reg.nSides = 0;
+            reg.chordSagitta = 0.0;
+            reg.dVolPredicted = (outward ? 1.0 : -1.0) * dvol;
+            reg.maxVertexSnap = 0.0;
+            reg.reject = Reject::None;
+            reg.builtAs = BuiltAs::NotBuilt;
+            reg.filletNbrA = -1;
+            reg.filletNbrB = -1;
+
+            // D-fc-4.3: every uncertified region the patch robbed dissolves.
+            std::vector<int> robbed;
+            for (int t : band)
+                if (triAcc[(std::size_t)t] >= 0) robbed.push_back(triAcc[(std::size_t)t]);
+            std::sort(robbed.begin(), robbed.end());
+            robbed.erase(std::unique(robbed.begin(), robbed.end()), robbed.end());
+            nRob = (int)robbed.size();
+            for (int ai : robbed) {
+                Region& rr = work.accepted[(std::size_t)ai];
+                std::vector<char> inR((std::size_t)nTri, 0);
+                int nStolen = 0, nOwn = 0;
+                for (int t : rr.tris) {
+                    if (t < 0 || t >= nTri) continue;
+                    ++nOwn;
+                    inR[(std::size_t)t] = 1;
+                    if (inBand[(std::size_t)t]) ++nStolen;
+                }
+                // F-D: a partial overlap is not a rob. The filter above already
+                // returned those triangles to the region; do not dissolve it.
+                if (!(nOwn > 0) || nStolen != nOwn) continue;
+                for (Provisional& pr : work.provisionals) {
+                    if (pr.claim != ProvClaim::ConsumedCylinder || pr.tris.empty()) continue;
+                    bool own = true;
+                    for (int t : pr.tris)
+                        if (t < 0 || t >= nTri || !inR[(std::size_t)t]) {
+                            own = false;
+                            break;
+                        }
+                    if (own) pr.claim = ProvClaim::Unclaimed;
+                }
+                for (int t : rr.tris)
+                    if (t >= 0 && t < nTri) triAcc[(std::size_t)t] = -1;
+                // D-fc-7.1. Print the stored regular-N prediction and the
+                // revolved-chord volume of the same triangles. Both are
+                // measurements. The region's prediction is zeroed with the
+                // triangles; it is not rewritten from the chord term. On the
+                // certified preimage those two measurements agree, and neither
+                // is the shell move (the attribution is reported, not applied).
+                const double stored = rr.dVolPredicted;
+                const double shipped = cylinderShippedVolume(mv, rr);
+                if (dg)
+                    diagPrintf("DIAG_REL_ROB stage=sphere seed=%d region=%d radius=%.9g "
+                               "devTau=%.9g nTri=%d stolen=%d released=%d "
+                               "dVolStored=%.9g dVolBefore=%.9g dVolAfter=0\n",
+                               band.front(), ai, rr.radius, rr.maxVertexDev / tau,
+                               (int)rr.tris.size(), nStolen, (int)rr.tris.size() - nStolen,
+                               stored, shipped);
+                rr.dVolPredicted = 0.0;
+                rr.tris.clear();
+                robbable[(std::size_t)ai] = 0;
+                dissolved.push_back(ai);
+            }
+            // Triangle granularity (D-fc-1.6(12)): the patch leaves every
+            // provisional; a remainder is refit and split into components.
+            const int nProvNow = (int)work.provisionals.size();
+            for (int pi = 0; pi < nProvNow; ++pi) {
+                Provisional& pr = work.provisionals[(std::size_t)pi];
+                std::vector<int> keep;
+                bool any = false;
+                for (int t : pr.tris) {
+                    if (t >= 0 && t < nTri && inBand[(std::size_t)t]) any = true;
+                    else keep.push_back(t);
+                }
+                if (!any) continue;
+                if (keep.empty()) {
+                    pr.claim = ProvClaim::ConsumedCylinder;
+                    continue;
+                }
+                std::vector<char> inKeep((std::size_t)nTri, 0);
+                for (int t : keep) inKeep[(std::size_t)t] = 1;
+                std::vector<std::vector<int>> comp;
+                std::vector<char> mark((std::size_t)nTri, 0);
+                for (int t0 : keep) {
+                    if (mark[(std::size_t)t0]) continue;
+                    std::vector<int> cc, st = {t0};
+                    mark[(std::size_t)t0] = 1;
+                    while (!st.empty()) {
+                        const int u = st.back();
+                        st.pop_back();
+                        cc.push_back(u);
+                        for (int s = 0; s < 3; ++s) {
+                            const int o = otherTri(mv.triEdges[u][s], u);
+                            if (o >= 0 && inKeep[(std::size_t)o] && !mark[(std::size_t)o]) {
+                                mark[(std::size_t)o] = 1;
+                                st.push_back(o);
+                            }
+                        }
+                    }
+                    std::sort(cc.begin(), cc.end());
+                    comp.push_back(std::move(cc));
+                }
+                std::sort(comp.begin(), comp.end(),
+                          [](const std::vector<int>& a, const std::vector<int>& b) {
+                              return a.front() < b.front();
+                          });
+                const ProvClaim keepClaim =
+                    pr.claim == ProvClaim::ConsumedCylinder ? ProvClaim::Unclaimed : pr.claim;
+                pr.tris = comp[0];
+                pr.claim = keepClaim;
+                refitPlaneProv(mv, pr);
+                for (std::size_t q = 1; q < comp.size(); ++q) {
+                    Provisional np = work.provisionals[(std::size_t)pi];
+                    np.tris = comp[q];
+                    np.claim = keepClaim;
+                    refitPlaneProv(mv, np);
+                    work.provisionals.push_back(std::move(np));
+                }
+            }
+            for (int t : band) {
+                claimed[(std::size_t)t] = 1;
+                triAcc[(std::size_t)t] = (int)work.accepted.size();
+            }
+            triProv.assign((std::size_t)nTri, -1);
+            for (int pi = 0; pi < (int)work.provisionals.size(); ++pi)
+                for (int t : work.provisionals[(std::size_t)pi].tris)
+                    if (t >= 0 && t < nTri) triProv[(std::size_t)t] = pi;
+            ++nAccept;
+            if (dg) {
+                // Print-only. The signed cap is the same quantity stored on the
+                // region. Each triangle line is that cap for one mesh triangle
+                // (sector minus the centre tetrahedron), so the sum is the
+                // region's prediction. STL2STEP_DIAG_REL already gates this.
+                const double signedDvol = (outward ? 1.0 : -1.0) * dvol;
+                diagPrintf("DIAG_SPHERE_DVOL seed=%d nTri=%zu area=%.9g "
+                           "dVolPredicted=%.9g accounted=%.9g outward=%d\n",
+                           band.front(), band.size(), areaSum, signedDvol, reg.dVolPredicted,
+                           outward ? 1 : 0);
+                for (int t : band) {
+                    const gp_XYZ a = ptOf(mv, t, 0), b = ptOf(mv, t, 1), dpt = ptOf(mv, t, 2);
+                    const double tv = sphereCapVolume(c, r, a, b, dpt);
+                    diagPrintf("DIAG_SPHERE_TRI seed=%d tri=%d dVol=%.9g\n", band.front(), t,
+                               (outward ? 1.0 : -1.0) * tv);
+                }
+            }
+            emit("accept");
+            work.accepted.push_back(std::move(reg));
+            robbable.push_back(0);
+        }
+
+        // D-fc-7.3 F-D at H1. A certified torus is one preimage. An over-tau
+        // CylGrow whose every triangle lies on exactly one such torus, and
+        // that shares a mesh edge with it, dissolves into that torus. A
+        // subset does not. Spheres have already taken the corners they
+        // certified, so a region claimed above is empty and is not seen here.
+        // It runs where it ran before D-gid-8.4: after three-round corners.
+        if (tripleCorners) {
+            auto onTorus = [&](int t, const Region& tor) {
+                if (t < 0 || t >= nTri) return false;
+                for (int k = 0; k < 3; ++k)
+                    if (torusSurfaceDev(ptOf(mv, t, k), tor) > tau) return false;
+                return true;
+            };
+            std::vector<int> torIdx, cylIdx;
+            for (int i = 0; i < (int)work.accepted.size(); ++i) {
+                const Region& r = work.accepted[(std::size_t)i];
+                if (r.tris.empty()) continue;
+                if (r.type == SurfType::Torus && r.origin == Origin::TorusBlend &&
+                    anchorCertified(tau, r.maxVertexDev))
+                    torIdx.push_back(i);
+                else if (uncertifiedCylGrow(r, tau))
+                    cylIdx.push_back(i);
+            }
+            std::vector<char> torTri((std::size_t)nTri, 0);
+            for (int ci : cylIdx) {
+                Region& cyl = work.accepted[(std::size_t)ci];
+                int hits = 0, which = -1;
+                for (int ti : torIdx) {
+                    const Region& tor = work.accepted[(std::size_t)ti];
+                    bool all = !cyl.tris.empty();
+                    for (int t : cyl.tris)
+                        if (!onTorus(t, tor)) {
+                            all = false;
+                            break;
+                        }
+                    if (!all) continue;
+                    std::fill(torTri.begin(), torTri.end(), 0);
+                    for (int t : tor.tris)
+                        if (t >= 0 && t < nTri) torTri[(std::size_t)t] = 1;
+                    bool touch = false;
+                    for (int t : cyl.tris) {
+                        if (t < 0 || t >= nTri) continue;
+                        for (int s = 0; s < 3 && !touch; ++s) {
+                            const int o = otherTri(mv.triEdges[t][s], t);
+                            if (o >= 0 && torTri[(std::size_t)o]) touch = true;
+                        }
+                    }
+                    if (!touch) continue;
+                    ++hits;
+                    which = ti;
+                }
+                if (hits != 1) continue;
+                Region& tor = work.accepted[(std::size_t)which];
+                const double stored = cyl.dVolPredicted;
+                const double shipped = cylinderShippedVolume(mv, cyl);
+                if (dg)
+                    diagPrintf("DIAG_REL_ROB stage=torus region=%d into=%d nTri=%d "
+                               "devTau=%.9g dVolStored=%.9g dVolBefore=%.9g dVolAfter=0\n",
+                               ci, which, (int)cyl.tris.size(), cyl.maxVertexDev / tau, stored,
+                               shipped);
+                tor.tris.insert(tor.tris.end(), cyl.tris.begin(), cyl.tris.end());
+                std::sort(tor.tris.begin(), tor.tris.end());
+                tor.tris.erase(std::unique(tor.tris.begin(), tor.tris.end()), tor.tris.end());
+                cyl.dVolPredicted = 0.0;
+                cyl.tris.clear();
+                dissolved.push_back(ci);
+            }
+        }
+
+        if (dg) {
+            diagResidueSpheres(mv, work, tau);
+            diagPrintf("DIAG_REL_SUM stage=sphere rounds=%zu corners=%zu accept=%d refused=%d "
+                       "dissolved=%zu pairs=%zu\n",
+                       rounds.size(), corners.size(), nAccept, nRefused, dissolved.size(),
+                       pairCorners.size());
+        }
+
+        // D-fc-4.3. A dissolved region leaves the accepted list. Indices into
+        // it (a chamfer cone's cylinder, a pending torus's absorbed regions)
+        // follow the regions that stay.
+        if (!dissolved.empty()) {
+            const int nAcc = (int)work.accepted.size();
+            std::vector<char> gone((std::size_t)nAcc, 0);
+            for (int ai : dissolved)
+                if (ai >= 0 && ai < nAcc) gone[(std::size_t)ai] = 1;
+            std::vector<int> newIdx((std::size_t)nAcc, -1);
+            std::vector<Region> keep;
+            keep.reserve((std::size_t)nAcc);
+            for (int i = 0; i < nAcc; ++i) {
+                if (gone[(std::size_t)i]) continue;
+                newIdx[(std::size_t)i] = (int)keep.size();
+                keep.push_back(std::move(work.accepted[(std::size_t)i]));
+            }
+            // ChamferCone and TorusBlend both store a neighbour as an accepted
+            // index. A dissolved slot clears the link (newIdx is -1). A donor
+            // above the hole moves with the compaction, so the index is not
+            // left naming the wrong region (D-fc-5.20).
+            for (Region& rg : keep) {
+                const bool nbr =
+                    rg.origin == Origin::ChamferCone || rg.origin == Origin::TorusBlend;
+                if (!nbr || rg.filletNbrA < 0 || rg.filletNbrA >= nAcc) continue;
+                rg.filletNbrA = newIdx[(std::size_t)rg.filletNbrA];
+            }
+            for (TorusPendingReclaim& pack : work.torusPending)
+                for (int& ai : pack.reclaimAccIdx)
+                    if (ai >= 0 && ai < nAcc) ai = newIdx[(std::size_t)ai];
+            work.accepted.swap(keep);
+        }
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+}  // namespace refit
+}  // namespace stl2step

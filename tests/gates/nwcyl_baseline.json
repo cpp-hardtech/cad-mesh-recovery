@@ -1,0 +1,56 @@
+{
+  "id": "nwcyl-baseline",
+  "authority": "nwcyl_baseline.json",
+  "engineRef": "6948ec156b75aefaa5c3713bd951bc480cef5b52",
+  "notes": "NW-CYL v4 multiplicity-capped coverage (D-S3-34). Ratchet up when landing improves nTriUnderGTMatchedCylinders or lowers nPhantom \u2014 see nwcyl_gate.py header. uncappedCoverage and faces are informational. nGtTotal is mesh-recoverable GT only.",
+  "parts": {
+    "handle-pickup": {
+      "nTriUnderGTMatchedCylinders": 836,
+      "uncappedCoverage": 1241,
+      "nPhantom": 27,
+      "faces": 97,
+      "nGtTotal": 52,
+      "gtSource": "diag/handle-pickup/ground-truth.json"
+    },
+    "handle-lock": {
+      "nTriUnderGTMatchedCylinders": 442,
+      "uncappedCoverage": 442,
+      "nPhantom": 0,
+      "faces": 15,
+      "nGtTotal": 15,
+      "gtSource": "sidecar.live.cylinder_radii"
+    },
+    "S02": {
+      "nTriUnderGTMatchedCylinders": 120,
+      "uncappedCoverage": 120,
+      "nPhantom": 0,
+      "faces": 12,
+      "nGtTotal": 12,
+      "gtSource": "sidecar.recoverable"
+    },
+    "S04": {
+      "nTriUnderGTMatchedCylinders": 0,
+      "uncappedCoverage": 0,
+      "nPhantom": 31,
+      "faces": 0,
+      "nGtTotal": 1,
+      "gtSource": "sidecar.recoverable"
+    },
+    "S05": {
+      "nTriUnderGTMatchedCylinders": 54,
+      "uncappedCoverage": 54,
+      "nPhantom": 0,
+      "faces": 2,
+      "nGtTotal": 2,
+      "gtSource": "sidecar.recoverable"
+    },
+    "S11-b": {
+      "nTriUnderGTMatchedCylinders": 24,
+      "uncappedCoverage": 24,
+      "nPhantom": 0,
+      "faces": 12,
+      "nGtTotal": 12,
+      "gtSource": "sidecar.recoverable"
+    }
+  }
+}

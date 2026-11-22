@@ -1,0 +1,466 @@
+// stl2step P1 internal cross-TU contract (five translation units).
+// Declarations only — FROZEN on landing. Not installed; not public API.
+//
+// Pipeline (DECISION-p1-math D1 §1.2):
+//   A1 charts        refit_grow.cpp   — union-find over edges with |phi| <= theta_sharp
+//   A2 provisional   refit_grow.cpp   — running-PCA plane growth per chart; TOTAL partition
+//   L  law bands     refit_grow.cpp   — Stage L after A2, before A(ngon)
+//   A  ngon walls    (new TU)         — claimNgonWallsA; Origin::NgonWall
+//   B1 cyl claim     refit_grow.cpp   — merge whole provisional regions (never triangles)
+//   C  chamfer cone  (new TU)         — claimChamferConesC; Origin::ChamferCone
+//   C1 fillet claim  refit_fillet.cpp — strips of <= 3 unclaimed provisionals, D7 radius
+//   A3 plane commit  refit_grow.cpp   — every still-unclaimed provisional -> PlaneGrow plane
+//   D  topology      refit_chains.cpp — chains, I8, loops/LoopRole, ids, RefitStats
+//   glue             refit_segment.cpp — resolve SegmentParams/DerivedTols, sequencing, threads
+//   math             refit_math.cpp   — Jacobi/PCA/Eberly/Pratt/Gauss-map/dVol (no Eigen)
+//
+// B1 claims whole provisional regions, not individual triangles, because the
+// discriminating vertex-residual signal is maximal on a designed tangent plane
+// (large extent -> immediate blow-up) and ~0 on a true cylinder band (D1 §1.2).
+// RegionSet::regions is not materialised until stage D, so no published region id
+// is ever rewritten.
+//
+// DerivedTols: segment() resolves epsMesh/epsPlane/angles once (D5.2) into a
+// DerivedTols passed to every stage entry point. R-dependent tolerances
+// (epsCylGrow, epsCylAccept, epsFillet) are inline helpers on that struct, not
+// stored fields — they stay out of SegmentParams per D5.2.
+//
+// Determinism (I5) — obligation on every stage before a TU boundary:
+//   * sort every produced collection by the D5.6 keys (each key ends in an id);
+//   * accumulate every floating-point reduction in ascending local triangle id;
+//   * never sort on a key that can tie without a trailing id field.
+//
+// SPDX-License-Identifier: MIT
+
+#ifndef STL2STEP_REFIT_INTERNAL_HPP
+#define STL2STEP_REFIT_INTERNAL_HPP
+
+#include <array>
+#include <cmath>
+#include <cstdint>
+#include <utility>
+#include <vector>
+
+#include <gp_Ax1.hxx>
+#include <gp_Ax2.hxx>
+#include <gp_Ax3.hxx>
+#include <gp_Dir.hxx>
+#include <gp_Pnt.hxx>
+
+#include "refit.hpp"
+
+namespace stl2step { namespace refit {
+
+// --- A2 currency; internal only — no Region id, never dumped -----------------
+
+enum class ProvClaim : uint8_t {
+    Unclaimed,          // eligible for B1 seed/grow, C1, or A3
+    InCylinderClaim,    // transient B1 member; rollback restores Unclaimed
+    ConsumedCylinder,   // B1 committed; permanently ineligible
+    InFilletClaim,      // transient C1 member; rollback restores Unclaimed
+    ConsumedFillet,     // C1 committed; permanently ineligible
+    PendingTorus,       // stage T admitted; A3 skips; commit or revert at U-3
+    ConsumedTorus,      // toroidal-round stage committed; permanently ineligible
+    CommittedPlane,     // A3 committed as PlaneGrow
+    ConsumedRuled       // D-fc-5.9 ruled quad committed; permanently ineligible
+};
+
+struct Provisional {
+    int chartId = -1;
+    std::vector<int> tris;          // LOCAL triangle ids, ascending (I5)
+    gp_Ax3 plane;                   // A2 running-PCA plane (point + normal)
+    double area = 0;
+    double maxVertexDev = 0;
+    double rmsVertexDev = 0;
+    ProvClaim claim = ProvClaim::Unclaimed;
+    bool seedTried = false;         // B1: after a failed claim involving this region,
+                                    // may be absorbed but never seed again (D1 §1.3)
+};
+
+// D5.2 derived-not-stored constants — computed once in refit_segment.cpp, read-only
+// everywhere else. R-dependent helpers are functions, not cached fields.
+struct DerivedTols {
+    double epsMesh = 0;
+    double epsPlane = 0;
+    double thetaPlane = 0;    // radians
+    double thetaSharp = 0;
+    double thetaCylLo = 0;
+    double thetaCylHi = 0;
+    double thetaBin = 0;
+
+    static constexpr double kGaussPlanarity = 0.05;
+    static constexpr double kG3Lo = 0.35;
+    static constexpr double kG3Hi = 2.00;
+    static constexpr double kG5SpanClosedDeg = 300.0;
+    static constexpr double kG5SpanPartialDeg = 40.0;
+    static constexpr int    kG5NSidesMin = 6;
+    static constexpr int    kG5NBandsMin = 4;
+
+    static inline double gaussAxisTiltSin() {
+        return std::sin(3.0 * M_PI / 180.0);
+    }
+    inline double epsCylGrow(double R) const {
+        return std::max(epsMesh, 0.05 * R);
+    }
+    inline double epsCylAccept(double R) const {
+        return std::max(epsMesh, 0.01 * R);
+    }
+    inline double epsFilletTol(double R) const {
+        return std::max(epsMesh, 0.05 * R);
+    }
+};
+
+// Coarse Fusion/STLB export band (handle-lock @ 908 tris). Lane B coarse gates
+// and adaptCoarseSegmentParams must stay in sync — unscoped B (nTri<=1200 or
+// global evaluateCommit/A3 changes) breaks p2real S13/S14 fillet fixtures.
+// DO NOT WIDEN: S13/S14 (16/20 tris, fillet R=2/2.5) sit outside this band.
+inline bool coarseFusionBand(const MeshView& mv) {
+    return mv.nTri >= 500 && mv.nTri <= 1200;
+}
+
+// Arch-chain detector applicability (chaingen-math). Overlaps coarseFusionBand
+// on [500, 1200]; upper bound ~8000 excludes Body11 file (15300 tris) and its
+// 12060-tri body. S13/S14 stay outside both predicates. Grow commit remains
+// gated by coarseFusionBand until the grow lane wires this predicate.
+inline bool archChainBand(const MeshView& mv) {
+    return mv.nTri >= 500 && mv.nTri <= 8000;
+}
+
+// Stage T: cylinders are not removed until U-3 ships the torus face (D-140-6 heal).
+
+// Working state threaded A1 -> D. Region ids and loops are filled in buildTopologyD.
+struct SegmentWork {
+    std::vector<int> triChart;          // size mv.nTri
+    int nCharts = 0;
+    std::vector<Provisional> provisionals;
+    std::vector<Region> accepted;       // geometry from B1/C1/A3; topology from D
+    std::vector<Region> rejected;       // B1 G1-G4 rollbacks only (G5 silent)
+    std::vector<TorusPendingReclaim> torusPending;
+    bool torusAdmitted = false;         // stage T committed at least one candidate
+    // D-gid-3.3: certified parallel pairs the H0 parallel arm deferred (prov
+    // ids, lo < hi). claimRelExtrude records them; claimRelExtrudePole reads.
+    std::vector<std::pair<int, int>> relPolePairs;
+};
+
+// --- Stage entry points (one per D1 §1.2 stage; bool = stage ok, never throws) -
+
+bool chartsA1(const MeshView& mv, const SegmentParams& p, const DerivedTols& tol,
+              SegmentWork& work);
+
+bool growProvisionalA2(const MeshView& mv, const SegmentParams& p, const DerivedTols& tol,
+                       SegmentWork& work);
+
+bool claimCylindersB1(const MeshView& mv, const SegmentParams& p, const DerivedTols& tol,
+                      SegmentWork& work);
+
+bool claimFilletsC1(const MeshView& mv, const SegmentParams& p, const DerivedTols& tol,
+                    SegmentWork& work);
+
+bool claimToriT(const MeshView& mv, const SegmentParams& p, const DerivedTols& tol,
+                SegmentWork& work);
+
+bool commitPlanesA3(const MeshView& mv, const SegmentParams& p, const DerivedTols& tol,
+                    SegmentWork& work);
+
+bool buildTopologyD(const MeshView& mv, const SegmentParams& p, const DerivedTols& tol,
+                    SegmentWork& work, RegionSet& out);
+
+// --- refit_math.cpp primitives (written in-TU; no Eigen) ---------------------
+
+bool jacobiEigenSymmetric3(const std::array<std::array<double, 3>, 3>& m,
+                           std::array<double, 3>& eval,
+                           std::array<std::array<double, 3>, 3>& evec);
+
+bool pcaPlane(const MeshView& mv, const std::vector<int>& tris, gp_Ax3& plane);
+
+// D-130-1 on an INTERRUPTED counted N-gon wall (130-cylcyl.md 3.3): the radius
+// of a counted N-gon wall is the circumradius through its CORNERS. A vertex
+// is a corner when the wall's own triangles resolve a fold at it; a vertex at
+// which every incident wall triangle is coplanar within the file's
+// quantization q lies on a facet PLANE (another bore's generator piercing this
+// wall) and must not weigh on the fit. Returns true only when the wall HAS
+// such interior vertices and every corner sits on the corner fit within q --
+// then the fit is the geometry and no chord lift applies. Walls without
+// interior vertices (every plain tessellated cylinder) are untouched.
+bool cornerCertifiedRadius(const MeshView& mv, const std::vector<int>& tris, const gp_Dir& axis,
+                           int nSides, gp_Pnt& center, double& radius, int& nCorner,
+                           int& nInterior, double& maxResid);
+
+bool eberlyCenterRadius(const MeshView& mv, const std::vector<int>& tris,
+                        const gp_Dir& axis, gp_Pnt& center, double& radius);
+
+// Geometric least-squares cylinder over the unique vertices of `tris`, with the
+// axis DIRECTION among the unknowns (D-130-12). `axisSeed` is the starting
+// direction and fixes the returned hemisphere; `centerOut` is the axis point
+// nearest the vertex mean; `maxResidOut` is the max |radial distance - radius|
+// over those vertices. Levenberg-Marquardt, hard-capped at `maxIters` accepted
+// steps (I5). Returns false rather than a plausible-looking answer.
+bool cylinderFitLS(const MeshView& mv, const std::vector<int>& tris, const gp_Dir& axisSeed,
+                   gp_Dir& axisOut, gp_Pnt& centerOut, double& radiusOut, double& maxResidOut,
+                   int maxIters = 16);
+
+bool prattCircleFit(const gp_Pnt* points, std::size_t n, double spanRad,
+                    gp_Pnt& center, double& radius);
+
+bool gaussMapAxis(const MeshView& mv, const std::vector<int>& tris, gp_Dir& axis);
+
+double chordSagitta(double radius, int nSides);
+
+// Chord-sagitta / inscribed-polygon radius recovery (refit_math.cpp).
+double radiusFromChordLength(double chordLen, int nSides);
+double circumradiusFromInscribed(double rInscribed, int nSides);
+double radiusFromChordSagitta(double halfChord, double sagitta);
+int estimateFullCircleSides(const MeshView& mv, const std::vector<int>& tris);
+bool refineCylinderRadius(const MeshView& mv, const std::vector<int>& tris,
+                          const gp_Dir& axis, gp_Pnt& center, double& radius,
+                          int nSides, double spanRad, double rHint = 0.0);
+
+double dVolCylinderSector(double areaReg, double radius, int nSides, bool outwardNormal);
+
+double dVolPlaneRegion(const MeshView& mv, const std::vector<int>& tris, const gp_Ax3& ax);
+
+// D-gid-7.6 / D-gid-7.15 / D-gid-7.17 / D-gid-8.6 / D-gid-8.8: exact chord volume of a FilletStrip
+// cylinder, a CylGrow cylinder with maxVertexDev <= tauOf(mv) or ringCertified, a torus, or a
+// closed apex ChamferCone with maxVertexDev <= tauOf(mv), over
+// its own triangles (refit_relational_revolve.cpp,
+// which owns refit_band_volume.hpp; the P1 include allowlist keeps it out of
+// refit_math.cpp). false otherwise. out is signed by outwardNormal (I9) with
+// the exact magnitude (D-gid-7.15); physicalOut, when given, receives the net
+// signed volume (it can oppose I9's sign on the saddle side of a torus).
+bool dVolExactOfRegion(const MeshView& mv, const Region& r, double& out,
+                       double* physicalOut = nullptr);
+
+// Large-R arc strip (lane F): monotonic normal rotation about a common axis, or a
+// static-normal vertex ring on coarse tessellation. Used by peelLargeArcStripsA2b.
+struct ArcStripDetect {
+    bool ok = false;
+    gp_Dir axis;
+    gp_Pnt center;
+    double radius = 0;
+    double spanRad = 0;
+    bool staticNormals = false;
+    double chainScore = 0.0;  // arch-chain signal strength (lane ARCHCHAINS)
+    bool fromArchChain = false;
+    double areaCV = 0.0;      // relative area CV of the ordered chain
+    double angCV = 0.0;       // relative dihedral CV of arc links
+    int chainN = 0;           // triangle count of the ordered chain
+};
+
+bool detectLargeArcStrip(const MeshView& mv, const std::vector<int>& tris,
+                         const DerivedTols& tol, ArcStripDetect& out);
+
+// Point-to-point arch chain (lane ARCHCHAINS): equal-area strip chain with uniform
+// dihedral steps; R = w/(2 sin(θ/2)). Returns chainScore in out.chainScore.
+bool detectArchChain(const MeshView& mv, const std::vector<int>& tris,
+                     const DerivedTols& tol, ArcStripDetect& out);
+
+// Core chain-chord radius from an ordered tri path; axis filters circumferential edges.
+bool radiusFromArchChain(const MeshView& mv, const std::vector<int>& chain,
+                         const gp_Dir& axis, double& radiusOut, double& chainScoreOut,
+                         double rHint = 0.0);
+
+// Build path chain from patch tris and compute arch-chain radius (evaluateCommit hook).
+bool archChainRadiusFromPatch(const MeshView& mv, const std::vector<int>& tris,
+                              const gp_Dir& axis, double& radiusOut,
+                              double& chainScoreOut, double rHint = 0.0);
+
+bool peelLargeArcStripsA2b(const MeshView& mv, const DerivedTols& tol, SegmentWork& work);
+
+// src/refit_internal.hpp  — Stage L (law-band recognition), D4 §1-2.
+// d and alpha are PER-EXPORT unknowns: intervals, never points (RULE 4.2b).
+struct TessLawInterval {
+    double dLo = 0.0, dHi = 0.0;        // mm, chordal deviation; empty when dHi <= dLo
+    double alphaLo = 0.0, alphaHi = 0.0;// rad, adjacent-normal cap; alphaHi<=alphaLo => unconstrained
+    int    nDLimited = 0, nAlphaLimited = 0;
+    bool   empty = true;                // RULE 4.2c: true => decline wholesale
+};
+
+struct LawBand {
+    std::vector<int>    tris;           // owning triangles
+    std::vector<double> theta;          // per-strip generator angle, rad
+    std::vector<double> w;              // per-strip circumferential chord, mm
+    double  R = 0.0;                    // median w_i/(2 sin(theta_i/2))  -- RULE 4.1d
+    gp_Ax1  axis;                       // from Delta-theta ~ 0 generator edges
+    double  phi = 0.0;                  // sum theta_i, or 2*pi when closed
+    int     N = 0;                      // strips == theta.size()
+    bool    closed360 = false;
+    double  cvTheta = 0.0, cvR = 0.0, maxVertResid = 0.0;  // Tier-1 residuals
+    bool    lowConfidence = false;      // RULE 4.2d: N == 2
+    bool    virtualGen = false;        // D-130-8: chain built on the facet-plane
+                                       // intersection lines, not on mesh edges
+};
+
+// Tier 1 -- parameter-free. No d, no alpha, no degree threshold.
+bool lawChainAccept(const MeshView& mv, const std::vector<int>& tris,
+                    const DerivedTols& tol, LawBand& out);
+
+// D-130-8 seed bootstrap: folds the mesh resolves, and how many are parallel.
+void lawVirtualFoldCount(const MeshView& mv, const std::vector<int>& tris,
+                         const DerivedTols& tol, int& nFolds, int& nParallel);
+
+// Tier 2 -- constraint intersection over accepted bands. Never gates Tier 1.
+TessLawInterval lawCalibrate(const std::vector<LawBand>& bands);
+
+// Advisory only (RULE 4.2b). Returns the SET of N consistent with the interval.
+bool lawNConsistent(const LawBand& b, const TessLawInterval& li);
+
+// RULE 4.1b/4.1c. Merge iff coaxial + R-consistent + shared generator + still equal-theta.
+bool lawBandsMergeable(const LawBand& a, const LawBand& b, const DerivedTols& tol);
+
+// Stage L entry (owned by L2). Runs AFTER growProvisionalA2, BEFORE claimCylindersB1
+// and commitPlanesA3. Gated to archChainBand(mv). RULE 4.1a.
+bool claimLawBandsL(const MeshView& mv, const SegmentParams& p, const DerivedTols& tol,
+                    SegmentWork& work);
+
+bool claimNgonWallsA(const MeshView& mv, const SegmentParams& p, const DerivedTols& tol,
+                     SegmentWork& work);
+// pass 1 runs after L/A (the stages that certify closed-360 cylinders) and
+// BEFORE B1; pass 2 runs after B1, for a ring whose neighbour cylinder only B1
+// finds. See the ordering note in refit_segment.cpp.
+bool claimChamferConesC(const MeshView& mv, const SegmentParams& p, const DerivedTols& tol,
+                        SegmentWork& work, int pass = 2);
+
+// D-fc-1.3 / D-fc-1.12. Wave-1 relational stages. W1.0 definitions are no-op
+// stubs; the owning lane fills each TU. RelRevolveMode selects H0 (Line) or
+// H1 (Torus).
+struct MeshRing;  // refit_relational_arc.hpp (ring donors)
+
+enum class RelRevolveMode : uint8_t { Line, Torus };
+bool claimRelExtrude (const MeshView&, const SegmentParams&, const DerivedTols&, SegmentWork&);
+// D-gid-5.13: the Gauss-pole extrude axis as a late pass, after the Line lift
+// and its reclaim, on what is still unclaimed. A fallback axis source.
+bool claimRelExtrudePole(const MeshView&, const SegmentParams&, const DerivedTols&, SegmentWork&);
+bool refuteNgonByLaw (const MeshView&, const SegmentParams&, const DerivedTols&, SegmentWork&);
+// D-fc-5.17 F-2 / D-fc-2 P-TL: a mesh ring loop is a polygon (not a rim) when
+// its azimuth step is no finer than a tess-law witness at radius <= R + tau.
+bool meshRingRefutedByTessLaw(const MeshView&, const SegmentParams&, double tau,
+                              const SegmentWork&, const MeshRing&,
+                              const std::vector<const MeshRing*>& peerRings);
+// D-gid-8.4. The tessellation law (D-fc-2.1) on a closed ring band that folds
+// at or above thetaCylLo (claimRingCylinders): its concyclic vertices cannot
+// tell an N-gon prism from a sampled circle. Samples are the admissible rails
+// of the certified non-N-gon references in work.accepted (the witness set W).
+struct TessLawSample {
+    int minTri = -1;
+    double r = 0.0;
+    int k = 0;
+    double maxStep = 0.0;
+    double U = 0.0;
+};
+enum class TessLawVerdict : uint8_t { NoRef, Keep, Refute };
+struct TessLawDecision {
+    TessLawVerdict verdict = TessLawVerdict::NoRef;
+    int refRid = -1;
+    double refR = 0.0;
+    int refK = 0;
+    double refStep = 0.0;
+    double bound = 0.0;
+};
+std::vector<TessLawSample> tessLawSamples(const MeshView&, const SegmentParams&, double tau,
+                                          const SegmentWork&);
+// The band's coarsest boundary-rail step (D-fc-2.1 rails, k >= 2) about its
+// cylinder; false when it has no such rail.
+bool tessLawBandStep(const MeshView&, const std::vector<int>& band, const gp_Dir& axis,
+                     const gp_Pnt& centre, double radius, double tau, double& step, int& k);
+// Refute iff some sample with r <= R + tau has step >= U; Keep when samples
+// with r <= R + tau exist and none hits; NoRef otherwise (D-fc-1.9).
+TessLawDecision tessLawDecide(const std::vector<TessLawSample>& samples, double R, double step,
+                              double tau);
+// apexOnly re-runs the drill-point claim after ring-wall closure (D-gid-5.17).
+bool claimRelRevolve (const MeshView&, const SegmentParams&, const DerivedTols&, SegmentWork&, RelRevolveMode,
+                      bool apexOnly = false);
+bool reclaimRelational(const MeshView&, const SegmentParams&, const DerivedTols&, SegmentWork&, RelRevolveMode);
+// D-gid-8.18. A drafted wall whose axis is a certified plane's normal
+// (src/refit_drafted_cone.cpp): after the sphere corners, before A3.
+bool claimDraftedCones(const MeshView&, const SegmentParams&, const DerivedTols&, SegmentWork&);
+// D-gid-2.6. Anchored quarter-round tori (src/refit_anchored_round.cpp): after H1,
+// on cylinder donors. D-gid-8.18: coneDonors runs it again after the drafted
+// walls, on cone donors only (a partial torus admitted).
+bool claimAnchoredRounds(const MeshView&, const SegmentParams&, const DerivedTols&, SegmentWork&,
+                         bool coneDonors = false);
+
+// D-fc-5.11 F8. Sphere corners (src/refit_relational_sphere.cpp): after every
+// stage that certifies a round (H1), before A3.
+bool claimSphereCorners(const MeshView&, const SegmentParams&, const DerivedTols&, SegmentWork&);
+
+// D-gid-8.4. The wall between two certified coaxial rims, closed as the cylinder
+// or cone it certifies as (src/refit_relational_reclaim.cpp): after the sphere
+// corners, before A3, on what every family left.
+bool claimRingFrustums(const MeshView&, const SegmentParams&, const DerivedTols&, SegmentWork&);
+
+// D-gid-7.12. Same-surface growth of the certified tori (src/refit_relational_reclaim.cpp):
+// after A3, on the triangles every other stage left.
+bool claimTorusSameSurface(const MeshView&, const SegmentParams&, SegmentWork&);
+
+// D-gid-8.2. Only a lateral facet can be part of a wall (src/refit_grow.cpp):
+// after A3 and the torus same-surface growth, before D. A cylinder's
+// non-lateral triangles move, per edge-connected set, to the one adjacent
+// certified plane whose vertex certificate covers the set; else they stay.
+bool releaseCapTriangles(const MeshView&, const DerivedTols&, SegmentWork&);
+
+bool tryPlaneLoopCircles(RegionSet& rs, const MeshView& mv, double sewTol);
+
+// --- D-140-8 U-R5..U-R8, U-R13: the same-surface UNION CENSUS -----------------
+// Implemented in src/refit_union_census.cpp, its own translation unit (the
+// D-130-3 CONE-MATH shape): pure measurement on MeshView against a certified
+// cylinder, no Region, no build path, so union_census_unit compiles that one
+// file. Declared here rather than in a header of its own because refit_grow.cpp
+// (the only caller) is on the D5.3 include allowlist.
+// closed-form supremum of the tessellation's departure from the claimed surface,
+// computed from the claim's own welded mesh edges.  D-140-8 U-R5.
+//
+//   sigma(S, C) = max over the welded mesh edges of C of (R - dist(axis, edge midpoint))
+//
+// the inscribed-chord deviation of the tessellation the exporter actually wrote.
+// A DOMAIN tolerance (which mesh points the face's wires enclose), never a FIT
+// tolerance: the certificate stays tau = 2q (D-130-13(2)). Each welded edge is
+// visited once; an axial generator edge contributes exactly 0. Returns 0 for an
+// empty claim or a MeshView without an edge table.
+double claimChordSagitta(const MeshView& mv, const std::vector<int>& claim,
+                         const gp_Ax1& axis, double R);
+
+// The census a `DIAG_LAWUNION` line prints (U-R13). Every count is measured on
+// the mesh; nothing is inferred from a Region or from RESULT.
+struct UnionCensus {
+    double      sigma         = 0.0;  // U-R5, mm
+    std::size_t nTri          = 0;    // claim triangles (deduplicated, in range)
+    std::size_t edgePieces    = 0;    // edge-connected pieces of the claim
+    std::size_t punctures     = 0;    // U-R6: non-claim vertices incident to the claim's
+                                      //       neighbourhood with dist(v, S) <= sigma
+    std::size_t domainTris    = 0;    // claim + the on-surface part of its punctures' stars
+    std::size_t domainFaces   = 0;    // U-R7: connected components of the domain graph
+    std::size_t pinchVertices = 0;    // U-R8: vertices whose link inside a component is
+                                      //       disconnected (>= 2 edge-connected fans)
+    std::vector<std::size_t> sizes;   // claim triangles per domain component
+    std::vector<std::size_t> pieces;  // edge-pieces of the claim per domain component
+};
+
+// U-R6 domain graph: the claim's triangles plus, for every puncture vertex, the
+// triangles of its mesh star whose every vertex is a claim vertex or a puncture
+// (the star's on-surface part -- U1's 24 on the plate), connected by shared
+// mesh VERTICES (a shared vertex is a shared point of S -- D-130-14's
+// surface-side connectivity); components ascending minimum triangle id (I5).
+// Punctures are found to a fixed point over the domain's own neighbourhood; a
+// vertex farther than sigma from S is exterior and stays so.
+UnionCensus unionCensus(const MeshView& mv, const std::vector<int>& claim,
+                        const gp_Ax1& axis, double R);
+
+// Pratt / LS circle in the owning plane. N≥6 unique loop verts; accept iff
+// max vertex residual ≤ max(sewTol, chordSagitta(R,N)). Stadium/slot mixed
+// loops fail residual. Builder (agent 06) calls this during collapse to emit
+// Geom_Circle; do not force-polyline when this returns false if IntAna already
+// produced a curve.
+bool loopIsCircle(const RegionSet& rs, const Loop& loop, const MeshView& mv,
+                  gp_Ax2& ax, double& R, double sewTol);
+
+// Cache filled by tryPlaneLoopCircles (thread_local). loopIndex indexes
+// Region::loops. Returns false if that loop was not tagged.
+bool planeLoopCircleOf(int regionId, int loopIndex, gp_Ax2& ax, double& R);
+
+// Same cache, keyed by RegionSet::chains index. A multi-chain circular loop
+// shares one (ax,R); each chain is an arc of that circle, not a full circle.
+bool planeLoopCircleForChain(int chainIndex, gp_Ax2& ax, double& R);
+
+}}  // namespace stl2step::refit
+
+#endif  // STL2STEP_REFIT_INTERNAL_HPP
