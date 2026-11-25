@@ -197,19 +197,19 @@ calls for you.
 
 ## 5. Subprocess integration (any language)
 
-Spawn the CLI and read the **last stdout line**:
+Spawn the CLI and read the **last stdout line** when it has the expected prefix:
 
 - **Convert mode** (default): `RESULT {json}` — exit `0` clean, `2` written-with-warnings, `1` failed.
 - **Mesh mode** (`--mesh`): `MESH_RESULT {json}` — exit `0` ok, `1` failed (no exit 2).
 
-Use `--quiet` so the contract line is the *only* stdout line. Errors/warnings
-go to stderr; the last line prefix and exit code are the contract.
+Use `--quiet` to suppress progress output. Errors and warnings go to stderr.
+Argument errors can exit with code 1 before a contract line is emitted.
 
 ### Rules
 
-- **Parse only the contract line** (`RESULT ` or `MESH_RESULT `). Everything before
-  it is human progress text — do not scrape it. With `--quiet`, stdout is exactly
-  one line.
+- **Parse only the contract line** (`RESULT ` or `MESH_RESULT `). With
+  `--quiet`, stdout contains only that line once conversion or meshing runs.
+  If the line is missing on failure, report stderr.
 - **Strip the prefix** (`RESULT ` = 7 chars, `MESH_RESULT ` = 13 chars) before
   JSON-parsing, or match the first `{` onward and branch on the prefix.
 - **Trust the exit code**: convert `0`/`2` → a STEP exists at `output`; mesh `0` →
@@ -227,7 +227,11 @@ go to stderr; the last line prefix and exit code are the contract.
 ### Python
 
 ```python
-import json, subprocess
+import json
+import logging
+import subprocess
+
+logger = logging.getLogger(__name__)
 
 def stl_to_step(stl_path, step_path, *, inches=False, verify=False, smooth=False):
     cmd = ["cad_mesh_recovery", stl_path, "-o", step_path, "--quiet"]
@@ -235,13 +239,18 @@ def stl_to_step(stl_path, step_path, *, inches=False, verify=False, smooth=False
     if not verify:  cmd += ["--no-verify"]
     if smooth:      cmd += ["--smooth"]
     p = subprocess.run(cmd, capture_output=True, text=True)
-    line = p.stdout.strip().splitlines()[-1]          # the RESULT line
-    result = json.loads(line[len("RESULT "):])
-    if not result["ok"]:                              # exit 1
-        raise RuntimeError(f"cad_mesh_recovery failed: {result.get('error')}\n{p.stderr}")
-    if result["warnings"]:                            # exit 2, file still written
-        for w in result["warnings"]:
-            log.warning("cad_mesh_recovery: %s", w)
+    if p.returncode not in (0, 2):
+        detail = p.stderr.strip() or f"exit code {p.returncode}"
+        raise RuntimeError(f"cad_mesh_recovery failed: {detail}")
+    prefix = "RESULT "
+    lines = p.stdout.splitlines()
+    if not lines or not lines[-1].startswith(prefix):
+        raise RuntimeError("cad_mesh_recovery did not emit RESULT")
+    result = json.loads(lines[-1][len(prefix):])
+    if not result["ok"]:
+        raise RuntimeError(result.get("error") or "cad_mesh_recovery failed")
+    for warning in result["warnings"]:
+        logger.warning("cad_mesh_recovery: %s", warning)
     return step_path, result
 ```
 
@@ -249,34 +258,46 @@ def stl_to_step(stl_path, step_path, *, inches=False, verify=False, smooth=False
 
 ```js
 const { execFile } = require("node:child_process");
-function stlToStep(stl, step, { inches = false, verify = false, smooth = false } = {}) {
+const { promisify } = require("node:util");
+const run = promisify(execFile);
+
+async function stlToStep(stl, step, { inches = false, verify = false, smooth = false } = {}) {
   const args = [stl, "-o", step, "--quiet"];
   if (inches) args.push("--units", "in");
   if (!verify) args.push("--no-verify");
   if (smooth) args.push("--smooth");
-  return new Promise((resolve, reject) => {
-    execFile("cad_mesh_recovery", args, (err, stdout) => {
-      const line = stdout.trim().split("\n").at(-1);
-      const r = JSON.parse(line.replace(/^RESULT /, ""));
-      if (!r.ok) return reject(new Error(r.error || "cad_mesh_recovery failed"));
-      resolve({ step, result: r });        // r.warnings may be non-empty (exit 2)
-    });
+  const { stdout } = await run("cad_mesh_recovery", args).catch(error => {
+    if (error.code === 2) return error;
+    throw new Error(error.stderr?.trim() || error.message);
   });
+  const prefix = "RESULT ";
+  const line = stdout.trimEnd().split("\n").at(-1);
+  if (!line.startsWith(prefix)) throw new Error("cad_mesh_recovery did not emit RESULT");
+  const result = JSON.parse(line.slice(prefix.length));
+  if (!result.ok) throw new Error(result.error || "cad_mesh_recovery failed");
+  return { step, result };
 }
 ```
 
 ### Shell
 
 ```sh
-if cad_mesh_recovery "$in" -o "$out" --quiet --no-verify >/tmp/r 2>/dev/null; then
-    :   # exit 0 or 2 -> file written; inspect "$(cat /tmp/r)" for warnings
-else
-    echo "conversion failed: $(sed 's/^RESULT //' /tmp/r)" >&2
-fi
+status=0
+result=$(cad_mesh_recovery "$in" -o "$out" --quiet --no-verify) || status=$?
+case "$status" in
+    0|2)
+        printf '%s\n' "$result"
+        ;;
+    *)
+        if [ -n "$result" ]; then printf '%s\n' "$result" >&2; fi
+        exit "$status"
+        ;;
+esac
 ```
 
-Because each invocation is independent, batch with `xargs -P` /
-`parallel` for many files.
+The shell wrapper exits successfully on CLI status 0 or 2 and preserves the
+failure status otherwise. It leaves stderr visible and captures each invocation
+separately so you can batch with `xargs -P` or `parallel` using distinct output paths.
 
 ---
 
