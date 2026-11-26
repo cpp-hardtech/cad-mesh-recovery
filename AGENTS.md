@@ -170,8 +170,8 @@ if (!r.ok) {
 ```cmake
 include(FetchContent)
 FetchContent_Declare(cad_mesh_recovery
-    GIT_REPOSITORY https://github.com/<owner>/cad_mesh_recovery.git
-    GIT_TAG        v1.0.0)
+    GIT_REPOSITORY https://github.com/cpp-hardtech/cad-mesh-recovery.git
+    GIT_TAG        fbc1ade94a6751bfae6fd0a7dcd28965c36dea3a)
 FetchContent_MakeAvailable(cad_mesh_recovery)
 target_link_libraries(your_target PRIVATE cad_mesh_recovery::core)
 ```
@@ -381,9 +381,9 @@ separately so you can batch with `xargs -P` or `parallel` using distinct output 
 ## 9. Versioning
 
 `cad_mesh_recovery::version()` / `cad_mesh_recovery --version` returns the semantic version
-(`1.1.0-pre`). The `Options` field set, the `Result`/`RESULT` field set, and the
+(for example, `1.11.0`). The `Options` field set, the `Result`/`RESULT` field set, and the
 exit codes are the compatibility surface — additive changes only within a major
-version. Pin a tag (`GIT_TAG v1.0.0`) when embedding.
+version. Pin a published commit or release tag when embedding.
 
 RESULT addendum: when `Options::smooth` is true, `toJson()` / the CLI `RESULT`
 line appends the `smooth*` keys after `warnings`. Those keys are present
