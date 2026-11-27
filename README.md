@@ -201,8 +201,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 ## License
 
 Distributed under the MIT License. The original copyright notice and the full license text
-are retained in [LICENSE](LICENSE). Provenance and attribution are documented in
-[NOTICE](NOTICE).
+are retained in [LICENSE](LICENSE).
 
 This software links against Open CASCADE Technology, which is licensed under LGPL-2.1 with an
 additional exception. OCCT is a separate dependency and is not bundled with this source tree.
