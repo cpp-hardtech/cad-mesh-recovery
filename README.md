@@ -192,6 +192,7 @@ subprocess integrations, see the CLI recipes in [AGENTS.md](AGENTS.md).
 ## Documentation
 
 - [Reconstruction method](docs/METHOD.md)
+- [Read STEP preview artifacts](docs/STEP-PREVIEW.md)
 - [CLI integration recipes](AGENTS.md)
 
 ## Contributing
