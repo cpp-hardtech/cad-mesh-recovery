@@ -89,9 +89,51 @@ cad_mesh_recovery part-in-inches.stl --units in --schema AP242 --threads 4
 cad_mesh_recovery --mesh part-analytic.step -o preview.stl --edges preview.edges
 ```
 
-For a supported prismatic part, add `--dxf profiles` together with `--engine trueform` to
-export one DXF per recognised level. `cad_mesh_recovery --help` lists every option. The
-geometry and tolerance checks are described in [docs/METHOD.md](docs/METHOD.md).
+`cad_mesh_recovery --help` lists every option. The geometry and tolerance checks are
+described in [docs/METHOD.md](docs/METHOD.md).
+
+### Export and inspect TrueForm profiles
+
+`--dxf <dir>` names the output directory for DXF drawings. TrueForm can emit one drawing
+per recognised prismatic slab between consecutive cap levels. Each drawing contains
+fitted profile geometry in millimetres. The filenames follow
+`<input-stem>-comp<N>-slab<N>.dxf`.
+
+Save this block as `export-profiles.sh`. From the repository root with
+`cad_mesh_recovery` on your `PATH`, run `sh export-profiles.sh` for the bundled
+sample or `sh export-profiles.sh part.stl` for another input.
+
+```sh
+input=${1:-tests/corpus/handle-lock.stl}
+job_dir=$(mktemp -d) || exit 1
+status=0
+cad_mesh_recovery "$input" --engine trueform --quiet \
+  -o "$job_dir/part.step" --dxf "$job_dir/profiles" \
+  >"$job_dir/result.txt" || status=$?
+
+case "$status" in
+  0|2) ;;
+  *) cat "$job_dir/result.txt" >&2; exit "$status" ;;
+esac
+
+printf 'STEP file %s\nConversion result %s\n' "$job_dir/part.step" "$job_dir/result.txt"
+found=0
+for drawing in "$job_dir/profiles/"*.dxf; do
+  [ -s "$drawing" ] || continue
+  printf '%s\n' "$drawing"
+  found=1
+done
+if [ "$found" -eq 0 ]; then
+  printf 'STEP written. No nonempty DXF profiles under %s\n' "$job_dir/profiles" >&2
+  exit 1
+fi
+```
+
+With OCCT 7.9.3, the bundled handle-lock sample exports two drawings. Open them in a
+2D CAD application to inspect the fitted lines and arcs, and read `result.txt` for the
+separate STEP conversion result and any warnings. A successful STEP conversion can
+leave the DXF directory empty, for example when TrueForm finds no prismatic slabs.
+The recipe treats that outcome as an error for a workflow that requires DXF files.
 
 ## Command-line reference
 
@@ -118,7 +160,7 @@ geometry and tolerance checks are described in [docs/METHOD.md](docs/METHOD.md).
 | Smoothing | `--refit` | Refit surfaces after smoothing. |
 | Performance | `--threads <n>` | Worker thread count. |
 | Verification | `--no-verify` | Skip the reopen and volume check. |
-| Output | `--dxf <mode>` | Export DXF sections (`profiles`). |
+| Output | `--dxf <dir>` | Write one DXF per recognised prismatic slab into this directory. |
 | Output | `--quiet` | Suppress progress output. |
 | Info | `-h, --help` | Print usage and exit. |
 | Info | `-v, --version` | Print the version and exit. |
