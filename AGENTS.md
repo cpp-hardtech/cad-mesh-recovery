@@ -210,8 +210,8 @@ Argument errors can exit with code 1 before a contract line is emitted.
 - **Parse only the contract line** (`RESULT ` or `MESH_RESULT `). With
   `--quiet`, stdout contains only that line once conversion or meshing runs.
   If the line is missing on failure, report stderr.
-- **Strip the prefix** (`RESULT ` = 7 chars, `MESH_RESULT ` = 13 chars) before
-  JSON-parsing, or match the first `{` onward and branch on the prefix.
+- **Strip the matched prefix** before parsing JSON. Use the prefix's length,
+  including its trailing space (`RESULT ` = 7 chars, `MESH_RESULT ` = 12 chars).
 - **Trust the exit code**: convert `0`/`2` → a STEP exists at `output`; mesh `0` →
   an STL exists at `output`; `1` → no output file.
 - **Set `--no-verify`** when you will load the STEP immediately after — your load
