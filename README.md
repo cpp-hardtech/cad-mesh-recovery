@@ -189,6 +189,9 @@ Mesh mode accepts STEP input and prints `MESH_RESULT {json}`, returning `0` on s
 on failure. The optional `--edges` file holds 24-byte records: little-endian float32 endpoint
 pairs for drawing B-Rep edges.
 
+For a directory of STLs, the [batch conversion example](docs/BATCH-CONVERSION.md)
+mirrors the input layout and records each outcome as JSON Lines.
+
 ## C++ integration
 
 Link against `cad_mesh_recovery::core` and include
