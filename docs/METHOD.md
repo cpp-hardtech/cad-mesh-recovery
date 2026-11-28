@@ -109,9 +109,9 @@ time in 3D:
    chains are unambiguous and closure is checkable (every loop must close
    exactly, and its enclosed area must reconcile with the measured cap
    area). The fitted profiles can be emitted directly as DXF drawings
-   (`--dxf <dir>`, one file per level), which doubles as a human-checkable
-   view of exactly what was recognized — see Figure 1's center-to-right
-   transition.
+   (`--dxf <dir>`, one file per recognised slab between consecutive levels).
+   These drawings provide a human-checkable view of what was recognized.
+   See Figure 1's center-to-right transition.
 4. **Rebuild** the solid by extruding each level's profile and uniting the
    levels. Every curved wall now comes into existence as a true cylindrical
    face with correct shared edges *by construction* — there is nothing to
