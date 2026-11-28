@@ -182,6 +182,9 @@ source-to-output comparison can use `meshVolumeMM3` and `stepVolumeMM3`. Above 5
 the B-Rep validity check may be skipped and reports `"validityCheck":"skipped"`. Check
 `openShells` and `warnings` when a downstream consumer requires closed solids.
 
+See [Publish verified closed-solid STEP files](docs/VERIFIED-STEP.md) for a
+runnable intake workflow that checks the result before publishing the STEP.
+
 Mesh mode accepts STEP input and prints `MESH_RESULT {json}`, returning `0` on success and `1`
 on failure. The optional `--edges` file holds 24-byte records: little-endian float32 endpoint
 pairs for drawing B-Rep edges.
